@@ -1,0 +1,18 @@
+# Build artifacts (main.pdf is deliberately TRACKED: the owner ships
+# the final PDF in the repo; regenerate with `make all` before
+# committing it). Figures (figures/*.pdf) and generated value/table
+# files (generated/*.tex) are build artifacts and stay ignored.
+main.aux
+main.bbl
+main.bcf
+main.blg
+main.log
+main.out
+main.fls
+main.fdb_latexmk
+main.run.xml
+main.synctex.gz
+texput.log
+mainNotes.bib
+figures/*.pdf
+generated/*.tex

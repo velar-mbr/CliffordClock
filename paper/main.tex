@@ -1,0 +1,1482 @@
+% SPDX-License-Identifier: AGPL-3.0-or-later
+%
+% CliffordClock methods-and-validation paper (WP15 draft).
+%
+% DRAFT ONLY. The project owner is the sole author of record, reviews
+% every claim below, and decides whether/when/where to submit this
+% document. No agent has submitted, posted, or otherwise distributed
+% this paper anywhere. The author block was filled in by the owner;
+% an acknowledgments section can be added by the owner at finalization.
+%
+% Build: see paper/Makefile (agent build/style notes are kept in the
+% project's internal build-notes record, untracked). Every numeric value below
+% that originates from the codebase is \input from paper/generated/*.tex,
+% produced by paper/figures/*.py against the real cliffordclock pipeline
+% and benchmarks/ code; never hand-typed.
+
+\documentclass[aps,pra,superscriptaddress,groupedaddress,nofootinbib]{revtex4-2}
+
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{xcolor}
+\usepackage{hyperref}
+\usepackage{placeins}
+\usepackage{float}
+
+% Loosen LaTeX's default float-placement fractions: this paper carries
+% more floats (5 figures, 3 tables) than typical default parameters
+% budget for well, and the defaults were causing large deferred blank
+% regions rather than tightly packed pages.
+\renewcommand{\topfraction}{0.9}
+\renewcommand{\bottomfraction}{0.85}
+\renewcommand{\textfraction}{0.07}
+\renewcommand{\floatpagefraction}{0.75}
+\setcounter{topnumber}{4}
+\setcounter{bottomnumber}{4}
+\setcounter{totalnumber}{8}
+
+% --- Generated numeric macros (paper/figures/*.py; regenerate via `make figures`). ---
+\input{generated/npl_values.tex}
+\input{generated/step_size_values.tex}
+\input{generated/showcase_values.tex}
+\input{generated/bbr_jila_values.tex}
+\input{generated/bbr_temperature_values.tex}
+\input{generated/bothwell_values.tex}
+\input{generated/roos_values.tex}
+\input{generated/budget_slice_values.tex}
+
+\usepackage{orcidlink}
+
+\begin{document}
+
+\title{CliffordClock: a Cl(1,3) spacetime-algebra pipeline for field-gradient
+and DC-Stark frequency-shift budgeting in optical lattice clocks}
+
+\author{Michael Rudolph\,\orcidlink{0000-0002-0495-5723}}
+\affiliation{Velar Scientific}
+\email{michael.rudolph@velarscientific.com}
+
+\date{\today}
+
+\begin{abstract}
+Optical lattice and ion clocks target systematic-uncertainty budgets at
+the $10^{-18}$ level, where DC-Stark shifts from residual stray electric
+fields, and the spatial variation of those fields across an extended
+atomic cloud, are a routinely underdocumented systematic. We present CliffordClock, an
+open-source pipeline that takes an imported (CAD/FEA-exported) or
+synthetic electric-field model with real spatial structure, propagates it
+through an atomic ensemble (a classical Monte Carlo cloud moving through
+the field, or a Hermite--Gauss lattice quadrature), and reports the mean
+fractional-frequency shift together with the full inhomogeneous-shift
+budget a spatially varying field produces: the shift's ensemble spread,
+the resulting dephasing time $T_2^*$, and the clock transition's spectral
+line profile. A field-gradient map alone hands a lab none of these; the
+pipeline computes them end to end, from field export to a reported,
+uncertainty-quantified budget. The physical coupling is an
+ordinary scalar second-order DC-Stark pivot,
+$\Delta\nu/\nu_0 = -(\Delta\alpha/2)|E(\mathbf{r})|^2/(h\nu_0)$, using
+literature differential polarizabilities; this scalar evaluation fully
+handles spatially varying fields on its own. Three evaluation modes share
+this physics: a fast analytic mode for lattice-clock motional states
+(exact, no time integration), a trajectory mode that propagates a
+Monte Carlo ensemble's actual motion through a spatially varying field,
+and a general Cl(1,3) spacetime-algebra rotor mode, verified to agree
+with the scalar modes to floating-point precision on every case this
+paper models and serving as the formalism this project is built on for
+physics the scalar modes cannot express
+(Sec.~\ref{sec:limitations}'s roadmap). We
+validate against four closed-form self-consistency cases, four literature
+known-answer cases ($^{87}$Sr, $^{171}$Yb DC-Stark and second-order-Doppler
+formulas, $\mathrm{rtol}=10^{-10}$ or better), a direct rotor/scalar
+cross-check, and two zero-free-parameter \emph{reproducibility}
+cases: NPL's published DC-Stark shift band, and Bothwell et al.'s
+published mm-scale redshift slope. A blind prediction, against data the
+pipeline's inputs did not already combine, would be the stronger claim;
+the project currently reports zero blind-prediction cases, and
+producing one is the concrete next validation goal.
+A showcase scenario propagates a Monte Carlo Sr-87 cloud through a
+finite-difference-solved chamber field with genuine curvature (two
+asymmetric electrodes plus a patch-potential wall spot), reporting a mean
+fractional shift of $\ShowcaseMeanShift$ with a $\ShowcaseShiftSpread$
+ensemble spread and $T_2^*=\ShowcaseTtwoStarUs\,\mu$s, computed
+identically (to $\ShowcaseMeanShiftRelDiff$ relative) through both the
+trajectory and rotor evaluation modes. Code, tests, and
+figure-generation scripts are public under the AGPLv3.
+\end{abstract}
+
+\maketitle
+
+\section{Introduction}
+\label{sec:intro}
+
+Optical atomic clocks based on neutral-atom optical lattices and trapped
+ions have reached fractional-frequency systematic uncertainties at or
+below $10^{-18}$~\cite{Ludlow2015,Aeppli2024,Jia2026}. At this level, a
+clock's DC-Stark shift budget, the frequency shift from a
+transition's differential static scalar polarizability $\Delta\alpha$
+coupling to the square of a residual stray electric field at the atoms,
+is no longer a formality: it is routinely one of several systematics
+that must be independently bounded, and its spatial \emph{gradient}
+across an extended atomic ensemble (a Ramsey-Bord\'e cloud, a
+multi-site optical lattice, or an ion crystal) can broaden the clock
+transition line and add to the shift's own uncertainty even after the
+mean field is nulled. Groups building or upgrading a clock apparatus
+typically characterize this budget with one of three approaches: a
+general-purpose finite-element solver (COMSOL, SIMION, or similar) whose
+output is manually carried into a hand or spreadsheet Stark-shift
+calculation; a lab's own unpublished script, rewritten by each new
+graduate student; or, for detailed treatments of specific atomic
+properties (Rydberg-state Stark maps, polarizability calculations), a
+dedicated tool such as ARC~\cite{Sibalic2017}, in the broader spirit
+of validated, community-maintained physics simulation packages such as
+QuTiP~\cite{Lambert2024} for open quantum systems. None of these directly
+close the loop from an imported field-gradient map (an FEA export, or a
+hand-measured stray-field profile) to a reported, uncertainty-quantified
+fractional-frequency shift and dephasing time for a specific trapped
+ensemble and interrogation protocol. That is the workflow gap this
+project addresses.
+
+CliffordClock is a Python pipeline that takes an electric-field model
+(a closed-form synthetic field, or an imported CSV/COMSOL grid with the
+real spatial structure a CAD/FEA export or a hand-measured survey
+actually has) and an atomic ensemble specification (species, trap,
+motional regime, interrogation time), and closes the loop that field map
+alone leaves open: it reports the resulting fractional frequency shift,
+its statistical uncertainty, \emph{and} the full inhomogeneous-shift
+budget the field's spatial variation produces across the ensemble. That
+budget is the shift's spread, the inhomogeneous dephasing time $T_2^*$,
+and the clock transition's spectral line profile. A lab with only a field-gradient map
+and a hand or spreadsheet calculation gets a single mean-shift number at
+best; this pipeline turns the same map into the dispersion budget that
+map implies, for a specific trapped ensemble and interrogation protocol,
+without re-deriving the perturbation theory or re-implementing a
+numerically stable field-squared evaluation from scratch. Sec.~\ref{sec:showcase}
+demonstrates this end to end on a chamber-scale field with genuine
+curvature. The target regime is the $10^{-18}$-level DC-Stark and
+gradient budgeting relevant to current optical lattice clocks (worked
+here for $^{87}$Sr and $^{171}$Yb, the two $J{=}0\!\to\!J{=}0$ species
+with literature-cited differential polarizabilities in the project's
+species registry).
+
+Physically, this is an ordinary second-order (quadratic) Stark shift:
+optical-clock states carry no permanent electric dipole moment, so the
+field couples via the transition's differential static scalar
+polarizability, and this scalar coupling
+fully handles a spatially varying field on its own: nothing about a
+field gradient or curvature requires anything beyond it. What this
+project adds underneath is a second, independently re-derivable
+formulation of the same physics in the Cl(1,3) spacetime algebra of
+proper time and spin connections~\cite{Hestenes2015,DoranLasenby2003}: a
+\emph{rotor} engine (a rotor is a rotating geometric object representing
+the atom's internal clock phase; advancing it along the atom's
+\emph{worldline}, its path through space and time, is the general
+relativistic-kinematics calculation this project is built on) capable of
+representing boost/rotation effects exactly, with no small-angle or
+single-order perturbative truncation in its own exponential map.
+Section~\ref{sec:model} describes the three evaluation modes and what
+each is for. The scalar modes are performance tiers of one shared
+physical model, and the rotor mode computes the same physics through
+the Cl(1,3) algebra; the two agree to floating-point precision on every
+case this paper computes. The rotor engine earns its place through the
+roadmap physics of Table~\ref{tab:scope}. Magnetic couplings,
+internal-state structure, and transport in accelerating frames all
+carry directional or geometric content, and none of them can be written
+as a simple shift value at each point in space the way the DC-Stark and
+blackbody terms can; representing them takes the rotor's richer
+mathematical object.
+
+\section{Physical model}
+\label{sec:model}
+
+\subsection{The scalar DC-Stark pivot}
+\label{sec:scalar-pivot}
+
+The transition frequency at a point $\mathbf{r}$ in the trap, relative to
+its unperturbed value $\nu_0$, is written as a dimensionless
+\emph{pivot} $P(\mathbf{r})$, the local fractional rate factor
+multiplying proper time, such that the local proper-time rate is
+$d\tau = P(\mathbf{r})\sqrt{1-v^2/c^2}\,dt$. For the physical DC-Stark
+coupling used throughout this paper's validated results,
+\begin{equation}
+  P(\mathbf{r}) - 1 \;=\; \frac{\Delta\nu(\mathbf{r})}{\nu_0}
+  \;=\; -\frac{\Delta\alpha}{2}\,\frac{|E(\mathbf{r})|^2}{h\nu_0} ,
+  \label{eq:e14b}
+\end{equation}
+with $\Delta\alpha = \alpha_{\rm excited}-\alpha_{\rm ground}$ the
+transition's differential static scalar polarizability and $\nu_0$ the
+clock transition frequency (code cross-reference: CONVENTIONS.md
+E14b). Equation~\eqref{eq:e14b} is the same textbook second-order
+Stark formula used throughout the optical-clock
+literature~\cite{Middelmann2012,Sherman2012,Bowden2017}, and every
+evaluation mode in this paper (Sec.~\ref{sec:model-modes}) computes it
+\emph{directly} from the total field $E(\mathbf{r})$ at each point.
+There is no baseline/perturbation split at this stage (that split,
+$E_0$/$\delta E$, belongs to the field smoother upstream,
+Eqs.~\eqref{eq:e11}--E12 below), and no restriction to a spatially
+uniform field anywhere in this formula: a field with a real gradient or
+curvature across the ensemble is evaluated at each atom's own position,
+exactly, by the scalar pivot alone. Sec.~\ref{sec:methods} shows why
+this direct evaluation is numerically safe and how that safety is
+pinned by an adversarial regression test. The
+instantaneous fractional rate perturbation including kinematic
+(second-order Doppler) time dilation is
+\begin{equation}
+  \delta\tilde\omega(\mathbf{r},\mathbf{v}) \;=\;
+  P(\mathbf{r})\sqrt{1-v^2/c^2} - 1 ,
+  \label{eq:e21}
+\end{equation}
+(E21) integrated over an atom's trajectory to give its accumulated
+fractional phase, and averaged over the ensemble (uniform weights for a
+classical Monte Carlo sample; for a lattice motional-state ensemble,
+Gauss--Hermite quadrature weights, a small set of weighted sample points
+that exactly average polynomial functions over the atomic wavefunction)
+to give the reported $\langle\Delta\nu/\nu_0\rangle$ (E22--E23).
+For a $J{=}0\!\to\!J{=}0$
+clock transition (the lattice species $^{87}$Sr and $^{171}$Yb, and the
+$J{=}0\!\to\!J{=}0$ ion clocks $^{27}$Al$^+$ and $^{115}$In$^+$, all in
+the species registry) the scalar $\Delta\alpha$ is the whole DC-Stark
+story. An ion clock whose upper state has $J\ge1$ additionally carries
+a permanent electric-quadrupole moment coupling to the field
+\emph{gradient} at first order; that term is implemented and described
+in Sec.~\ref{sec:quadrupole}, while the tensor-polarizability
+correction to the second-order Stark shift itself remains roadmap
+physics (Sec.~\ref{sec:limitations}). A second, linearized coupling,
+$P(\mathbf{r})-1 = \delta E(\mathbf{r})\!\cdot\!\boldsymbol\mu / (m_ec^2)$
+(E14a, an explicit effective dipole moment $\boldsymbol\mu$), is also
+implemented; Eq.~\eqref{eq:e14b} provably reduces to it under a
+bias-field linearization (CONVENTIONS.md E14b "Bridge identity"). E14a
+is not part of this paper's physical claims about a real DC-Stark
+shift; it is used only for the closed-form self-consistency cases of
+Sec.~\ref{sec:validation} (Table~\ref{tab:validation}, rows V1--V4),
+where an explicit, hand-tunable coupling constant is the useful property.
+
+\subsection{Three evaluation modes, one physical model}
+\label{sec:model-modes}
+\label{sec:rotor-verification}
+
+Eq.~\eqref{eq:e14b}'s pivot is evaluated by three user-facing evaluation
+modes, all computing the same physical quantity, that trade generality for
+speed in a controlled, verified way:
+
+\begin{itemize}
+\item \textbf{Fast analytic mode} (\texttt{integration.mode=fast\_path},
+  the default for lattice-clock motional states): for a static
+  Gauss--Hermite quadrature ensemble (Sec.~\ref{sec:scalar-pivot}) in a
+  time-independent field, the
+  phase accumulated over an interrogation time $T$ is exactly
+  $\Delta\Phi_q = \delta\tilde\omega_q\,\tilde T$ per quadrature node
+  (E29), an algebraic evaluation with no time integration whose cost is
+  therefore independent of $T$.
+\item \textbf{Trajectory mode} (\texttt{integration.mode=direct} for
+  \texttt{ensemble.regime=classical}, the default there): a Monte Carlo
+  ensemble's atoms are propagated on their actual classical trajectories
+  through the field (velocity-Verlet dynamics in the trap, E21's pivot
+  evaluated along the way), so a spatially varying field's real structure
+  (gradients, curvature, any shape a CAD/FEA export carries) is
+  sampled exactly where each atom's trajectory visits it. This is the
+  mode Sec.~\ref{sec:showcase}'s showcase runs.
+\item \textbf{Rotor mode} (\texttt{integration.mode=worldline}): the full
+  Cl(1,3) spacetime-algebra engine below, advancing each atom's Lorentz
+  frame along its worldline (its path through space and time).
+\end{itemize}
+
+\textbf{For every case this paper models, the scalar modes (fast analytic
+and trajectory) and the rotor mode agree to floating-point precision.}
+This is a directly verified statement: the scalar and
+rotor accumulators are run on \emph{identical} trajectories/nodes and
+compared head to head, both in the codebase's standing test suite
+(\path{tests/test_integrator_stark_rotor.py}) and in this paper's own
+showcase computation (Sec.~\ref{sec:showcase}, Fig.~\ref{fig:showcase}),
+where the two evaluations of the same Monte Carlo ensemble agree to
+$\ShowcaseMeanShiftRelDiff$ relative in the mean shift and
+$\ShowcaseMaxPhaseDiff$ absolute in per-atom accumulated phase. The
+scalar modes exist purely for speed and are not an approximation of a
+"more correct" rotor calculation happening underneath: for every physical
+coupling this project currently implements, the rotor result and the
+scalar result are the same number, computed two independent ways.
+
+The rotor engine is nonetheless the general formalism this project is
+built on, and its distinct necessity is not hypothetical: it begins
+exactly where a physical effect stops being expressible as a single
+number ($\delta\tilde\omega$) per point in space, which is where every
+item in Table~\ref{tab:scope}'s roadmap column, and Sec.~\ref{sec:limitations}'s
+extension list (magnetic couplings, internal-state structure,
+transport-induced geometric phases), lives. The trapped atom's local
+Lorentz frame is advanced along its worldline by
+\begin{equation}
+  \frac{dR(\tilde\tau)}{d\tilde\tau} = -\tfrac12\,\Omega(\mathbf{r}(\tilde\tau))\,R(\tilde\tau) ,
+  \label{eq:e17}
+\end{equation}
+(E17, times in Compton units $\tilde\tau=\tau/\tau_C$,
+$\tau_C=\hbar/m_ec^2$; $R$ is a \emph{rotor}, a rotating geometric
+object representing the atom's internal clock phase) with the
+\emph{interaction bivector} $\Omega = \omega_{\rm boost} + I\,\omega_{\rm
+rot}$ (E18; a bivector is the geometric-algebra object representing an
+oriented plane, here the plane of the internal clock's rotation), built
+from the pivot's spatial gradient (a boost/frame-tilt bivector,
+$\omega_{0k}=\partial_k\ln P(\mathbf{r})$, E16) and the pivot's own
+internal rotation rate. The rotor equation is integrated with an
+exponential-midpoint stepper, exactly rotor-group-preserving at any step
+size (E19), and the phase it extracts by composing successive
+$\exp(\Omega)$ rotors is compared against the primary scalar phase of
+Eq.~\eqref{eq:e21} as a standing cross-check (E24): agreement is required
+at first order in the boost bivector, with a genuine second-order
+($O(\omega_{\rm boost}^2)$) divergence between the two paths (visible
+only for gradients far steeper than any realistic lattice-clock trap)
+expected by construction, the rotor result being the more complete one
+in that regime.
+
+An $\Omega$-bivector construction for Eq.~\eqref{eq:e14b}
+(\texttt{build\_omega\_stark}, instantiating E16/E18 for the physical
+DC-Stark coupling) drives \texttt{integration.mode=worldline}'s true
+Cl(1,3) rotor directly under \texttt{coupling.type=stark\_dc}. The
+scalar/rotor equivalence under the physical coupling is verified
+directly: the rotor-vs-scalar test suite
+(\path{tests/test_integrator_stark_rotor.py}) checks first-order
+agreement at realistic field/velocity scale, the permitted
+$O(\omega_{\rm boost}^2)$ divergence under an exaggerated boost, a
+uniform-field null, a $v=0$ static-node identity, a non-symmetric-field-
+gradient orientation guard (ruling out an axis-transposition error in the
+spin-connection contraction), and step-halving convergence of the rotor
+accumulator under a genuinely time-varying interaction bivector along a
+moving trajectory (measured $\mathcal{O}(d\tilde\tau^2)$, ratio
+$\approx4$ per halving, against an endpoint-evaluated stand-in that
+measures $\approx2$); the NPL reproducibility case of
+Sec.~\ref{sec:validation} is independently re-run end to end through this
+rotor path, reaching the identical \textit{MET} verdict and, to float64-relative
+precision, the identical predicted band as the scalar case; and
+Sec.~\ref{sec:showcase}'s showcase re-runs a genuinely moving Monte Carlo
+ensemble through both paths at once.
+
+\subsection{The blackbody-radiation pivot term}
+\label{sec:bbr-pivot}
+
+A second contribution enters the same scalar pivot $P(\mathbf{r})$ that
+Eq.~\eqref{eq:e14b} defines for the DC-Stark shift. Any vacuum chamber
+above absolute zero glows faintly in the infrared: its walls radiate
+thermal photons, the way a warm object radiates heat across a
+distance. That glow is itself an electric field, and it
+couples to the atom's clock states through the very same differential
+polarizability $\Delta\alpha(0)$ the DC-Stark term already uses. The
+blackbody-radiation (BBR) pivot term is
+\begin{equation}
+  (P-1)_{\rm BBR} = \frac{\Delta\nu_{\rm stat}\,(T/T_0)^4 +
+  \Delta\nu_{\rm dyn}(T)}{\nu_0} ,
+  \label{eq:e32}
+\end{equation}
+referenced to a room-temperature baseline $T_0=300$~K (E32). The
+static coefficient is $\Delta\nu_{\rm stat} =
+-(\Delta\alpha(0)/2h)\langle E^2\rangle_{T_0}$, under the full
+energy-density convention $\langle E^2\rangle_T = (4\sigma_{\rm
+SB}/\epsilon_0 c)\,T^4$~\cite{Middelmann2012,Lisdat2021}. The equation
+carries no separate leading minus sign: $\Delta\nu_{\rm stat}$ is
+already negative, and that alone is what makes the shift negative, in
+exactly the same $P-1=\Delta\nu/\nu_0$ convention
+Eq.~\eqref{eq:e14b} established.
+
+The DC-Stark and BBR contributions then combine the simplest way
+possible: they add, $P(\mathbf{r})-1 = (P-1)_{\rm
+stark}(\mathbf{r}) + (P-1)_{\rm BBR}$ (E33). One might worry about a
+cross term between the static trap field and the fluctuating thermal
+field, but it vanishes exactly: the thermal field is isotropic, so its
+vector average $\langle E_{\rm BBR}\rangle$ is zero and the cross term
+averages away with it. The one
+product term that does survive, $(P-1)_{\rm stark}\cdot(P-1)_{\rm
+BBR}\sim10^{-33}$, is far below anything this paper reports. The bath
+itself needs no stochastic treatment either: a roughly one-second
+interrogation averages over $\sim10^{14}$ independent femtosecond-scale
+bath cycles, so the atom experiences the deterministic expectation
+$\langle E^2\rangle$, the same deterministic treatment every published
+BBR evaluation uses.
+
+$\Delta\nu_{\rm dyn}(T)$ is not a truncated $1/T$ power series. Lisdat,
+D\"orscher, Nosske, and Sterr proved this Taylor expansion has zero
+convergence radius for Sr's dominant BBR-coupled
+transition~\cite{Lisdat2021}, and the historical three-term truncation
+left published Sr corrections low by a documented $4.7\times10^{-18}$.
+The registry instead fits $\Delta\nu_{\rm dyn}(T)$ as a small polynomial
+to the exact Planck integral. For $^{87}$Sr this uses the PTB group's
+rescaling of the Lisdat shape onto Aeppli et al.'s more precise
+anchor~\cite{Nosske2025,Aeppli2024}, cross-verified to $10^{-19}$ for
+$T\le300$~K (Sec.~\ref{sec:jila-bbr}'s benchmark). Because the bath is
+isotropic and every registered species is $J{=}0\!\to\!J{=}0$, the term
+reaches the rotor engine only through this scalar pivot, with zero
+spin-connection gradient for uniform $T$ (Sec.~\ref{sec:limitations}).
+
+Figure~\ref{fig:bbr-temperature} shows this pivot across its full
+validity window, with the published dataset it inherits its shape from
+laid directly on top: the blue curve is Eq.~\eqref{eq:e32} evaluated by
+the real engine from $\BbrTempWindowLo$ to $\BbrTempWindowHi$~K with a
+coefficient-uncertainty band, the red points are the Lisdat,
+D\"orscher, Nosske, and Sterr open dataset's own tabulated total BBR
+shift~\cite{Lisdat2021} converted to the same fractional units via this
+project's own registry clock frequency, and the black star marks the
+operating point Aeppli et al.\ at JILA published independently
+(Sec.~\ref{sec:jila-bbr}).
+Because the registry's dynamic-term polynomial is the PTB-2025
+rescaling of this same dataset's fit shape onto Aeppli et al.'s more
+precise 2024 anchor, the curve and the dataset points trace the same
+shape by construction, and the lower panel's residual is not
+measurement noise: it is the real, expected offset that revision
+introduces, growing from a few parts in $10^{20}$ near
+$\BbrTempWindowLo$~K to $\BbrMaxAbsResidual\times10^{-19}$ near
+$\BbrMaxAbsResidualT$~K, with a $\BbrOffsetAtThreeHundredK\times10^{-19}$
+offset at the 300~K point itself, everywhere larger than the dataset's
+own stated uncertainty. This figure visualizes the same
+arithmetic-reproduction relationship Sec.~\ref{sec:jila-bbr} already
+documents at Aeppli et al.'s single operating point, extended across the full
+window; it introduces no new validation case and does not change this
+paper's validation headline.
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.46\linewidth]{figures/fig5_bbr_temperature.pdf}
+\caption{The Sr-87 BBR pivot (Eq.~\eqref{eq:e32}) across its
+$\BbrTempWindowLo$-$\BbrTempWindowHi$~K validity window (blue curve,
+shaded coefficient-uncertainty band), overlaid with the Lisdat et al.\
+2021 open dataset's own tabulated total BBR shift (red points,
+converted to fractional units via this project's own registry clock
+frequency) and Aeppli et al.'s published operating point (black star,
+Sec.~\ref{sec:jila-bbr}). Bottom panel: the engine-minus-dataset
+residual, in units of $10^{-19}$, with error bars from the dataset's own
+stated uncertainty. Because the registry's dynamic-term coefficients are
+the PTB-2025 rescaling of this dataset's own fit shape onto a more
+precise later anchor (Sec.~\ref{sec:bbr-pivot}), the residual's growing
+structure is the expected, real signature of that anchor revision.
+Regenerated by
+\texttt{paper/figures/fig5\_bbr\_temperature.py} against the real
+\texttt{cliffordclock.integrator.omega.bbr\_pivot\_perturbation} and the
+committed dataset fixture
+\texttt{benchmarks/data/lisdat2021\_dataset/}.}
+\label{fig:bbr-temperature}
+\end{figure}
+
+\subsection{The gravitational-redshift pivot term and extended samples}
+\label{sec:grav-pivot}
+
+General relativity contributes the next pivot term, and it needs no
+electromagnetic field at all: two clocks at different heights in
+Earth's gravity tick at different rates. For a site or atom at height
+$h(\mathbf{r}) = \hat u\cdot\mathbf{r}$ along a configured up direction
+$\hat u$, relative to a configured reference height $h_{\rm ref}$, the
+weak-field clock-rate factor enters the pivot as
+\begin{equation}
+  (P-1)_{\rm grav}(\mathbf{r}) \;=\;
+  \frac{g\,\bigl(h(\mathbf{r}) - h_{\rm ref}\bigr)}{c^2} ,
+  \label{eq:e36}
+\end{equation}
+the leading term of the metric proper-time ratio (E36); the next metric
+order is smaller by another factor of $g\,\Delta h/c^2$ and is
+irrelevant at any laboratory scale. The sign is pinned to the physical
+statement that a higher clock runs faster: $(P-1)_{\rm grav}>0$ for
+$h>h_{\rm ref}$, in the same $P-1=\Delta\nu/\nu_0$ convention every
+other pivot term uses, and a shipped regression test asserts exactly
+this statement. The magnitude at standard gravity is
+$g/c^2=\GravPivotPerMetre$ per metre of height.
+
+Composition follows the same additive pattern as the BBR term (E33):
+$P(\mathbf{r})-1 = (P-1)_{\rm stark}(\mathbf{r}) + (P-1)_{\rm BBR} +
+(P-1)_{Q}(\mathbf{r}) + (P-1)_{\rm grav}(\mathbf{r})$, with the
+quadrupole term of Sec.~\ref{sec:quadrupole} present for ion species.
+The gravitational term depends only on position in the potential, so
+its genuine cross term with any field-driven shift is of order
+$10^{-31}$, far below anything this paper resolves. One consistency
+point deserves its own sentence: Eq.~\eqref{eq:e36} and the kinematic
+time-dilation factor of Eq.~\eqref{eq:e21} are the two leading terms of
+one proper-time expansion, the potential term and the velocity term,
+and the pipeline adds each exactly once, with no $g\times v$ cross term
+at any order it resolves.
+
+The term earns its keep in the \texttt{lattice\_extended} ensemble
+regime, which distributes $n_{\rm sites}$ copies of the single-site
+lattice quadrature (the exact Hermite--Gauss motional average of
+Sec.~\ref{sec:scalar-pivot}) along a configured axis at a configured
+spacing, weighted by a Gaussian or uniform site-occupation envelope.
+Every extended-lattice node is a static point exactly like a
+single-site lattice node, so the fast analytic mode stays exact and the
+rotor cross-check applies unchanged, and each site's own position feeds
+every pivot term in scope: the local field through the Stark term, the
+uniform BBR term, and Eq.~\eqref{eq:e36}'s height dependence. The
+output is a per-site frequency map, the observable Bothwell et al.\
+published~\cite{Bothwell2022}: each site's position, occupation weight,
+and weighted mean fractional shift, together with a weighted
+least-squares linear fit across the site means whose slope is the
+map's headline number.
+
+An extended sample forces one labeling discipline the single-site
+regimes never needed. The frequency spread across sites is dominated by
+the deterministic linear gradient: higher sites tick systematically
+faster, a repeatable and in principle refocusable structure, and
+folding it silently into a $T_2^*$ or linewidth would misread
+deterministic inhomogeneity as stochastic decoherence. Every
+extended-lattice report therefore carries a test-pinned note stating
+that its ensemble spread and $T_2^*$ include the deterministic
+gradient, and the site map reports both the total spread and the
+gradient-removed residual spread (the weighted standard deviation of
+the site means after subtracting the best-fit line), extending the
+showcase's SEM-versus-$T_2^*$ discipline (Sec.~\ref{sec:showcase}) to
+the deterministic-versus-stochastic axis.
+
+Treating $g$ as uniform has a stated validity range. The error of a
+single-$g$ evaluation grows quadratically with the sample's height
+extent, through the height dependence of $g$ itself, and reaches the
+$10^{-19}$ fractional floor only near a $\GravUniformBoundM$~m extent;
+the pipeline warns at $\GravExtentWarnM$~m, an order of magnitude under
+that bound, and documents that beyond laboratory scale the physically
+correct input is a surveyed geopotential difference. Eq.~\eqref{eq:e36}
+reports height differences within the sample relative to a local
+reference, and the whole apparatus's absolute geoid and Earth-rotation
+offset is a separate constant outside its scope. At the $10^{-19}$
+level the choice of $g$ itself also stops being a formality: standard
+gravity is a defined placeholder, and the lab's own surveyed local
+value is the physically correct input. For Boulder, Colorado, the
+surveyed $g=\BothwellSurveyedG$~m/s$^2$~\cite{vanWestrum2019} gives a
+slope of $\BothwellLocalSlopePerMm$ per millimetre against standard
+gravity's $\GravStdSlopePerMm$, a difference well inside Bothwell et
+al.'s own stated prediction uncertainty (Sec.~\ref{sec:bothwell}).
+
+\subsection{Ion-clock electric-quadrupole shift}
+\label{sec:quadrupole}
+
+Ion clocks bring a genuinely new coupling into the same pivot. A $D$-
+or $F$-state upper clock level with $J\ge1$ carries a permanent
+electric-quadrupole moment $\Theta$, and that moment couples to the
+electric-field \emph{gradient} at first order, in contrast to the
+DC-Stark and BBR terms, which are second order in the field itself.
+The level shift is
+\begin{equation}
+  \Delta E_Q(J, m_J) \;=\; \frac{\Theta_{\rm SI}}{2}\,
+  \frac{J(J+1)-3m_J^2}{J(2J-1)}\;
+  \hat n^{\mathsf T} G(\mathbf{r})\,\hat n ,
+  \label{eq:e34}
+\end{equation}
+(E34) with $\hat n$ the quantization-axis unit vector and
+$G(\mathbf{r})$ the traceless symmetric part of the field-gradient
+tensor $\partial_i E_j$ the field smoother already delivers. The $m_J$
+factor and the overall sign follow Roos et al.'s Eq.~(1), transcribed
+directly from primary text~\cite{Roos2006}, and the coordinate-free
+$\hat n^{\mathsf T} G\,\hat n$ contraction is an exact rewriting of the
+published axial-plus-asymmetry angular form, derived in the project's
+conventions record and cross-checked numerically against that angular
+form as a standing test.
+
+For a fixed $(J, m_J)$ and quantization axis the whole angular factor
+is a scalar coefficient, so the shift composes additively into the
+pivot alongside every other term (E35), with no cross term: the
+quadrupole coupling is first order in the gradient while the Stark and
+BBR terms are second order in the field, different field quantities at
+different orders. One exact identity comes free with the tensor
+structure. For any three mutually orthogonal quantization axes the
+three contractions sum to the trace of $G$, which is zero by
+construction, so averaging a measurement over three perpendicular field
+orientations cancels the quadrupole shift exactly, for any gradient
+tensor; the pipeline implements this as a supported averaging mode and
+tests the null at machine precision. The engine's null is the ideal
+one: a real clock's residual after such averaging comes from imperfect
+axis orthogonality and timing, a separate systematic the engine does
+not model, and no report presents the exact cancellation as an
+achievable experimental bound.
+
+The species registry carries the measured quadrupole moments this term
+needs: the $D_{5/2}$ states of Ca$^+$, Sr$^+$, and Ba$^+$ and the
+$D_{3/2}$ and $F_{7/2}$ states of Yb$^+$, each with its literature
+citation and verification status recorded as registry fields. The
+Yb$^+$ $F_{7/2}$ entry's negative $\Theta$ doubles as the registry's
+sign anchor: a shipped regression test requires it to produce an
+opposite-sign shift from any positive-$\Theta$ $D$ state under an
+otherwise identical gradient, $m_J$, and axis. The
+$J{=}0\!\to\!J{=}0$ ion clocks Al$^+$ and In$^+$ carry no first-order
+quadrupole moment at all and run through the scalar DC-Stark path of
+Sec.~\ref{sec:scalar-pivot}, with a report note stating that their
+small hyperfine-mediated second-order quadrupole residual is out of
+scope.
+
+Every ion-species report also carries a binding boundary statement,
+because a quadrupole map alone would overstate what has been
+characterized. The same stray DC field that sources the DC-Stark and
+quadrupole terms also displaces an ion from its trap's RF null and
+drives excess micromotion, a separate shift pathway the engine does not
+model, and published measurements in a real Sr$^+$ trap
+\cite{Dube2005} attribute
+roughly $\IonMicromotionTensorPct\%$ of the $m_J$-dependent budget to
+micromotion-driven tensor Stark shifts against roughly
+$\IonQuadrupolePct\%$ from the quadrupole term alone. The report note
+states this shared-cause structure explicitly, so a quadrupole map is
+never presented as a stray-field budget
+(Sec.~\ref{sec:limitations} places the tensor-polarizability and
+micromotion package on the roadmap together for exactly this reason).
+
+\subsection{Scope: what is and is not modeled}
+
+\begin{table*}[htbp]
+\centering
+\caption{Modeled vs.\ not-modeled physics (current codebase scope).
+Every "not modeled" row is a documented, intentional MVP scope boundary,
+not an oversight; see Sec.~\ref{sec:limitations} and
+benchmarks/MAPPING.md's engine-scope recap.}
+\label{tab:scope}
+\begin{tabular}{ll}
+\toprule
+Modeled & Not modeled \\
+\midrule
+DC-Stark shift, scalar $\Delta\alpha$ (Eq.~\eqref{eq:e14b}) & AC lattice-light (magic-wavelength) shift \\
+Second-order (kinematic) Doppler (Eq.~\eqref{eq:e21}) & Zeeman shifts (1st or 2nd order) \\
+Blackbody radiation, uniform $T$ (Eq.~\eqref{eq:e32}, $50$--$350$~K) & BBR spatial $T(\mathbf{r})$ maps, solid-angle effective temperature \\
+Gravitational redshift across an extended sample (Eq.~\eqref{eq:e36}) & BBR M1/E2 multipoles ($\sim6\times10^{-20}$), hyperpolarizability \\
+Ion electric-quadrupole shift, $D$/$F$-state ions (Eq.~\eqref{eq:e34}) & Tensor polarizability and RF/micromotion dynamics \\
+Field-gradient inhomogeneous dephasing ($T_2^*$) & Atom-atom collisional / density shifts \\
+Classical (Monte Carlo) motional ensembles & Lattice band-structure / tunneling \\
+Lattice and extended-lattice (Hermite--Gauss quadrature) ensembles & Probe (clock-laser) AC Stark shift \\
+$^{87}$Sr, $^{171}$Yb; Ca$^+$/Sr$^+$/Ba$^+$/Yb$^+$ $D$/$F$ states; Al$^+$/In$^+$ (scalar) & Time-dependent (RF trap / probe) fields \\
+Imported (CSV/FEA) or synthetic fields & \\
+\bottomrule
+\end{tabular}
+\end{table*}
+
+\FloatBarrier
+\section{Numerical methods}
+\label{sec:methods}
+
+\subsection{Precision discipline}
+\label{sec:precision}
+
+The target regime is fractional shifts at $10^{-17}$--$10^{-19}$,
+frequently on top of stray-field biases many orders of magnitude
+larger. The pipeline guards structurally
+against two catastrophic-cancellation failure modes. First, the absolute
+Compton phase ($\omega_C T \sim 10^{20}$~rad over a one-second
+interrogation) is never accumulated; every integration path accumulates
+only the \emph{perturbation} quantity $\delta\tilde\omega$ (dimensionless,
+of order the fractional shift itself), with compensated (Kahan)
+summation in every long accumulation loop. Second, the DC-Stark
+field-squared term $|E|^2$ of Eq.~\eqref{eq:e14b} is evaluated
+\emph{directly} from the total field $E(\mathbf{r})$
+(\texttt{cliffordclock.integrator.omega.pivot\_perturbation\_stark}, the
+rate function every scalar evaluation mode shares, with no
+baseline/perturbation split supplied), not via a term-by-term expansion.
+This is numerically safe for a structural reason:
+unlike the absolute-Compton-phase case above, Eq.~\eqref{eq:e14b}
+contains no subtraction of large near-equal quantities in the first
+place. The shift is a single product chain, $|E|^2$ multiplied once by
+the small prefactor $\Delta\alpha/(2h\nu_0)$, so there is no cancellation
+for a term-by-term decomposition to protect against. A separate,
+term-by-term decomposition of the same formula,
+$|E|^2=|E_0|^2+2E_0\!\cdot\!\delta E+|\delta E|^2$ (E11's field split),
+\emph{is} implemented in the library as
+\texttt{stark\_pivot\_terms}, for callers that need the gradient-driven
+cross term $2E_0\!\cdot\!\delta E$ isolated from the baseline as its own
+quantity (e.g.\ a gradient-only systematic-budget line item); this
+paper's reported shifts do not use it.
+
+This safety claim is pinned by an adversarial
+pipeline-level regression test defined in \texttt{tests/}
+\texttt{test\_e2e.py} as {\small\texttt{test\_wp9\_} \texttt{major1\_}
+\texttt{stark\_dc\_} \texttt{adversarial\_} \texttt{gradient\_}
+\texttt{pins\_no\_} \texttt{cancellation\_} \texttt{regression}}
+(recapped in \path{docs/validation.md}). The test constructs a
+$|E_0|=10^5$~V/m uniform bias along with a field gradient tuned so the
+shift differential between the lattice quadrature's extreme nodes is
+$\sim10^{-19}$, then compares each node's directly-evaluated shift
+against a 50-digit \texttt{decimal} reference: the measured per-node
+absolute error is $\sim1.3\times10^{-26}$, seven orders of magnitude
+below the $10^{-19}$-level signal it resolves. An embedded
+discrimination guard confirms the test is not vacuous: applying the same
+comparison to the genuinely dangerous antipattern (forming each node's
+$O(1)$ pivot $P=1+(\text{shift})$ explicitly and recovering the
+differential by subtracting two such totals) degrades to a
+$\sim5\times10^{-20}$ error, which the test asserts (and confirms) must
+exceed its passing bound. This also distinguishes two numbers a reader
+could otherwise conflate. The $10^{-18}$ fractional-shift scale
+motivating this precision discipline (Sec.~\ref{sec:intro}) is the
+physical \emph{target regime}. The bounds this paper measures are
+(i) relative agreement with closed-form and literature references at
+$\mathrm{rtol}=10^{-10}$ or better (Table~\ref{tab:validation}) and
+(ii) the absolute-error pin above, $\sim10^{-19}$--$10^{-26}$, in this
+specific adversarial configuration.
+
+These bounds span nineteen orders of magnitude and mix relative ratios
+with absolute fractional-shift errors, which is exactly the condition
+under which a single number gets misquoted as "the accuracy of the
+tool." They are therefore never combined onto one scale in this paper,
+and each carries its character wherever it is quoted: the closed-form
+and literature rows of Table~\ref{tab:validation} are relative
+agreements ($\mathrm{rtol}\leq10^{-10}$), the adversarial per-node
+error pin is an absolute fractional-shift error
+(\texttt{tests/test\_e2e.py}'s MAJOR-1 regression pin, with the same
+test also recording the far larger error the
+subtract-two-near-unity-pivots antipattern would produce), the
+rotor/scalar agreement of Sec.~\ref{sec:rotor-verification} and
+Sec.~\ref{sec:showcase} is exactly zero relative in the showcase's
+ensemble mean shift, and the $10^{-18}$ physical regime is a design
+target the pipeline is built for, never something this paper measured.
+No one of these numbers substitutes for any other: a reader who wants
+"the accuracy of a reported shift" should read the validation table
+and this paper's stated target regime together, not either alone.
+
+\subsection{Field model}
+
+An imported or synthetic field is decomposed as
+\begin{equation}
+  E_{\rm total}(\mathbf{r}) = E_0(\mathbf{r}) + \delta E(\mathbf{r}) ,
+  \label{eq:e11}
+\end{equation}
+with $E_0$ a least-squares degree-1 (uniform + linear) analytical
+baseline and $\delta E$ the residual, fit by a thin-plate-spline radial
+basis function per vector component (E12); the field gradient
+$\partial_iE_j$ (E13) is obtained by exact automatic differentiation of
+the fitted evaluator, so the field and its gradient are always
+mutually consistent by construction. The RBF fit is performed with SciPy; the
+gradient-consistent evaluator is re-implemented in
+JAX~\cite{Jax2018} so it composes
+with the pipeline's own autodiff-based downstream code
+(Sec.~\ref{sec:rotor-verification}'s spin connection, and the second-order
+Doppler kinematic term).
+
+\subsection{Performance tiers within the fast analytic and trajectory modes}
+\label{sec:tiers}
+
+The scalar rate integrand $\delta\tilde\omega(\mathbf{r}(t),\mathbf{v})$
+contains no Compton-frequency content (the fast $\sim10^{20}$~rad/s
+carrier is removed analytically by the perturbation discipline above),
+so its time variation is set entirely by the atom's own motional
+timescale, microseconds to milliseconds for realistic traps. This is
+what makes real (microsecond-to-second)
+interrogation times tractable at all, and Table~\ref{tab:tiers} summarizes
+the resulting cost structure of the three evaluation modes
+(Sec.~\ref{sec:model-modes}) plus one internal performance variant within
+the trajectory mode. The fast analytic mode is exact for a static
+motional state in a time-independent field: every quadrature node has
+$\mathbf{v}=0$ and a constant rate, so the time integral is trivial and
+the cost is independent of the requested interrogation time $T$. The
+trajectory mode's direct (default) variant steps the classical
+integrator at a resolution set by the trap period, with
+\begin{equation}
+  d\tilde\tau \;=\; \frac{T_{\rm orb}}{N_{\rm res}\,\tau_C} ,
+  \qquad N_{\rm res} = \StepSizeNRes~\text{(default)},
+  \label{eq:e31}
+\end{equation}
+(E31) with $T_{\rm orb}=2\pi/\min(\omega_{xyz})$ the slowest trap axis's
+period. A second trajectory-mode variant, \emph{secular averaging},
+replaces per-step time integration with a single average over one
+orbital period (one full cycle of the trap's own periodic motion) scaled
+by the full interrogation time; it applies whenever the classical motion
+is periodic in an isotropic trap. The rotor mode's
+Compton-scale integrator remains available as the first-principles
+cross-check every other mode/tier is validated against.
+
+\begin{table*}[htbp]
+\centering
+\caption{The three evaluation modes and their performance tiers. Cost is
+stated in the requested interrogation time $T$.}
+\label{tab:tiers}
+\footnotesize
+\begin{tabular}{lllllc}
+\toprule
+Evaluation mode & Tier & Regime & \texttt{integration.mode} & Basis & Cost in $T$ \\
+\midrule
+Fast analytic & A & lattice (motional state) & fast\_path (default) & exact (E29) & $O(1)$ \\
+Trajectory & B(i) & classical & direct (default) & scalar integrator, E31 step & $O(\text{steps})$ \\
+Trajectory (periodic) & B(ii) & classical, isotropic trap & secular & one-orbit average (E30) & $O(1)$ \\
+Rotor & C & either & worldline / Compton-fine direct & Compton-scale Cl(1,3) integrator & $O(T/\tau_C)$ \\
+\bottomrule
+\end{tabular}
+\end{table*}
+
+An accuracy study (Fig.~\ref{fig:step-size}, reproducing the
+CONVENTIONS.md V4 closed-form harmonic-trap case: a linear-gradient
+field's oscillating pivot contribution cancels exactly over full trap
+periods, leaving the trap-center pivot value plus the closed-form
+second-order-Doppler time average) sweeps the step size at fixed
+$N_{\rm res}$ and measures a convergence order of $\StepSizeOrder$
+against the exponential-midpoint stepper's design order of 2. At the
+default $N_{\rm res}=\StepSizeNRes$, the phase matches the closed form
+to $\StepSizeDefaultError$ relative, with rotor-norm drift
+$\StepSizeDefaultDrift$, both comfortably inside this project's
+$\mathrm{rtol}\le10^{-8}$ / $\mathrm{drift}<10^{-12}$ target bounds.
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.55\linewidth]{figures/fig3_step_size_accuracy.pdf}
+\caption{This figure is a numerical convergence study of the Cl(1,3)
+rotor stepper (Sec.~\ref{sec:rotor-verification}'s exponential-midpoint
+integrator, E19): relative phase error against the V4
+closed form, swept over the stepper's step size $d\tilde\tau$
+(auto-selected via Eq.~\eqref{eq:e31}). The measured log-log slope
+($\StepSizeOrder$) matches the stepper's design order of 2, and the
+annotation marks that at the default step size the error is
+$\StepSizeDefaultError$, comfortably below this study's own
+$\mathrm{rtol}\leq10^{-8}$ tolerance. Regenerated by
+\texttt{paper/figures/fig3\_step\_size\_accuracy.py} directly against
+\texttt{cliffordclock.integrator.worldline}, using the same
+trap/field/coupling scenario as
+\texttt{notebooks/02\_step\_size\_study.ipynb} and
+\texttt{tests/test\_fastpath\_select\_dtau.py}. This is a measurement of
+the integrator's own convergence order, not the pipeline's real-world
+shift accuracy; the bounds that actually characterize a reported
+shift's precision are those of Table~\ref{tab:validation} and the
+precision discipline of Sec.~\ref{sec:precision}.}
+\label{fig:step-size}
+\end{figure}
+
+\subsection{Verification methodology}
+
+Beyond the closed-form and literature comparisons of
+Sec.~\ref{sec:validation}, two structural verification mechanisms
+protect against a codebase that merely agrees with itself. First, the
+Cl(1,3) geometric product and bivector exponential kernel are
+cross-checked at the algebra level against the third-party open-source
+\texttt{clifford} package~\cite{pygae-clifford} (the pygae project's
+general geometric-algebra library on PyPI), used purely as an independent
+test-oracle reference in CI, disjoint from this project's own
+structure-tensor implementation. Second, a
+plain-NumPy reference implementation
+(\texttt{tests/reference\_impl.py}) re-derives the phase-accumulation
+formulas directly from the equations recorded in CONVENTIONS.md,
+sharing no code path, constants module, or numerical kernel with the
+pipeline itself (\texttt{cliffordclock.integrator},
+\texttt{cliffordclock.cl13}); the pipeline's scalar and rotor phases
+are each checked against it independently (Table~\ref{tab:validation}
+rows V3, E24).
+
+\section{Validation}
+\label{sec:validation}
+
+\subsection{Labeling rules (binding)}
+
+This section follows the labeling discipline established for this
+project's benchmark work (\texttt{benchmarks/RESULTS.md},
+\texttt{benchmarks/MAPPING.md}): a case is reported as
+\textbf{reproducibility} when every pipeline input traces to an
+independent publication and the resulting predicted value reconstructs
+a number the cited source(s) already combined those same inputs to
+compute; it is reported as \textbf{blind prediction} only when the
+pipeline predicts a measured quantity from inputs that were not already
+combined, by anyone, to produce that measured value. These are
+categorically distinct claims, never conflated in this paper: a
+reproducibility \textit{MET} verdict demonstrates end-to-end pipeline
+correctness against independently published inputs and outputs with no
+fitted or tuned parameter anywhere in the chain (a real, falsifiable
+claim: a sign error, a unit-conversion bug, or a wrong
+$\Delta\alpha$-to-$k_S$ derivation would show up as a predicted band
+that does not overlap the published one) but it does \emph{not}
+demonstrate that this engine can predict a clock shift nobody had
+already computed.
+
+Two weaker labels complete the taxonomy. An \textbf{arithmetic
+reproduction} runs a published row that is itself computed, never
+independently measured, back through the engine's own formula and
+coefficients (Sec.~\ref{sec:jila-bbr}); a \textbf{cross-vintage
+comparison} predicts a published measured quantity from an input of an
+independent vintage and method, one the published result never
+combined, while some other ingredient of the comparison still traces to
+the source's own apparatus calibration (Sec.~\ref{sec:roos}). The
+cross-vintage class sits strictly between its neighbors: weaker than a
+blind prediction, because not every ingredient on both sides is
+independent of every other, and stronger than an arithmetic
+reproduction, because the compared-against number was never derived
+from the predicting input. Neither weaker class ever joins the
+reproducibility or blind-prediction counts.
+
+As of this writing the project has two reproducibility cases
+(Secs.~\ref{sec:npl} and~\ref{sec:bothwell}) and zero blind-prediction
+cases; no case in this paper, this codebase's test suite, or its
+benchmark reports is described as "validated against an independent
+measurement" where that framing would imply the stronger, currently
+unmet claim.
+
+\subsection{Validation table}
+
+Table~\ref{tab:validation} is generated directly by
+\texttt{paper/figures/table\_validation.py} against the real pipeline,
+species registry, and \texttt{benchmarks/} code. Every "Computed"
+entry is a live pipeline run, and every "Reference" entry is either a
+closed form evaluated independently in this script, an
+independent-NumPy reference module, a literature formula applied to the
+project's own cited species data, or (for the NPL row) the published
+band of Sec.~\ref{sec:npl}.
+
+\begin{table*}[htbp]
+\centering
+\caption{Validation summary: case, reference value/method, this
+pipeline's computed value, and measured agreement. V1--V4 are
+closed-form self-consistency cases (this engine against its own
+analytically solvable configurations and, for V3, an independent
+plain-NumPy re-implementation); KA1--KA4 are literature known-answer
+cases (textbook DC-Stark and second-order-Doppler formulas, using this
+project's cited $\Delta\alpha$ values); E24 is the rotor/scalar
+cross-check of Sec.~\ref{sec:rotor-verification}; NPL and Bothwell are
+the two experimental reproducibility cases (Secs.~\ref{sec:npl}
+and~\ref{sec:bothwell}); Roos is the cross-vintage quadrupole-slope
+comparison of Sec.~\ref{sec:roos}, whose \textit{NOT MET} verdict is the
+expected outcome (it recovers the literature's own $\Theta$
+theory-versus-measurement tension) and which joins neither headline
+count. Generated by
+\texttt{paper/figures/table\_validation.py}; see that script and
+\texttt{tests/test\_e2e.py} / \texttt{tests/test\_known\_answers.py}
+for the exact configurations reproduced.}
+\label{tab:validation}
+\input{generated/validation_table.tex}
+\end{table*}
+
+\subsection{The NPL reproducibility case}
+\label{sec:npl}
+
+Bowden et al.\ (NPL)~\cite{Bowden2017} independently measured a residual
+stray electric field at their $^{87}$Sr lattice-clock atoms via
+Rydberg-state electrometric interferometry (a completely different
+atomic transition and spectroscopic method from the clock transition
+itself) and converted it to a clock-transition DC-Stark shift using
+the Middelmann et al.\ differential
+polarizability~\cite{Middelmann2012}, the same literature value this
+project's $^{87}$Sr species-registry entry cites. \textbf{No parameter
+was fitted at any stage: the field magnitude and its uncertainties
+(NPL's Rydberg-spectroscopy measurement), the differential
+polarizability (PTB's measurement), and the clock frequency are each
+independently published constants.}
+
+NPL could have computed this number themselves, and in a sense already
+did: for a spatially uniform $\NplFieldNominal$~V/m field the shift is
+a single evaluation of Eq.~\eqref{eq:e14b}, so this case is not
+evidence of predictive power beyond the published record. What it
+demonstrates instead is that the entire pipeline (field ingestion,
+lattice quadrature, precision-safe numerics, asymmetric uncertainty
+propagation, and reporting) reproduces an independently published
+result end-to-end with no fitted or tuned parameter anywhere in the
+chain. Following this project's benchmark taxonomy
+(\texttt{benchmarks/RESULTS.md}, \texttt{benchmarks/MAPPING.md}; see
+the labeling rules above), that makes this a
+\textbf{reproducibility} case: NPL already combined the same two
+published ingredients this pipeline combines, so reconstructing their
+number checks end-to-end pipeline correctness against independently
+published inputs and outputs. The stronger claim, predictive power on
+a measurement nobody had already converted to a shift, belongs to the
+blind-prediction category, and it remains unmet.
+
+NPL's residual field, $E=\NplFieldNominal$~V/m, carries independent,
+individually asymmetric statistical and systematic uncertainties. These
+are combined in quadrature separately on each side (never symmetrized
+against each other, and never treated as Gaussian), giving field bounds
+$[\NplFieldLo,\NplFieldHi]$~V/m. The pipeline (\texttt{coupling.type:
+stark\_dc}, the lattice fast path, a genuine 1~s interrogation; the
+same machinery Table~\ref{tab:validation}'s KA1 row validates) is run
+three separate times at this field's low, nominal, and high bounds,
+giving the predicted band
+$[\NplPredictedLo,\NplPredictedHi]$, compared in
+Fig.~\ref{fig:npl-band} against NPL's own published band
+$[\NplPublishedLo,\NplPublishedHi]$. The two bands
+\NplBandsOverlap{} (a precisely defined closed-interval overlap test);
+NPL's nominal value falls inside the predicted band and vice versa.
+\textbf{Verdict: \textit{\NplVerdict{}} (\NplCaseClass{} case, with no fitted
+parameters anywhere in the chain).}
+
+NPL's own single-point field measurement does not exercise this
+pipeline's actual differentiator: gradient-driven shifts, inhomogeneous
+broadening, and line shapes computed from a field with real spatial
+structure. Eq.~\eqref{eq:e14b} at a uniform field is a one-line
+calculation regardless of what pipeline performs it. Sec.~\ref{sec:showcase}
+demonstrates that capability directly, end to end, on a chamber-scale
+field with genuine curvature; what it does \emph{not} yet demonstrate is
+that capability against a field characterization nobody has already
+converted to a shift. Producing and validating that class of result
+against an independently supplied field is exactly the blind-prediction
+program described in Sec.~\ref{sec:limitations}, and the showcase's
+scenario remains, like the NPL case above and the closed-form validation
+suite, a demonstration whose every input is a documented scenario
+choice.
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.4\linewidth]{figures/fig2_npl_band.pdf}
+\caption{The NPL reproducibility case: this pipeline's predicted
+DC-Stark shift band (from NPL's independently measured residual field
+and this project's Middelmann-sourced $\Delta\alpha$) vs.\ NPL's own
+published band~\cite{Bowden2017}. Shaded region: NPL's published band.
+Error bars: asymmetric field/shift uncertainty, propagated per-side in
+quadrature (no Gaussian assumption on the asymmetric field
+uncertainty). Regenerated by \texttt{paper/figures/fig2\_npl\_band.py}
+via \texttt{benchmarks/run\_benchmarks.run\_npl\_reproducibility\_case}.}
+\label{fig:npl-band}
+\end{figure}
+
+\subsection{The Bothwell millimetre-scale redshift reproducibility case}
+\label{sec:bothwell}
+
+The second reproducibility case targets a different pivot term and a
+different kind of observable. Bothwell et al.\ resolved the
+gravitational redshift across a single millimetre-scale $^{87}$Sr
+lattice sample, the first single-apparatus measurement of gravitational
+time dilation at this length scale, publishing a per-pixel frequency
+map and two independently analyzed, systematics-corrected linear
+slopes~\cite{Bothwell2022}. The extended-lattice pipeline of
+Sec.~\ref{sec:grav-pivot} is configured to their published sample
+geometry: a Gaussian site-occupation envelope with
+$\sigma=\BothwellEnvelopeSigmaUm\,\mu$m inferred from their stated
+$\pm\BothwellWindowSigma\sigma$ analysis window, $\BothwellNSites$ computational sites
+at the real $\BothwellSiteSpacingNm$~nm magic-lattice spacing, and the
+surveyed local gravity for Boulder, $g=\BothwellSurveyedG$~m/s$^2$
+(van Westrum's NOAA survey~\cite{vanWestrum2019}, the reference
+Bothwell et al.\ themselves cite), the physically correct input at
+this level (Sec.~\ref{sec:grav-pivot}).
+
+Run end to end, the per-site machinery produces the map of
+Fig.~\ref{fig:bothwell-sitemap} and a weighted-least-squares slope of
+$\BothwellPredictedSlopePerMm$ per millimetre in Bothwell et al.'s own
+coordinate convention. Their axis puts lower physical positions at
+larger coordinate, so their published gradients are negative while the
+engine's own height convention gives a positive slope; the benchmark
+states and applies this sign mapping explicitly, so the sign agreement
+is deliberate. Against the two published corrected slopes, method A's
+$\BothwellMeasuredANominal\pm\BothwellMeasuredAUnc$ per millimetre (a
+fourteen-dataset campaign) and method B's
+$\BothwellMeasuredBNominal\pm\BothwellMeasuredBUnc$ per millimetre (a
+synchronous two-region analysis), the prediction lands within
+$\BothwellSigmaA\sigma$ and $\BothwellSigmaB\sigma$ respectively, and
+the band verdicts are \textit{\BothwellVerdictA{}} against method A and
+\textit{\BothwellVerdictB{}} against method B.
+
+The comparison isolates exactly the term it should. The published
+corrected slopes already have per-pixel density and
+second-order-Zeeman corrections applied before the linear fit, plus
+budget-level corrections for BBR, lattice light, DC Stark, and pixel
+calibration, so the corrected number targets the isolated
+gravitational gradient Eq.~\eqref{eq:e36} predicts. The benchmark's
+own field is configured to exactly zero for the same reason: no Stark,
+BBR, or quadrupole term is active, so the case isolates the
+gravitational term to match its target. Bothwell et al.'s own DC-Stark
+gradient row is in-scope physics for this engine, and it enters the
+benchmark report as a narrative cross-reference only, since the
+comparison target already has it corrected out.
+
+The binding classification is \textbf{reproducibility}, with a caveat
+inverted from the NPL case's. The $g/c^2$ arithmetic is textbook and
+Bothwell et al.\ computed it themselves trivially, so nothing about
+the coefficient demonstrates predictive power; what this case
+validates end to end is the extended-sample machinery, the per-site
+geometry, the envelope weighting, and the map assembly, producing the
+right measured-map slope with zero adjustable inputs. NPL's caveat ran
+the other way: there the differential-polarizability reconstruction
+carried the domain expertise, and the pipeline's contribution was the
+end-to-end evaluation. Together the two cases make the project
+headline of Sec.~\ref{sec:validation}, two reproducibility cases.
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.7\linewidth]{figures/fig7_bothwell_sitemap.pdf}
+\caption{The Bothwell reproducibility case: the engine's per-site
+fractional-frequency map ($\BothwellNSites$ sites, blue points), its
+weighted-least-squares slope fit (black line), and Bothwell et al.'s
+two published corrected slope bands~\cite{Bothwell2022} drawn through
+the same intercept (shaded wedges), all in the engine's physical-height
+sign convention. The annotation restates the two sigma distances
+($\BothwellSigmaA\sigma$ against method A, $\BothwellSigmaB\sigma$
+against method B). Bottom panel: the Gaussian site-occupation envelope,
+with the $\pm\BothwellWindowSigma\sigma$ analysis window marked. Regenerated by
+\texttt{paper/figures/fig7\_bothwell\_sitemap.py} against the real
+\texttt{lattice\_extended} pipeline at the exact configuration
+\texttt{benchmarks/run\_bothwell\_redshift.py} pins.}
+\label{fig:bothwell-sitemap}
+\end{figure}
+
+\subsection{A weaker case: the Aeppli et al.\ (JILA) BBR arithmetic-reproduction check}
+\label{sec:jila-bbr}
+
+The BBR term (Sec.~\ref{sec:bbr-pivot}) carries a deliberately weaker
+check than Sec.~\ref{sec:npl}'s NPL case: whether the engine
+arithmetically reproduces a BBR shift a source group already computed
+from its own measured temperature and coefficients. Aeppli et al.\
+report their $^{87}$Sr clock's in-vacuum resistance-thermometer (RTD)
+temperature, $T=\JilaBbrTemperature\pm\JilaBbrTemperatureUnc$~K, and
+separately publish the BBR-row shift it produces~\cite{Aeppli2024}.
+Running Eq.~\eqref{eq:e32} at that temperature with the registry
+coefficients gives $(P-1)_{\rm BBR}=\JilaBbrPredictedNominal$, with a
+combined coefficient-plus-temperature band of
+$[\JilaBbrPredictedLo,\JilaBbrPredictedHi]$. Aeppli et al.'s published value
+spans $[\JilaBbrPublishedLo,\JilaBbrPublishedHi]$, leaving a residual of
+$\JilaBbrResidual$; the bands \JilaBbrBandsOverlap{} (verdict
+\textit{\JilaBbrVerdict}).
+
+\textbf{This agreement is expected almost by construction}: the
+registry's Sr-87 dynamic coefficients are anchored to Aeppli et al.'s
+own value through the same PTB rescaling
+Sec.~\ref{sec:bbr-pivot} describes, so the case reproduces a paper its
+own inputs trace to. Nothing about Aeppli et al.'s shift was independently
+measured the way NPL's field was. Their published row is itself an
+arithmetic evaluation from their own inputs. Following this project's binding
+labeling discipline (\texttt{benchmarks/RESULTS.md},
+the project's theory sign-off record (G7), B5), that makes this an
+\textbf{arithmetic reproduction of a published standard-formula
+evaluation}: weaker than this paper's reproducibility cases, and weaker
+still than the (unmet) blind-prediction category. It does \emph{not}
+join the validation headline, now two reproducibility cases, NPL and
+Bothwell (Secs.~\ref{sec:npl} and~\ref{sec:bothwell}). What the case does establish is that the
+engine's BBR arithmetic and coefficient-provenance chain are correct:
+any $10^{-19}$-class number here is \textbf{arithmetic-reproduction
+fidelity, not BBR accuracy}.
+
+\subsection{A cross-vintage comparison: the Roos two-ion quadrupole slope}
+\label{sec:roos}
+
+The quadrupole term of Sec.~\ref{sec:quadrupole} carries its own
+benchmark case, against the measurement that anchors the field. Roos
+et al.\ prepared an entangled two-ion Ca$^+$ state, measured its
+parity-oscillation frequency as a function of an applied, mechanically
+calibrated axial field gradient, and fit a line with slope
+$a=\RoosMeasuredSlopeCompact$~Hz\,mm$^2$/V
+\cite{Roos2006}. The engine predicts that slope from Itano's
+independent theory value
+$\Theta=\RoosThetaTheory\,ea_0^2$~\cite{Itano2006} through its own
+factor chain: the $m_J$ factors of Eq.~\eqref{eq:e34} evaluated by
+real engine calls, the doubling of the gradient each ion sees from the
+presence of the other, and the resulting two-ion enhancement over a
+single ion's shift, whose engine-derived ratio of
+$\RoosEnhancementRatio$ structurally reproduces Roos et al.'s stated
+$24/5$.
+
+The predicted slope is $\RoosPredictedSlope$~Hz\,mm$^2$/V, a residual
+of $\RoosResidualPct\%$ against the measured value, and the band test
+returns \textit{\RoosCrossVintageVerdict}. That verdict is the expected
+outcome, and the case record says so in a self-contextualizing note it
+carries in its own JSON: the residual reproduces the literature's own
+tension between Itano's computed
+$\Theta=\RoosThetaTheory\,ea_0^2$ and Roos et al.'s measured
+$\Theta=\RoosThetaMeasuredCompact\,ea_0^2$, so the
+comparison validates the engine's factor chain while isolating the
+coefficient the two vintages disagree on.
+
+A second, deliberately circular variant closes the loop on the
+arithmetic. Feeding the engine Roos et al.'s own extracted
+$\Theta=\RoosThetaMeasuredCompact\,ea_0^2$, the very
+value their paper derives by inverting the same Fig.~4a fit through
+$\Theta=(5/12)\,h\,a$, predicts
+$\RoosArithPredictedSlope$~Hz\,mm$^2$/V, a $\RoosArithResidualPct\%$
+residual whose bands \RoosArithBandsOverlap{} (\textit{\RoosArithVerdict}). This
+variant is labeled an arithmetic reproduction, circular by
+construction, and its value is the factor-consistency check it
+performs: the engine's independently derived coefficient chain
+reproduces Roos et al.'s own published conversion relation exactly,
+confirmed by a closed-loop round trip at float64 precision.
+
+The headline variant carries the taxonomy's cross-vintage-comparison
+label (Sec.~\ref{sec:validation}'s labeling rules), and the label
+keeps its two weaknesses visible: Roos et al.'s applied gradient is
+itself calibrated through their own trap model, and their own fit
+produced the very slope being predicted. It is nonetheless a genuine
+external comparison, distinct from the circular variant above, because
+Itano's $\Theta$ was never an ingredient of the fit it predicts.
+Neither variant joins the paper's headline counts, and the project
+remains at two reproducibility cases and zero blind predictions.
+
+\subsection{The covered slice of one platform's published budget}
+\label{sec:budget-slice}
+
+The validation cases above were built one systematic at a time; this
+subsection reads them the way a lab would, as rows of one platform's
+evaluation. The JILA Sr system publishes both of the evaluations this
+paper reproduces from published inputs, so Table~\ref{tab:budget-slice}
+collects the covered rows of that single platform side by side with
+the lab's own numbers, each row in one unit convention, each published
+value carrying its stated uncertainty, and each comparison reduced to
+a difference and a distance in units of that uncertainty. Two readings
+carry the table. The BBR difference sits at $\BudgetBbrSigma\sigma$ of
+the published uncertainty ($\BudgetBbrSigmaCombined\sigma$ against the
+published and prediction bands combined in quadrature), small by
+construction since the registry's
+dynamic coefficients are anchored to this group's own measurement,
+which is exactly why that row keeps the weaker arithmetic-reproduction
+label. The two redshift slopes are Bothwell et al.'s own independent
+analysis methods, and their central values differ from each other by
+$\BudgetAbSpread\times10^{-20}$/mm ($\BudgetAbSigma\sigma$ combined),
+more than either differs from this pipeline's single prediction, which
+lies between them. The one in-scope row without a comparison, their
+DC-Stark gradient, is exactly the shape of the blind-prediction
+program of Sec.~\ref{sec:limitations}: comparing against it requires a
+residual-field characterization the paper does not publish, and a lab
+sharing that characterization turns this context row into the record's
+first blind prediction. The composed, executable form of this table is
+\path{notebooks/11_real_budget_slice.ipynb}, which also prints the
+report's own exclusion notes naming the rows this release does not
+model.
+
+\begin{table*}[htbp]
+\centering
+\caption{The covered slice of one platform's published evaluation (the
+JILA Sr system: Aeppli et al.~\cite{Aeppli2024}, Bothwell et
+al.~\cite{Bothwell2022}), computed from published inputs by the same
+case objects the benchmark suite commits. $\sigma$ is the difference in
+units of the published value's stated uncertainty, a conservative
+convention that ignores this tool's own prediction band; for the BBR
+row, the only one where that band is comparable to the published one,
+the combined-uncertainty metric reduces the distance to
+$\BudgetBbrSigmaCombined\sigma$. The context row is
+in-scope physics (Eq.~\eqref{eq:e14b}) awaiting the lab-side field
+characterization described in Sec.~\ref{sec:limitations}. Regenerated
+by \texttt{paper/figures/table\_budget\_slice.py}; the executable form
+is \texttt{notebooks/11\_real\_budget\_slice.ipynb}.}
+\label{tab:budget-slice}
+\footnotesize
+\input{generated/budget_slice_table.tex}
+\end{table*}
+
+\FloatBarrier
+\section{Showcase: a chamber-scale field's inhomogeneous shift budget}
+\label{sec:showcase}
+
+This section is the pitch the rest of the paper builds toward: from a
+CAD/FEA-style field export with genuine spatial structure to the full
+inhomogeneous-shift budget of a real atomic cloud (the mean shift
+together with the spread across the ensemble, the resulting dephasing
+time $T_2^*$, and the clock transition's line profile), computed by the same
+pipeline validated in Sec.~\ref{sec:validation}, with the trajectory and
+rotor evaluation modes checked directly against each other on the
+identical ensemble. This is a demonstration scenario, built the same way
+Sec.~\ref{sec:npl}'s NPL case and this paper's closed-form validation
+suite are: every input is a chosen, documented scenario parameter, not
+sourced from an independent field measurement (Sec.~\ref{sec:limitations}
+states what that stronger case would still require). The scale is
+anchored to a documented class of real events: Lodewyck et al.\
+observed and then cancelled a stray-charge DC-Stark shift at an
+operating Sr lattice clock~\cite{Lodewyck2012}, and a field event of
+this scenario's magnitude would dominate the clock's coherence
+outright, with nothing in the unmodeled physics competing at that
+scale. The scenario therefore answers the two questions a practitioner
+actually brings to it: what signature a charge-patch event would leave
+on an operating clock's shift, spread, and $T_2^*$, and what
+stray-field level a chamber geometry under design can tolerate before
+it matters.
+
+\subsection{Scenario: an asymmetric two-electrode chamber with a patch spot}
+
+The field is a finite-difference solution of Laplace's equation
+(\texttt{examples/generate\_showcase\_field.py}; the same from-scratch,
+NumPy/SciPy-only conjugate-gradient solver as this project's earlier
+COMSOL-format round-trip test, with no COMSOL or other paid software
+involved) for a grounded chamber containing two electrode plates of
+\emph{different} size and voltage at different, non-mirror-symmetric
+positions, plus a small circular patch-potential spot embedded in one
+wall (a crude but standard model of trapped-charge contamination on a
+chamber surface). Unlike a simple parallel-plate capacitor (whose field is
+nearly linear across any small interior region), this scenario is chosen
+specifically to carry real curvature and cross-terms: the exported field
+region shows a $\ShowcaseRelFieldVariation\%$ relative magnitude
+variation over one cloud standard deviation (0.82~mm, two field-grid
+cells at this scenario's 0.41~mm spacing) from the trap center along its
+steepest axis. This is a genuinely varying field. Figure~\ref{fig:showcase}(a)
+shows the whole-chamber field magnitude with both electrodes and the
+patch spot marked; the field at the trap center itself is
+$|E|=\ShowcaseFieldCenter$~V/m.
+
+\textbf{Scale reasoning (why the cloud is chamber-scale, not
+lattice-site scale).} A real optical-lattice-site cloud's motional
+ground-state extent is tens of nanometers (the harmonic-oscillator
+scale $\sqrt{\hbar/(2m\omega)}$, at a typical lattice-site trap
+frequency $\omega\sim10^5$~rad/s), far smaller than any chamber-scale
+field feature, so it would never sample genuine field curvature; a
+field-gradient map's real spatial content only shows up in
+an ensemble whose own spatial extent is a meaningful fraction of the
+field's variation scale. This showcase therefore uses a classical,
+chamber-scale trapping stage (e.g.\ a large-volume "science" dipole or
+magnetic trap) with a $\ShowcaseTrapOmega$~rad/s
+isotropic trap and a $\ShowcaseTemperatureUK\,\mu$K, genuinely
+laser-cooled-scale $^{87}$Sr ensemble ($\ShowcaseEnsembleSize$ classical
+Monte Carlo atoms), giving a classical thermal cloud size
+$\sigma=\sqrt{k_BT/(m\omega^2)}=\ShowcaseCloudSigmaUm\,\mu$m, a sizable
+fraction of the field's own spatial-variation scale, so the ensemble's
+trajectories genuinely sample real field curvature. This is a scenario-\emph{geometry} choice
+(trap frequency and temperature), documented exactly as such; no physical
+constant is touched to reach it.
+
+\subsection{Trajectory and rotor modes, run head to head}
+
+Each atom's Sr-87 classical trajectory (Maxwell--Boltzmann velocities,
+velocity-Verlet propagation in the trap, over a genuine
+$\ShowcaseInterrogationTime$~s window spanning several trap oscillation
+periods) is propagated through the fitted field and accumulates its
+DC-Stark phase via the pipeline's \textbf{trajectory mode}
+(Sec.~\ref{sec:model-modes}), exactly as
+\texttt{examples/showcase\_gradient\_\allowbreak dispersion\_sr87.yaml}
+runs through the standard \texttt{cliffordclock} CLI/API. The identical Monte Carlo
+trajectories are then re-accumulated through the \textbf{rotor mode}'s
+Cl(1,3) engine, driven directly against the same trajectories (the
+shipped config schema's \texttt{integration.mode=worldline} keyword
+exposes the rotor cross-check for static lattice nodes only,
+Sec.~\ref{sec:model-modes}; the identical accumulator function
+also runs, unchanged, against a moving classical trajectory, which is
+what this figure exercises). \textbf{The two evaluations agree to
+$\ShowcaseMeanShiftRelDiff$ relative in the ensemble mean shift, to
+$\ShowcaseMaxPhaseDiff$ absolute (float64-noise scale) in every
+individual atom's accumulated phase, and to $\ShowcaseMaxShiftDiff$
+absolute in every individual atom's fractional shift}. That is the
+message this section exists to make concrete: the trajectory mode is not an
+approximation of a "more correct" rotor calculation, and the rotor mode
+is not required to
+get a spatially varying field's shift budget right; both are already
+the same number, verified on this exact scenario as well as on the
+simpler cases of Table~\ref{tab:validation}.
+
+\subsection{The inhomogeneous shift budget}
+
+The pipeline reports a mean fractional shift
+$\langle\Delta\nu/\nu_0\rangle=\ShowcaseMeanShift$ with a population
+spread of $\ShowcaseShiftSpread$ across the ensemble (SEM
+$\ShowcaseShiftSem$). The spread is the physically meaningful
+dispersion quantity here; the SEM in parentheses is only the
+statistical precision of the mean. The ensemble's accumulated phase spread $\sigma_\Phi$ implies
+an inhomogeneous dephasing time via the standard Gaussian-dephasing form
+\begin{equation}
+  T_2^* = \frac{\sqrt{2}\,T}{\sigma_\Phi} ,
+  \label{eq:e27}
+\end{equation}
+(E27, CONVENTIONS.md), giving
+$T_2^*=\ShowcaseTtwoStarUs\,\mu$s, roughly three orders of magnitude
+below this scenario's own interrogation window. An experiment run this
+way would lose coherence to field-gradient inhomogeneity long before
+the interrogation time itself, a real, quantitative finding a lab could
+not get from a field-gradient map and a mean-shift calculation alone.
+(This number is set by where each atom sits in the field: the mean
+phase and its spread both scale with the interrogation window here, so
+$T_2^*$ reflects the ensemble's spatial distribution through the field
+regardless of the particular window chosen; see
+\texttt{examples/showcase\_gradient\_dispersion\_sr87.yaml}'s
+own scale-reasoning note.) Figure~\ref{fig:showcase}(c) shows the
+resulting per-atom shift distribution and spectral line profile, with
+$T_2^*$ annotated; the rotor-mode line profile is overlaid and
+indistinguishable from the trajectory-mode one at this resolution
+(rotor $T_2^*=\ShowcaseTtwoStarRotorUs\,\mu$s).
+
+\textbf{What a lab could not otherwise easily get.} A general-purpose
+FEA solver reports a field map; converting that map into a
+gradient-driven dispersion budget for a specific trapped ensemble
+(spread, $T_2^*$, and line shape, beyond a mean shift at one point) is
+exactly the workflow gap Sec.~\ref{sec:intro} describes, and exactly what
+this section demonstrates end to end, with the scalar and rotor engines
+agreeing on the answer.
+
+\begin{figure*}[htbp]
+\centering
+\includegraphics[width=0.95\linewidth]{figures/fig4_showcase_gradient_dispersion.pdf}
+\caption{The showcase scenario (Sec.~\ref{sec:showcase}). (a) Whole-chamber
+field magnitude at the trap's $z$-plane, with the two asymmetric
+electrodes and the patch-potential wall spot marked (dashed outlines,
+projected onto this plane; see the electrode/patch $z$-positions
+annotated on the panel). (b) The locally fitted field (the same
+\texttt{FieldSmoother} fit the pipeline evaluates) with a subsample of
+Monte Carlo trajectories overlaid, each colored by its final accumulated
+fractional shift. (c) The per-atom shift distribution (histogram) and the
+resulting spectral line profile (both trajectory- and rotor-mode
+evaluations overlaid), with $T_2^*$ annotated. Regenerated by
+\texttt{paper/figures/fig4\_showcase\_gradient\_dispersion.py} against the
+real pipeline, using \texttt{examples/showcase\_gradient\_dispersion\_sr87.yaml}
+and its generating field \texttt{examples/showcase\_field.txt}
+(\texttt{examples/generate\_showcase\_field.py}).}
+\label{fig:showcase}
+\end{figure*}
+
+\FloatBarrier
+\section{Limitations and roadmap}
+\label{sec:limitations}
+
+The current physics package covers the field-driven and relativistic
+terms of an optical-clock frequency budget end to end: DC-Stark shifts
+from static and gradient fields, electric-quadrupole shifts for ion
+clocks, blackbody radiation at a uniform temperature, second-order
+Doppler, and the gravitational redshift across an extended atomic
+sample. Every one of these terms runs through the same numerics
+Sec.~\ref{sec:methods} pins, so a lab can add a new field geometry or
+species and get a full dispersion budget from the same validated
+machinery. Table~\ref{tab:scope} states the remaining boundary
+directly, and every item outside it is a documented, intentional
+choice with a stated reason. An independent benchmarking pass against
+two published clock uncertainty budgets~\cite{Aeppli2024,Jia2026}
+found most published systematic line items outside this project's
+scope, with blackbody radiation dominating both budgets by three or
+more orders of magnitude; that finding is what ordered the scope
+extensions shipped so far, and it orders the queue below.
+
+Lattice light shifts are the next physics package on that queue,
+because they complete the lattice-clock systematic triad alongside BBR
+and the field-driven terms already covered. Modeling them at the magic
+wavelength needs species-specific AC polarizability data: the
+hyperpolarizability, the E2/M1 polarizabilities, and the
+motional-state intensity-sampling dependence that recent dual-ensemble
+evaluations resolve directly. Tensor polarizability and RF/micromotion
+dynamics for ion traps arrive together as one package, because the
+published Sr$^+$ measurements of Sec.~\ref{sec:quadrupole}
+\cite{Dube2005} show
+micromotion-driven tensor Stark shifts dominating the
+$m_J$-dependent budget; shipping tensor polarizability without the
+time-dependent RF field that drives micromotion would model the
+smaller term while implying full coverage of the larger one. That same
+time-dependent field machinery, built once, also sets up probe-beam AC
+Stark support broadly.
+
+Two further packages wait on partner-lab demand. Density and
+collisional shifts are a different physics class altogether: they need
+an interaction model between atoms, with s-wave and p-wave collision
+physics and excitation-fraction dependence, where this project's
+ensembles are independent particles by construction; some labs manage
+this systematic entirely through density control and extrapolation, in
+which case it may stay outside this tool's scope indefinitely.
+Blackbody radiation's spatial refinement, a $T(\mathbf{r})$ map
+reduced to a solid-angle effective temperature, is a natural next step
+once a partner lab wants to hand over thermal FEA output directly
+instead of pre-reducing it to the single number the uniform-$T$ term
+takes today.
+
+The rotor engine implements the physical DC-Stark coupling directly (the
+$\Omega$-bivector construction \texttt{build\_omega\_stark},
+Sec.~\ref{sec:rotor-verification}), with its own dedicated, direct verification
+against the scalar path (including a re-run of the NPL reproducibility
+case through the rotor integrator and the showcase's head-to-head Monte
+Carlo comparison, Sec.~\ref{sec:showcase}). By design, the fast analytic
+and trajectory modes' performance tiers (\texttt{fast\_path},
+\texttt{direct}, \texttt{secular}; Table~\ref{tab:tiers}) stay on the
+scalar accumulator: they are built around a coupling-agnostic rate
+function, and routing them through a per-step Cl(1,3) rotor construction
+would trade away their performance advantage for no accuracy benefit,
+given the scalar/rotor equivalence Sec.~\ref{sec:model-modes} establishes
+for every physical coupling this project currently implements. That
+equivalence also locates the rotor engine's roadmap value precisely: it
+begins where a future extension's physics stops being expressible as
+the single scalar pivot this section's other
+modes assume. Magnetic couplings (Zeeman shifts, Table~\ref{tab:scope}),
+internal-state structure beyond a two-level clock transition, and
+transport-induced geometric phases (a rotor accumulated along the
+moving trajectory itself) are the
+concrete candidates, and each needs the rotor's bivector/spinor
+structure to be represented at all.
+
+The clearest concrete next step toward a genuine \textbf{blind
+prediction} case (Sec.~\ref{sec:validation}) is access to a published
+source that independently characterizes a stray field this project's
+own pipeline has not already been used, by that same source, to convert
+to a shift. One such candidate is known by citation
+(Li et al.\ 2024~\cite{Li2024}, cited by Jia et al.\ 2026~\cite{Jia2026}
+as the source that originally characterized an applied field underlying
+one of their systematic-shift budget entries) but was not accessible to
+this project through any legitimate open-access route at the time of
+writing; its content remains unknown and is neither ruled in nor ruled
+out as a future reproducibility or blind-prediction case. A structured
+collaboration with a clock-apparatus group willing to supply a field
+characterization ahead of (or independent of) their own shift
+measurement, a beta blind-prediction program, is the concrete path
+to closing this gap, and is future work; no such collaboration is
+named here pending the owner's own outreach.
+
+\FloatBarrier
+\section{Code availability and citation}
+\label{sec:code}
+
+The source code, test suite, documentation, and the figure-generation
+scripts underlying this paper are available at
+\url{https://github.com/velar-mbr/CliffordClock} under the GNU
+Affero General Public License v3.0 or later (AGPLv3). The Python
+package and command-line interface are both distributed under the name
+\texttt{cliffordclock} (pip package and CLI command). A machine-readable
+citation file (\texttt{CITATION.cff}) is provided in the repository
+root.
+
+\bibliography{refs}
+
+\end{document}

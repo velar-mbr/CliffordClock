@@ -1,0 +1,62 @@
+# CliffordClock example: synthetic uniform stray field, Sr-87 optical-
+# lattice (Hermite-Gauss motional-quadrature) ensemble, PHYSICAL DC-Stark
+# coupling (CONVENTIONS.md E14b). See docs/cli.md for the full schema and
+# docs/coupling.md for the E14b physics/API.
+#
+# Unlike examples/lattice_sr87.yaml (coupling.type: linear_mu, an
+# arbitrary synthetic dipole), this example's `coupling.type: stark_dc`
+# uses Sr-87's literature-cited differential static polarizability
+# (T. Middelmann et al., PRL 109, 263004 (2012)) from the species
+# registry, so the reported shift is a real, physically meaningful
+# quantity: the DC-Stark shift a 100 V/m stray field would actually
+# produce on the Sr-87 clock transition. This is the case
+# tests/test_known_answers.py's KA1 validates against the textbook
+# formula Delta_nu/nu0 = -(Delta_alpha/2)|E|^2/(h nu0).
+#
+# T=1s genuine interrogation via the E29 lattice fast path (Tier A):
+# static motional-state quadrature nodes need no time integration at all,
+# so this costs the same wall time as any other T (see docs/timescales.md).
+
+species: Sr87
+
+trap:
+  omega_xyz: [2.0e+5, 2.0e+5, 2.0e+5]  # rad/s, typical lattice-site scale
+  center: [0.0, 0.0, 0.0]              # m
+
+field:
+  synthetic:
+    kind: uniform
+    params:
+      e0: [0.0, 0.0, 100.0]  # V/m -- a lab-typical stray DC field
+
+coupling:
+  type: stark_dc  # E14b; no override fields given -> resolved from the
+                  # Sr87 species-registry entry's cited Delta_alpha.
+
+ensemble:
+  regime: lattice
+  temperature_uK: 1.0
+  motional_n: [0, 0, 0]
+  n_quad: 1  # single static node: a uniform field gives every node an
+             # identical shift (Var=0), so a wider quadrature would hit
+             # analytics/stats.py's dephasing_time_t2star divide-by-zero
+             # on this exact-degenerate case (a latent pipeline edge-case,
+             # a known analytics limitation, not fixed here). This
+             # matches the M=1 case CONVENTIONS.md's V2/KA1 both use.
+
+integration:
+  time_s: 1.0  # genuine 1-second interrogation (E29 fast path, no time
+               # stepping -- integration.mode defaults to "fast_path" for
+               # ensemble.regime: lattice).
+
+output:
+  directory: .
+  report_filename: report.json
+  line_profile_filename: line_profile.csv
+  n_time_samples: 512
+
+uncertainty_notes: >-
+  Known-answer validation case (docs/validation.md, KA1): physical E14b DC-Stark coupling, Sr87
+  registry Delta_alpha; no experimental-dataset comparison, no
+  BBR modeling, no systematic-uncertainty budget beyond what
+  coupling/fast_path provenance notes state.

@@ -1,0 +1,29 @@
+{
+  "wp20_bbr_benchmark_schema": "1.0",
+  "generated_at_utc": "2026-08-12T13:57:40.177739+00:00",
+  "case_label": "arithmetic reproduction of a published standard-formula evaluation (arithmetic-reproduction fidelity, NOT BBR accuracy; explicitly weaker than a reproducibility case; JILA's own BBR row is itself computed, not an independently measured shift)",
+  "case_class": "arithmetic_reproduction",
+  "jila_2403_10664_bbr_arithmetic_reproduction_case": {
+    "case_class": "arithmetic_reproduction",
+    "case_label": "arithmetic reproduction of a published standard-formula evaluation (arithmetic-reproduction fidelity, NOT BBR accuracy; explicitly weaker than a reproducibility case; JILA's own BBR row is itself computed, not an independently measured shift)",
+    "species_name": "Sr87",
+    "temperature_k": 293.282,
+    "temperature_uncertainty_k": 0.004000000000019099,
+    "predicted_shift_nominal": -4.841742511091567e-15,
+    "predicted_shift_temperature_band_lo": -4.8420165996655454e-15,
+    "predicted_shift_temperature_band_hi": -4.8414684346522934e-15,
+    "predicted_coefficient_uncertainty_fractional": 6.831735286985865e-19,
+    "predicted_combined_uncertainty_fractional": 7.361027718433669e-19,
+    "predicted_combined_band_lo": -4.842478613863411e-15,
+    "predicted_combined_band_hi": -4.841006408319724e-15,
+    "published_shift_nominal": -4.84172e-15,
+    "published_shift_lo": -4.8424500000000004e-15,
+    "published_shift_hi": -4.84099e-15,
+    "residual_fractional": -2.2511091567236514e-20,
+    "bands_overlap": true,
+    "kpi_verdict": "MET",
+    "temperature_citation": "Aeppli, Kim, Warfield, Safronova, Ye, arXiv:2403.10664v2 (PRL 133, 023401 (2024)), main-text in-vacuum RTD temperature statement: \"T = 20.132(4) degC = 293.282(4) K\"; cross-checked against the primary text in this project's internal review sweep (2026-08-11) -- see benchmarks/SOURCES.md section 1 for the already-logged arXiv:2403.10664 fetch/checksum this value extends.",
+    "published_shift_citation": "Aeppli, Kim, Warfield, Safronova, Ye, arXiv:2403.10664v2 (PRL 133, 023401 (2024)), Table I \"BBR\" row: -48417.2(73) x 10^-19 = -4.84172(73) x 10^-15 -- same source/checksum as benchmarks/fixtures/jila_2403_10664_table1.csv (benchmarks/SOURCES.md section 1).",
+    "registry_coefficient_citation": "cliffordclock.ensemble.species.SR87.bbr_coefficients: static nu_stat_300k_hz=-2.13023(6) Hz (T. Middelmann, S. Falke, C. Lisdat, U. Sterr, Phys. Rev. Lett. 109, 263004 (2012)); dynamic dyn_coeffs_hz={6: -0.13216, 8: -0.01231, 10: -0.00858} Hz, the PTB-2025 rescaled polynomial (arXiv:2507.14030) -- Lisdat et al. PR Research 3, L042036 (2021)'s fit SHAPE rescaled to Aeppli et al. arXiv:2403.10664 (2024)'s own -153.06(33) mHz dynamic-term ANCHOR at 300 K. See the project's theory sign-off record (G7) B2 for the shape-vs-anchor reasoning the G7 gate ratified."
+  }
+}

@@ -1,0 +1,11 @@
+.venv/
+__pycache__/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+dist/
+*.egg-info/
+.coverage
+.ipynb_checkpoints/
+benchmarks/data/_fetched/
+.DS_Store

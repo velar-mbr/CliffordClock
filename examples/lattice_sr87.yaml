@@ -1,0 +1,58 @@
+# CliffordClock example: synthetic Gaussian-bump field, Sr-87 optical-
+# lattice (Hermite-Gauss motional-quadrature) ensemble. See docs/cli.md for
+# the full schema.
+#
+# This is a SYNTHETIC validation case, not a physical prediction -- see the
+# header note in examples/quadrupole_classical.yaml.
+#
+# A genuine 1-second interrogation. `ensemble.regime: lattice` runs
+# through the E29 lattice fast path (docs/timescales.md, Tier A) by
+# default: static motional-state quadrature nodes need no time
+# integration at all, so `integration.time_s` is a direct, physically
+# real input -- any value costs the same (see docs/timescales.md's
+# "1-second demo" requirement) and this example is timed as part of the
+# test suite (tests/test_e2e.py) at well under a second of wall time.
+
+species: Sr87
+
+trap:
+  omega_xyz: [2.0e+5, 2.0e+5, 2.0e+5]  # rad/s, typical lattice-site scale
+  center: [0.0, 0.0, 0.0]              # m
+
+field:
+  synthetic:
+    kind: gaussian_bump
+    params:
+      amplitude: [10.0, 0.0, -5.0]  # V/m
+      center: [0.0, 0.0, 0.0]       # m
+      width: 1.0e-6                # m -- much wider than the Sr-87 ground-
+                                    # state motional extent at this trap
+                                    # frequency (~61 nm), so the field is
+                                    # nearly uniform across the ensemble's
+                                    # nodes: SEM << |shift| (honestly, not
+                                    # by tolerance games -- see docs/timescales.md
+                                    # report).
+
+coupling:
+  mu: [1.0e-24, 0.0, 0.0]  # C.m, E14a (see quadrupole_classical.yaml note)
+
+ensemble:
+  regime: lattice
+  temperature_uK: 1.0
+  motional_n: [0, 0, 0]
+  n_quad: 4
+
+integration:
+  time_s: 1.0  # genuine 1-second interrogation (E29 fast path, no
+               # time stepping -- integration.mode defaults to "fast_path"
+               # for ensemble.regime: lattice).
+
+output:
+  directory: .
+  report_filename: report.json
+  line_profile_filename: line_profile.csv
+  n_time_samples: 512
+
+uncertainty_notes: >-
+  Synthetic validation run, 1-second-interrogation demo (docs/validation.md); no
+  experimental data, no systematic-uncertainty budget modeled.

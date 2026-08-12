@@ -1,0 +1,80 @@
+DOI:
+10.7795/XXXX
+
+Title: 
+Additional data for the publication "The blackbody radiation shift in strontium lattice clocks revisited"
+
+Summary: 
+The data sets provide additional information on the manuscript including data shown in graphs.
+
+Creators: 
+	Christian Lisdat, 4.3, https://orcid.org/0000-0002-4705-8854
+	Sören Dörscher, 4.3, https://orcid.org/0000-0002-3331-4001
+	Ingo Nosske, 4.3, https://orcid.org/0000-0003-3622-4527
+	Uwe Sterr, 4.3, https://orcid.org/0000-0001-5661-769X
+		
+Physikalisch-Technische Bundesanstalt, Bundesallee 100, Braunschweig, Germany
+
+
+License:
+CC BY-ND 4.0 (Creative Commons Attribution-NoDerivatives 4.0 International Public License)
+
+Keywords: 
+Optical clocks, Blackbody radiation shift, Strontium lattice clock
+
+Classification:
+INSPEC A3000, INSPEC A3200, INSPEC A3280P, INSPEC A4262
+
+Funder:
+We acknowledge support by the project 18SIB05 ROCIT, which has received funding from the EMPIR programme co-financed by the Participating States and from the European Union's Horizon 2020 Research and Innovation Programme, and by the Deutsche Forschungsgemeinschaft (DFG, German Research Foundation) under Germany's Excellence Strategy EXC-2123 QuantumFrontiers - Project-ID 90837967, SFB 1464 TerraQ - Project-ID 434617780 within project A04, and SFB 1227 DQ-mat - Project-ID 274200144 - within project B02. This work was partially supported by the Max Planck-RIKEN-PTB Center for Time, Constants and Fundamental Symmetries.
+
+Description of the individual files:
+The files 'Approximation_G(n)_Sr.dat' and 'Approximation_G(n)_Yb.dat' contain data shown in Fig. 1 of the manuscript. The columns give
+	the order n up to which the approximative solution Eq. 4 of the manuscript has been calculated
+	the approximative solution G_n(y) for y = 18.4 and 34.5 corresponding to T = 300 K and the energetically lowest transitions ^3P_0-^3D_1 in strontium and ytterbium, respectively
+	the fractional deviation of G_n(y) from the full integral
+
+The file 'levelshift.dat' gives the shift of the strontium clock states due to the electric dipole interaction with electromagnetic radiation. The data is for illustration only. The columns give
+	the wavelength of the radiation in nm
+	the shift of the 5s^2 ^1S_0 state in Hz m^2 / W
+	the shift of the 5s5p ^3P_0 state in Hz m^2 / W
+
+The file 'BBR_shift.dat' gives the temperature-dependent BBR shift for the strontium clock transition. The columns contain
+	the temperature in Kelvin
+	the total BBR shift in Hz
+	the dynamic contribution to the BBR shift in Hz
+	the fractional uncertainty of the static contribution to the BBR shift in 1E-19
+	the fractional uncertainty of the dynamic contribution to the BBR shift in 1E-19
+	the residuals of the parametrization of the dynamic contribution by Eqs. 6 & 7 of the manuscript in 1E-19
+
+The file 'S_levels.dat' lists the levels that are connected to the 5s^2 ^1S_0 state (term energy 0 cm^-1) by dipole transitions and are used in the analysis (Tab. I of the paper). The columns contain
+	the configuration of the level
+	the approximate transition wavelength
+	the Einstein A coefficient in 1/s
+	the source of the Einstein coefficient
+		nic15: doi 10.1038/ncomms7896
+		yas06: doi 10.1103/PhysRevA.73.011403
+		san10a: doi 10.1063/1.3449176
+		opp69: doi 10.1007/BF01397656
+		bet57: H.A. Bethe and E.E. Salpeter in Handbuch der Physik, Springer, 1957
+	the term energy of the level in cm^-1
+
+The file 'P_levels.dat' lists the levels that are connected to the 5s5p ^3P_ 0 state (term energy 14317.507 cm^-1) by dipole transitions and are used in the analysis (Tab. II of the paper). The columns contain
+	the configuration of the level
+	the approximate transition wavelength
+	the Einstein A coefficient in 1/s
+	the source of the Einstein coefficient
+		gar88: doi 10.1016/0022-4073(88)90093-3
+		joe84: doi 10.1007/BF01439897
+		san10a: doi 10.1063/1.3449176
+		wer92: doi 10.1103/PhysRevA.46.1248
+		kel76: doi 10.1139/p76-094
+		nic15: doi 10.1038/ncomms7896
+		saf13: doi 10.1103/PhysRevA.87.012509
+		por08: doi 10.1103/PhysRevA.78.032508
+		opp69: doi 10.1007/BF01397656
+	the term energy of the level in cm^-1
+
+The file 'G(3D1_T).dat' gives the values of the function G defined in Eq. 3 of the manuscript for the transition frequency of the 5s4d ^3D_1 - 5s5p ^3P_0 transition of 115.1662621 THz as a function of temperature. The columns contain
+	the temperature in K
+	the value of G for the 5s4d ^3D_1 - 5s5p ^3P_0 transition and the temperature given in the first column

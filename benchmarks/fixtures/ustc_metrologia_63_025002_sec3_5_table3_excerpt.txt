@@ -1,0 +1,73 @@
+Excerpt from:
+
+Zhi-Peng Jia, Jie Li, De-Quan Kong, Xiang Zhang, Hai-Wei Yu, Xiao-Yong Liu,
+Yu-Chen Zhang, Yuan-Bo Wang, Xian-Qing Zhu, Jia-Hao Zhang, Ming-Yi Zhu,
+Pei-Jun Feng, Xing-Yang Cui, Ping Xu, Xiao Jiang, Xiang-Pei Liu, Peng Liu,
+Han-Ning Dai, Yu-Ao Chen, and Jian-Wei Pan,
+"Improved systematic evaluation of a strontium optical clock with
+uncertainty below 1 x 10^-18," Metrologia 63, 025002 (2026).
+DOI: 10.1088/1681-7575/ae449e
+(c) 2026 The Author(s). Published on behalf of BIPM by IOP Publishing Ltd.
+
+Original content from this work may be used under the terms of the
+Creative Commons Attribution 4.0 licence. Any further distribution of
+this work must maintain attribution to the author(s) and the title of
+the work, journal citation and DOI.
+
+Excerpt reproduced here (CC BY 4.0): Section 3.5 "Other minor systematic
+shifts" (subsection "Residual DC Stark shift" only -- the section also
+covers "Background gas collisions," "AOM phase chirp," "Line-pulling
+effect," "Lattice tunneling," "Probe AC Stark shift," and "Servo error,"
+not reproduced here as out of WP10 scope) and Table 3, verbatim, from the
+PDF's printed pages 9-10 (PDF pages 10-11 of the 12-page article as
+downloaded). Owner-provided file:
+/Users/mrud/Downloads/Jia_2026_Metrologia_63_025002.pdf,
+sha256 9cfc227150ad7129dc86091999a98f96e4c91164653e7ceb5c38512c39ed6d0d
+(see benchmarks/SOURCES.md section 5).
+
+================================================================================
+Section 3.5. Other minor systematic shifts (printed page 9)
+================================================================================
+
+Residual DC Stark shift — this shift originates from static electric
+fields due to charge accumulation on viewports [60]. As reported in our
+previous work [30], the y-component of the field caused a shift of
+1.4(5.2) x 10^-21. Given Delta-nu_DC ~ E^2_stat and E_stat ~ r^-2
+dependence, the shorter y-axis viewport distance (142 mm vs 237 mm for
+x,z) yield an 8x larger shift along y. Electrostatic shielding further
+suppresses x,z-axis fields by a factor of 3 according to FE simulations.
+Combining these, we constrain the total shift to 0.0(0.1) x 10^-19.
+
+================================================================================
+Table 3. USTC Sr1 uncertainty budget (printed page 10)
+================================================================================
+
+Systematic          Shift /1e-19    Uncertainty /1e-19
+BBR                  -50222.8            6.3
+Density                  -5.7            0.2
+Lattice                  80.5            6.3
+1st Zeeman                0              0.4
+2nd Zeeman             -1144.1           2.1
+DC Stark                  0             <0.1
+Background gas           -6.7            0.7
+AOM phase chirp            0            <0.1
+Line pulling                0           <0.1
+Lattice tunneling           0           <0.1
+Probe AC Stark            -0.3          <0.1
+Servo error                 0            0.7
+Total                  -51299.1          9.2
+
+================================================================================
+Reference [30] (from the paper's bibliography, printed page 11)
+================================================================================
+
+[30] Li J et al 2024 Metrologia 61 015006
+
+Per the Section 3.5 text above, this is the paper's own previous
+evaluation that "characterized" the applied external field underlying
+the 1.4(5.2)x10^-21 y-component prior value quoted in this excerpt --
+i.e. it is the actual field-magnitude-characterization source, one
+citation away from this paper. NOT authorized for fetch by the project
+owner as of this WP10 follow-up; NOT fetched. Flagged in
+benchmarks/MAPPING.md as the next authorization candidate for a possible
+future WP10 extension.

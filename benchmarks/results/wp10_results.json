@@ -1,0 +1,242 @@
+{
+  "wp10_report_schema": "2.0",
+  "generated_at_utc": "2026-08-12T13:57:39.308158+00:00",
+  "kpi_target": "residual between predicted and published experimental shifts < 1e-18",
+  "kpi_summary": {
+    "total_rows_considered": 14,
+    "not_applicable_rows": 13,
+    "reproducibility_cases_total": 1,
+    "reproducibility_cases_met": 1,
+    "blind_prediction_cases_total": 0,
+    "blind_prediction_cases_met": 0,
+    "headline_finding": "1 of 1 reproducibility case(s) met (NPL arXiv:1706.01944: this engine's coupling.type=stark_dc pipeline, given NPL's published residual field and PTB's published Delta_alpha, reconstructs NPL's own published DC-Stark shift band; NOT a blind prediction, since NPL combined the same two ingredients themselves; see benchmarks/MAPPING.md for why this label is binding). 0 blind-prediction cases (still none available from any authorized source). 13 rows remain not-applicable: JILA's Table I DC-Stark row and the USTC Metrologia 63,025002 DC-Stark constraint both publish only a resulting shift/bound with no independent field input; every other row (BBR, Zeeman, density, lattice light, background gas, etc., both papers) is physics outside this engine's scope; the NIST M32206 dataset measures a different physical quantity entirely. See benchmarks/RESULTS.md for the full gap analysis."
+  },
+  "jila_2403_10664_table1": [
+    {
+      "shift_name": "BBR",
+      "published_shift_fractional": -4.841719999999999e-15,
+      "published_uncertainty_fractional": 7.3e-19,
+      "uncertainty_is_upper_bound": false,
+      "in_engine_scope": false,
+      "comparable": false,
+      "kpi_verdict": "N/A",
+      "reason": "Blackbody-radiation shift (static + dynamic differential polarizability vs temperature). No BBR physics module exists in this engine (CONVENTIONS.md scope: E14b scalar DC Stark + E21 second-order Doppler only).",
+      "citation": "Aeppli, Kim, Warfield, Safronova, Ye, \"A clock with 8x10^-19 systematic uncertainty\", arXiv:2403.10664v2 (2024), Table I \"Fractional frequency shifts and uncertainties for the JILA 1D Sr optical lattice clock\", row 'BBR'"
+    },
+    {
+      "shift_name": "Lattice Light",
+      "published_shift_fractional": -1.0000000000000001e-20,
+      "published_uncertainty_fractional": 3.2000000000000003e-19,
+      "uncertainty_is_upper_bound": false,
+      "in_engine_scope": false,
+      "comparable": false,
+      "kpi_verdict": "N/A",
+      "reason": "AC lattice light shift (trap-light-induced polarizability, magic-wavelength operating-point sensitivity). Out of scope: CONVENTIONS.md E29 fast path is explicitly DC-Stark-only, no AC/optical polarizability term.",
+      "citation": "Aeppli, Kim, Warfield, Safronova, Ye, \"A clock with 8x10^-19 systematic uncertainty\", arXiv:2403.10664v2 (2024), Table I \"Fractional frequency shifts and uncertainties for the JILA 1D Sr optical lattice clock\", row 'Lattice Light'"
+    },
+    {
+      "shift_name": "Second Order Zeeman",
+      "published_shift_fractional": -8.551e-17,
+      "published_uncertainty_fractional": 1e-19,
+      "uncertainty_is_upper_bound": false,
+      "in_engine_scope": false,
+      "comparable": false,
+      "kpi_verdict": "N/A",
+      "reason": "Magnetic-field-induced shift. No magnetic-field/Zeeman physics exists anywhere in this engine.",
+      "citation": "Aeppli, Kim, Warfield, Safronova, Ye, \"A clock with 8x10^-19 systematic uncertainty\", arXiv:2403.10664v2 (2024), Table I \"Fractional frequency shifts and uncertainties for the JILA 1D Sr optical lattice clock\", row 'Second Order Zeeman'"
+    },
+    {
+      "shift_name": "Density",
+      "published_shift_fractional": -1.1000000000000002e-19,
+      "published_uncertainty_fractional": 9e-20,
+      "uncertainty_is_upper_bound": false,
+      "in_engine_scope": false,
+      "comparable": false,
+      "kpi_verdict": "N/A",
+      "reason": "Cold-collision (atom-atom interaction) shift. No inter-particle/collisional physics in this engine (ensemble atoms are independent, CONVENTIONS.md/WP4 scope).",
+      "citation": "Aeppli, Kim, Warfield, Safronova, Ye, \"A clock with 8x10^-19 systematic uncertainty\", arXiv:2403.10664v2 (2024), Table I \"Fractional frequency shifts and uncertainties for the JILA 1D Sr optical lattice clock\", row 'Density'"
+    },
+    {
+      "shift_name": "First order Zeeman",
+      "published_shift_fractional": 0.0,
+      "published_uncertainty_fractional": 6.999999999999999e-20,
+      "uncertainty_is_upper_bound": false,
+      "in_engine_scope": false,
+      "comparable": false,
+      "kpi_verdict": "N/A",
+      "reason": "Magnetic-field-induced shift. No magnetic-field/Zeeman physics exists anywhere in this engine.",
+      "citation": "Aeppli, Kim, Warfield, Safronova, Ye, \"A clock with 8x10^-19 systematic uncertainty\", arXiv:2403.10664v2 (2024), Table I \"Fractional frequency shifts and uncertainties for the JILA 1D Sr optical lattice clock\", row 'First order Zeeman'"
+    },
+    {
+      "shift_name": "Background Gas",
+      "published_shift_fractional": -4.7e-19,
+      "published_uncertainty_fractional": 5e-20,
+      "uncertainty_is_upper_bound": false,
+      "in_engine_scope": false,
+      "comparable": false,
+      "kpi_verdict": "N/A",
+      "reason": "Background-gas collisional shift. No collisional physics in this engine.",
+      "citation": "Aeppli, Kim, Warfield, Safronova, Ye, \"A clock with 8x10^-19 systematic uncertainty\", arXiv:2403.10664v2 (2024), Table I \"Fractional frequency shifts and uncertainties for the JILA 1D Sr optical lattice clock\", row 'Background Gas'"
+    },
+    {
+      "shift_name": "DC Stark",
+      "published_shift_fractional": -1e-19,
+      "published_uncertainty_fractional": 1.0000000000000001e-20,
+      "uncertainty_is_upper_bound": false,
+      "in_engine_scope": true,
+      "comparable": false,
+      "kpi_verdict": "N/A",
+      "reason": "In engine physics scope (CONVENTIONS.md E14b scalar DC Stark) but not an independent forward-comparable case: the paper's main text reports only the resulting fractional shift (-9.8+/-0.7e-20) and never the residual stray-field magnitude (V/m) that produced it. The PRL 133, 023401 Supplemental Material was also checked (owner-authorized follow-up, 2026-08-10): it could not be retrieved directly (paywalled; no credential/paywall bypass attempted), but a direct cross-check against the already-fetched arXiv v2 text (same LaTeX sources) shows its five sections cover five other systematics (lifetime/BBR, temperature, first-order Zeeman, background gas) and the DC-Stark paragraph cites no supplemental reference at all -- so it would not have added a field value either. Building a pipeline config would require guessing a field and then either (a) reporting a residual that is meaningless because the input was never independently known, or (b) solving for the field that reproduces their number, which is exactly the 'tuned parameter' WP10's labeling discipline forbids (section 3: 'No parameter may be fitted, tuned, or selected to reduce residuals'). See benchmarks/MAPPING.md and benchmarks/SOURCES.md section 3 for the full reasoning and the illustrative (explicitly non-comparison) field sweep this script runs instead.",
+      "citation": "Aeppli, Kim, Warfield, Safronova, Ye, \"A clock with 8x10^-19 systematic uncertainty\", arXiv:2403.10664v2 (2024), Table I \"Fractional frequency shifts and uncertainties for the JILA 1D Sr optical lattice clock\", row 'DC Stark'"
+    },
+    {
+      "shift_name": "Tunneling",
+      "published_shift_fractional": 0.0,
+      "published_uncertainty_fractional": 1.0000000000000001e-20,
+      "uncertainty_is_upper_bound": true,
+      "in_engine_scope": false,
+      "comparable": false,
+      "kpi_verdict": "N/A",
+      "reason": "Inter-site lattice-band tunneling shift (band-structure/Wannier-Stark physics). This engine models motional states via harmonic-oscillator Hermite-Gauss quadrature only (CONVENTIONS.md E29); no lattice band-structure/tunneling physics exists.",
+      "citation": "Aeppli, Kim, Warfield, Safronova, Ye, \"A clock with 8x10^-19 systematic uncertainty\", arXiv:2403.10664v2 (2024), Table I \"Fractional frequency shifts and uncertainties for the JILA 1D Sr optical lattice clock\", row 'Tunneling'"
+    },
+    {
+      "shift_name": "Minor Shifts",
+      "published_shift_fractional": 0.0,
+      "published_uncertainty_fractional": 1.0000000000000001e-20,
+      "uncertainty_is_upper_bound": true,
+      "in_engine_scope": false,
+      "comparable": false,
+      "kpi_verdict": "N/A",
+      "reason": "Unspecified grab-bag of sub-1e-20 effects (paper does not itemize); not attributable to any single engine mechanism.",
+      "citation": "Aeppli, Kim, Warfield, Safronova, Ye, \"A clock with 8x10^-19 systematic uncertainty\", arXiv:2403.10664v2 (2024), Table I \"Fractional frequency shifts and uncertainties for the JILA 1D Sr optical lattice clock\", row 'Minor Shifts'"
+    },
+    {
+      "shift_name": "Total Shift",
+      "published_shift_fractional": -4.92792e-15,
+      "published_uncertainty_fractional": 8.099999999999999e-19,
+      "uncertainty_is_upper_bound": false,
+      "in_engine_scope": false,
+      "comparable": false,
+      "kpi_verdict": "N/A",
+      "reason": "Sum of all rows above; not a single physical mechanism, so no per-effect scope/comparison classification applies.",
+      "citation": "Aeppli, Kim, Warfield, Safronova, Ye, \"A clock with 8x10^-19 systematic uncertainty\", arXiv:2403.10664v2 (2024), Table I \"Fractional frequency shifts and uncertainties for the JILA 1D Sr optical lattice clock\", row 'Total Shift'"
+    }
+  ],
+  "dc_stark_context_sweep_species_sr87": {
+    "note": "Illustrative only -- not a benchmark/residual case. Fixed field magnitudes (never tuned), run through the real coupling.type=stark_dc lattice fast-path pipeline.",
+    "clock_frequency_hz": 429228004229873.4,
+    "delta_alpha_dc_si": 4.07873e-39,
+    "points": [
+      {
+        "field_v_per_m": 1.0,
+        "predicted_fractional_shift": -7.170523825042889e-21,
+        "predicted_sem": null
+      },
+      {
+        "field_v_per_m": 5.0,
+        "predicted_fractional_shift": -1.7926309562607223e-19,
+        "predicted_sem": null
+      },
+      {
+        "field_v_per_m": 10.0,
+        "predicted_fractional_shift": -7.170523825042889e-19,
+        "predicted_sem": null
+      },
+      {
+        "field_v_per_m": 20.0,
+        "predicted_fractional_shift": -2.8682095300171557e-18,
+        "predicted_sem": null
+      },
+      {
+        "field_v_per_m": 50.0,
+        "predicted_fractional_shift": -1.7926309562607222e-17,
+        "predicted_sem": null
+      },
+      {
+        "field_v_per_m": 100.0,
+        "predicted_fractional_shift": -7.170523825042889e-17,
+        "predicted_sem": null
+      }
+    ]
+  },
+  "nist_m32206": [
+    {
+      "source_file": "nist_m32206_yb_clock_phase_excerpt.csv",
+      "excerpt_n_samples": 20,
+      "full_dataset_n_samples": 44002,
+      "phase_units": "rad",
+      "comparable": false,
+      "kpi_verdict": "N/A",
+      "reason": "This file is a phase-vs-time record (optical-to-microwave frequency division instability, Allan-deviation-type data per the dataset's own description) from a completely different measurement category than this engine computes: static/quasi-static systematic frequency SHIFTS (CONVENTIONS.md E14b DC Stark, E21 second-order Doppler), not short- term phase/frequency INSTABILITY of a specific down-conversion scheme. There is no field-gradient, temperature, or trap parameter in this data to map to a pipeline config, and computing an Allan deviation from it to compare against would require new analytics functionality outside WP10's scope (non-goal: no new physics/analytics modules). See benchmarks/MAPPING.md.",
+      "citation": "T. Nakamura et al., \"Data for 'Coherent Optical Clock Down-Conversion for Microwave Frequencies with 10-18 Instability'\", data.nist.gov DOI 10.18434/M32206 (2020), referencing arXiv:2003.02923"
+    },
+    {
+      "source_file": "nist_m32206_10ghz_phase_excerpt.csv",
+      "excerpt_n_samples": 20,
+      "full_dataset_n_samples": 44002,
+      "phase_units": "mrad",
+      "comparable": false,
+      "kpi_verdict": "N/A",
+      "reason": "This file is a phase-vs-time record (optical-to-microwave frequency division instability, Allan-deviation-type data per the dataset's own description) from a completely different measurement category than this engine computes: static/quasi-static systematic frequency SHIFTS (CONVENTIONS.md E14b DC Stark, E21 second-order Doppler), not short- term phase/frequency INSTABILITY of a specific down-conversion scheme. There is no field-gradient, temperature, or trap parameter in this data to map to a pipeline config, and computing an Allan deviation from it to compare against would require new analytics functionality outside WP10's scope (non-goal: no new physics/analytics modules). See benchmarks/MAPPING.md.",
+      "citation": "T. Nakamura et al., \"Data for 'Coherent Optical Clock Down-Conversion for Microwave Frequencies with 10-18 Instability'\", data.nist.gov DOI 10.18434/M32206 (2020), referencing arXiv:2003.02923"
+    }
+  ],
+  "npl_1706_01944_reproducibility_case": {
+    "case_class": "reproducibility",
+    "field_lo_v_per_m": 1.2979639668882548,
+    "field_nominal_v_per_m": 1.52,
+    "field_hi_v_per_m": 2.1420128616033596,
+    "field_citation": "Bowden, Hobson, Huillery, Gill, Jones, Hill, \"Rydberg Electrometry for Optical Lattice Clocks\", arXiv:1706.01944v1 (PRA 96, 023419 (2017)), Section IV, p.5: \"residual electric field of 1.52 +0.62(stat)/-0.22(stat) +0.05(sys)/-0.03(sys) Vm^-1\"",
+    "predicted_shift_lo": -3.289993436586257e-20,
+    "predicted_shift_nominal": -1.656677824537909e-20,
+    "predicted_shift_hi": -1.2080256486998531e-20,
+    "published_shift_lo": -3.2e-20,
+    "published_shift_nominal": -1.6e-20,
+    "published_shift_hi": -1.2e-20,
+    "published_shift_citation": "Bowden et al., arXiv:1706.01944v1 (PRA 96, 023419 (2017)), Section IV, p.5: \"fractional frequency shift of -1.6 +0.4/-1.6 x 10^-20\"",
+    "bands_overlap": true,
+    "kpi_verdict": "MET",
+    "uncertainty_propagation_method": "Field: stat and sys uncertainties combined in quadrature separately on each side (sqrt(stat**2+sys**2)), never symmetrized between sides -- see loaders.AsymmetricMeasurement.combined_lo/combined_hi. Shift band: three independent real pipeline runs at (E_lo, E_nominal, E_hi), not an algebraic error-propagation formula -- the E14b quadratic form's monotonicity in |E| is asserted, not assumed, by checking predicted_shift_lo <= predicted_shift_nominal <= predicted_shift_hi at runtime.",
+    "species_name": "Sr87",
+    "delta_alpha_dc_si": 4.07873e-39,
+    "delta_alpha_citation": "T. Middelmann, S. Falke, C. Lisdat, U. Sterr, Phys. Rev. Lett. 109, 263004 (2012) -- cliffordclock.ensemble.species.SR87's own citation, confirmed to be the same source NPL cites as arXiv:1706.01944's reference [3] (see benchmarks/SOURCES.md section 4)."
+  },
+  "npl_1706_01944_reproducibility_case_rotor_crosscheck": {
+    "note": "WP16: the identical reproducibility case re-run through the true Cl(1,3) rotor path (integration.mode=worldline) instead of the E29 scalar fast path -- a standing check that the rotor and scalar coupling.type=stark_dc accumulators agree, not a second, independently-counted KPI row (excluded from kpi_summary's totals; see run_npl_reproducibility_case_rotor and cliffordclock.pipeline._stark_rotor_ensemble).",
+    "case": {
+      "case_class": "reproducibility",
+      "field_lo_v_per_m": 1.2979639668882548,
+      "field_nominal_v_per_m": 1.52,
+      "field_hi_v_per_m": 2.1420128616033596,
+      "field_citation": "Bowden, Hobson, Huillery, Gill, Jones, Hill, \"Rydberg Electrometry for Optical Lattice Clocks\", arXiv:1706.01944v1 (PRA 96, 023419 (2017)), Section IV, p.5: \"residual electric field of 1.52 +0.62(stat)/-0.22(stat) +0.05(sys)/-0.03(sys) Vm^-1\"",
+      "predicted_shift_lo": -3.289993436586257e-20,
+      "predicted_shift_nominal": -1.656677824537909e-20,
+      "predicted_shift_hi": -1.2080256486998533e-20,
+      "published_shift_lo": -3.2e-20,
+      "published_shift_nominal": -1.6e-20,
+      "published_shift_hi": -1.2e-20,
+      "published_shift_citation": "Bowden et al., arXiv:1706.01944v1 (PRA 96, 023419 (2017)), Section IV, p.5: \"fractional frequency shift of -1.6 +0.4/-1.6 x 10^-20\"",
+      "bands_overlap": true,
+      "kpi_verdict": "MET",
+      "uncertainty_propagation_method": "Field: stat and sys uncertainties combined in quadrature separately on each side (sqrt(stat**2+sys**2)), never symmetrized between sides -- see loaders.AsymmetricMeasurement.combined_lo/combined_hi. Shift band: three independent real pipeline runs at (E_lo, E_nominal, E_hi), not an algebraic error-propagation formula -- the E14b quadratic form's monotonicity in |E| is asserted, not assumed, by checking predicted_shift_lo <= predicted_shift_nominal <= predicted_shift_hi at runtime.",
+      "species_name": "Sr87",
+      "delta_alpha_dc_si": 4.07873e-39,
+      "delta_alpha_citation": "T. Middelmann, S. Falke, C. Lisdat, U. Sterr, Phys. Rev. Lett. 109, 263004 (2012) -- cliffordclock.ensemble.species.SR87's own citation, confirmed to be the same source NPL cites as arXiv:1706.01944's reference [3] (see benchmarks/SOURCES.md section 4)."
+    },
+    "bands_overlap_and_verdict_match_scalar_case": true
+  },
+  "ustc_metrologia_63_025002": [
+    {
+      "shift_name": "DC Stark (USTC Sr1, Table 3 + Sec. 3.5)",
+      "published_shift_fractional": 0.0,
+      "published_uncertainty_fractional": 1.0000000000000001e-20,
+      "uncertainty_is_upper_bound": true,
+      "in_engine_scope": true,
+      "comparable": false,
+      "kpi_verdict": "N/A",
+      "reason": "In engine physics scope (CONVENTIONS.md E14b scalar DC Stark) but not an independent forward-comparable case -- same structural class as the JILA arXiv:2403.10664 DC Stark row (benchmarks/MAPPING.md): the paper constrains the TOTAL shift (0.0(0.1)e-19, Table 3 / Sec. 3.5) via geometry/shielding-factor reasoning (viewport distances 142 mm vs 237 mm, an 8x geometric factor, a 3x FE-simulated shielding factor) applied to a PRIOR measurement -- a y-component shift of 1.4(5.2)e-21 -- cited to their ref [30] (Li J et al 2024 Metrologia 61 015006). That prior paper, per this paper's own description, is the one that actually characterized an applied external field -- but it is NOT among this project's authorized sources and was NOT fetched (flagged in benchmarks/MAPPING.md as the next authorization candidate). No independent field magnitude (V/m) is published in THIS paper for the DC-Stark constraint itself.",
+      "citation": "Jia et al., \"Improved systematic evaluation of a strontium optical clock with uncertainty below 1e-18\", Metrologia 63, 025002 (2026), DOI 10.1088/1681-7575/ae449e, CC BY 4.0, Table 3 + Sec. 3.5 \"Residual DC Stark shift\""
+    }
+  ]
+}

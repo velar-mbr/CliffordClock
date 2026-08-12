@@ -1,0 +1,45 @@
+# CliffordClock example: synthetic quadrupole field, classical (ion-trap
+# style) Monte-Carlo ensemble. See docs/cli.md for the full schema.
+#
+# This is a SYNTHETIC validation case, not a physical prediction: mu below
+# is chosen only to produce an O(1e-15) fractional shift on a short,
+# CI-fast integration run, not as a physically fitted effective dipole for
+# any real species/transition. See docs/CONVENTIONS.md E14a/E14b for how a
+# physically meaningful mu is derived from a differential polarizability.
+
+species: Sr87
+
+trap:
+  omega_xyz: [2.0e+5, 2.0e+5, 2.0e+6]  # rad/s
+  center: [0.0, 0.0, 0.0]              # m
+
+field:
+  synthetic:
+    kind: quadrupole
+    params:
+      k: 5.0e+6  # V/m^2
+
+coupling:
+  # Effective dipole moment mu (E14a), C.m -- see the header note above.
+  mu: [1.0e-25, -2.0e-25, 1.5e-25]
+
+ensemble:
+  regime: classical
+  temperature_uK: 1.0
+  size: 200
+  seed: 0
+
+integration:
+  dtau: 0.5          # Compton-unit step (E9)
+  steps: 2000
+  renorm_every: 1000
+
+output:
+  directory: .
+  report_filename: report.json
+  line_profile_filename: line_profile.csv
+  n_time_samples: 512
+
+uncertainty_notes: >-
+  Synthetic validation run (see docs/validation.md); no experimental data, no
+  systematic-uncertainty budget modeled.

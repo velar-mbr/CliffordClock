@@ -1,0 +1,35 @@
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.6.9
+    hooks:
+      - id: ruff
+        args: [--fix]
+      - id: ruff-format
+
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.18.2
+    hooks:
+      - id: mypy
+        # numpy<2.5 pin: numpy>=2.5's stub files use PEP 695 `type` alias
+        # syntax that mypy cannot parse under our python_version=3.11 target.
+        additional_dependencies: ["jax", "numpy<2.5", "scipy", "types-PyYAML"]
+        args: [src/]
+        pass_filenames: false
+
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.6.0
+    hooks:
+      - id: end-of-file-fixer
+      - id: trailing-whitespace
+      - id: check-yaml
+
+  - repo: local
+    hooks:
+      - id: spdx-header
+        name: Check SPDX license header
+        entry: >-
+          bash -c 'for f in "$@"; do
+          head -n1 "$f" | grep -qF "SPDX-License-Identifier: AGPL-3.0-or-later"
+          || { echo "Missing SPDX header on line 1: $f"; exit 1; }; done' --
+        language: system
+        files: ^src/.*\.py$

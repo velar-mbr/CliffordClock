@@ -1,0 +1,469 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# Pinned bibliography for tools/release_checks.py's citation-check.
+#
+# Every entry below is transcribed (not invented) from one of:
+#   - paper/refs.bib
+#   - src/cliffordclock/ensemble/species.py (docstrings/comments)
+#   - benchmarks/RESULTS.md, benchmarks/SOURCES.md, benchmarks/MAPPING.md
+#   - benchmarks/results/*.md
+#
+# Fields:
+#   key      -- a short identifier (matches paper/refs.bib's key where one exists)
+#   authors  -- the author byline as it appears in the source, verbatim where the
+#               source gave a full list; some source citations are themselves
+#               abbreviated ("et al.", "and coauthors", "Barrett group") -- that
+#               abbreviation is preserved here rather than expanded/invented.
+#   surnames -- surnames extracted from `authors`, used by citation-check's grep
+#               (a surname + a nearby year that does not match one of `year`'s
+#               values is flagged as contradicting this pinned record).
+#   title    -- paper title, transcribed where the source states one; empty
+#               string if no title is given in the citing source (never invented).
+#   venue    -- journal/venue string as given in the source.
+#   year     -- publication year(s) actually cited for this work.
+#   arxiv    -- arXiv identifier, if cited.
+#   doi      -- DOI, if cited.
+#   source   -- where this entry was transcribed from (file[:line]).
+
+[[paper]]
+key = "Middelmann2012"
+authors = "Middelmann, Thomas and Falke, Stephan and Lisdat, Christian and Sterr, Uwe"
+surnames = ["Middelmann", "Falke", "Lisdat", "Sterr"]
+title = "High Accuracy Correction of Blackbody Radiation Shift in an Optical Lattice Clock"
+venue = "Phys. Rev. Lett. 109, 263004"
+year = [2012]
+arxiv = "1208.2848"
+doi = "10.1103/PhysRevLett.109.263004"
+source = "paper/refs.bib"
+
+[[paper]]
+key = "Sherman2012"
+authors = "Sherman, J. A. and Lemke, N. D. and Hinkley, N. and Pizzocaro, M. and Fox, R. W. and Ludlow, A. D. and Oates, C. W."
+surnames = ["Sherman", "Lemke", "Hinkley", "Pizzocaro", "Fox", "Ludlow", "Oates"]
+title = "High-Accuracy Measurement of Atomic Polarizability in an Optical Lattice Clock"
+venue = "Phys. Rev. Lett. 108, 153002"
+year = [2012]
+arxiv = "1112.2766"
+doi = "10.1103/PhysRevLett.108.153002"
+source = "paper/refs.bib"
+
+[[paper]]
+key = "Bowden2017"
+authors = "Bowden, W. and Hobson, R. and Huillery, P. and Gill, P. and Jones, M. P. A. and Hill, I. R."
+surnames = ["Bowden", "Hobson", "Huillery", "Gill", "Jones", "Hill"]
+title = "Rydberg Electrometry for Optical Lattice Clocks"
+venue = "Phys. Rev. A 96, 023419"
+year = [2017]
+arxiv = "1706.01944"
+doi = "10.1103/PhysRevA.96.023419"
+source = "paper/refs.bib; benchmarks/SOURCES.md section 4"
+
+[[paper]]
+key = "Lodewyck2012"
+authors = "Lodewyck, J. and Zawada, M. and Lorini, L. and Gurov, M. and Lemonde, P."
+surnames = ["Lodewyck", "Zawada", "Lorini", "Gurov", "Lemonde"]
+title = "Observation and Cancellation of a Perturbing dc Stark Shift in Strontium Optical Lattice Clocks"
+venue = "IEEE Trans. Ultrason. Ferroelectr. Freq. Control 59, 411"
+year = [2012]
+arxiv = "1108.4320"
+doi = "10.1109/TUFFC.2012.2209"
+source = "paper/refs.bib; README.md"
+
+[[paper]]
+key = "Beloy2018"
+authors = "Beloy, K. and Zhang, X. and McGrew, W. F. and Hinkley, N. and Yoon, T. H. and Nicolodi, D. and Fasano, R. J. and Schaffer, S. A. and Brown, R. C. and Ludlow, A. D."
+surnames = ["Beloy", "Zhang", "McGrew", "Hinkley", "Yoon", "Nicolodi", "Fasano", "Schaffer", "Brown", "Ludlow"]
+title = "Faraday-Shielded dc Stark-Shift-Free Optical Lattice Clock"
+venue = "Phys. Rev. Lett. 120, 183201"
+year = [2018]
+arxiv = "1803.10737"
+doi = "10.1103/PhysRevLett.120.183201"
+source = "paper/refs.bib"
+
+[[paper]]
+key = "Camp1991"
+authors = "Camp, J. B. and Darling, T. W. and Brown, R. E."
+surnames = ["Camp", "Darling", "Brown"]
+title = "Macroscopic variations of surface potentials of conductors"
+venue = "J. Appl. Phys. 69, 7126"
+year = [1991]
+doi = "10.1063/1.347610"
+source = "paper/refs.bib"
+
+[[paper]]
+key = "Aeppli2024"
+authors = "Aeppli, Alexander and Kim, Kyungtae and Warfield, William and Safronova, Marianna S. and Ye, Jun"
+surnames = ["Aeppli", "Kim", "Warfield", "Safronova", "Ye"]
+title = "A Clock with 8x10^-19 Systematic Uncertainty"
+venue = "Phys. Rev. Lett. 133, 023401"
+year = [2024]
+arxiv = "2403.10664"
+doi = "10.1103/PhysRevLett.133.023401"
+source = "paper/refs.bib; benchmarks/SOURCES.md section 1/3"
+
+[[paper]]
+key = "Lisdat2021"
+authors = "Lisdat, Christian and Dorscher, Sofia and Nosske, Ingo and Sterr, Uwe"
+surnames = ["Lisdat", "Dorscher", "Nosske", "Sterr"]
+title = "Blackbody radiation shift in strontium lattice clocks revisited"
+venue = "Phys. Rev. Res. 3, L042036"
+year = [2021]
+doi = "10.1103/PhysRevResearch.3.L042036"
+source = "paper/refs.bib"
+
+[[paper]]
+key = "Nosske2025"
+authors = "Nosske, Ingo and Vishwakarma, Chetan and Lucke, Tobias and Rahm, Jonas and Poudel, Nabin and Weyers, Stefan and Benkler, Erik and Dorscher, Sofia and Lisdat, Christian"
+surnames = ["Nosske", "Vishwakarma", "Lucke", "Rahm", "Poudel", "Weyers", "Benkler", "Dorscher", "Lisdat"]
+title = "Transportable strontium lattice clock with 4x10^-19 blackbody radiation shift uncertainty"
+venue = "arXiv preprint"
+year = [2025]
+arxiv = "2507.14030"
+source = "paper/refs.bib; species.py (PTB-2025 rescaled polynomial)"
+
+[[paper]]
+key = "Jia2026"
+authors = "Jia, Zhi-Peng and Li, Jie and Kong, De-Quan and Zhang, Xiang and Yu, Hai-Wei and Liu, Xiao-Yong and Zhang, Yu-Chen and Wang, Yuan-Bo and Zhu, Xian-Qing and Zhang, Jia-Hao and Zhu, Ming-Yi and Feng, Pei-Jun and Cui, Xing-Yang and Xu, Ping"
+surnames = ["Jia", "Kong", "Zhang", "Yu", "Liu", "Wang", "Zhu", "Feng", "Cui", "Xu"]
+title = "Improved systematic evaluation of a strontium optical clock with uncertainty below 1x10^-18"
+venue = "Metrologia 63, 025002"
+year = [2026]
+doi = "10.1088/1681-7575/ae449e"
+source = "paper/refs.bib; benchmarks/SOURCES.md section 5"
+
+[[paper]]
+key = "Li2024"
+authors = "Li, J. and Cui, X.-Y. and Jia, Z.-P. and Kong, D.-Q. and Yu, H.-W. and Zhu, X.-Q. and Liu, X.-Y. and Wang, D.-Z. and Zhang, X. and Huang, X.-Y. and others"
+surnames = ["Li", "Cui", "Jia", "Kong", "Yu", "Zhu", "Liu", "Wang", "Zhang", "Huang"]
+title = "A strontium lattice clock with both stability and uncertainty below 5x10^-18"
+venue = "Metrologia 61, 015006"
+year = [2024]
+doi = "10.1088/1681-7575/ad1a4c"
+source = "paper/refs.bib (abbreviated as 'Li, Jie and others'); benchmarks/SOURCES.md section 6 (full byline)"
+
+[[paper]]
+key = "Ludlow2015"
+authors = "Ludlow, Andrew D. and Boyd, Martin M. and Ye, Jun and Peik, Ekkehard and Schmidt, Piet O."
+surnames = ["Ludlow", "Boyd", "Ye", "Peik", "Schmidt"]
+title = "Optical atomic clocks"
+venue = "Rev. Mod. Phys. 87, 637"
+year = [2015]
+doi = "10.1103/RevModPhys.87.637"
+source = "paper/refs.bib; species.py:351,363,698"
+
+[[paper]]
+key = "Hestenes2015"
+authors = "Hestenes, David"
+surnames = ["Hestenes"]
+title = "Space-Time Algebra"
+venue = "Birkhauser (2nd ed.)"
+year = [2015]
+doi = "10.1007/978-3-319-18413-5"
+source = "paper/refs.bib"
+
+[[paper]]
+key = "DoranLasenby2003"
+authors = "Doran, Chris and Lasenby, Anthony"
+surnames = ["Doran", "Lasenby"]
+title = "Geometric Algebra for Physicists"
+venue = "Cambridge University Press"
+year = [2003]
+doi = "10.1017/CBO9780511807497"
+source = "paper/refs.bib"
+
+[[paper]]
+key = "Sibalic2017"
+authors = "Sibalic, N. and Pritchard, J. D. and Weatherill, K. J. and Adams, C. S."
+surnames = ["Sibalic", "Pritchard", "Weatherill", "Adams"]
+title = "ARC: An open-source library for calculating properties of alkali Rydberg atoms"
+venue = "Comput. Phys. Commun. 220, 319"
+year = [2017]
+doi = "10.1016/j.cpc.2017.06.015"
+source = "paper/refs.bib"
+
+[[paper]]
+key = "Lambert2024"
+authors = "Lambert, Neill and Giguere, Eric and Menczel, Paul and Li, Boxi and Hopf, Patrick and Suarez, Gerardo and Gali, Marc and Lishman, Jake and Gadhvi, Rushiraj and Agarwal, Rochisha and Galicia, Asier and Shammah, Nathan and Nation, Paul and Johansson, J. R. and Ahmed, Shahnawaz and Cross, Simon and Pitchford, Alexander and Nori, Franco"
+surnames = ["Lambert", "Giguere", "Menczel", "Li", "Hopf", "Suarez", "Gali", "Lishman", "Gadhvi", "Agarwal", "Galicia", "Shammah", "Nation", "Johansson", "Ahmed", "Cross", "Pitchford", "Nori"]
+title = "QuTiP 5: The Quantum Toolbox in Python"
+venue = "Phys. Rep."
+year = [2024]
+arxiv = "2412.04705"
+source = "paper/refs.bib"
+
+[[paper]]
+key = "Jax2018"
+authors = "Bradbury, James and Frostig, Roy and Hawkins, Peter and Johnson, Matthew James and Leary, Chris and Maclaurin, Dougal and Necula, George and Paszke, Adam and VanderPlas, Jake and Wanderman-Milne, Skye and Zhang, Qiao"
+surnames = ["Bradbury", "Frostig", "Hawkins", "Johnson", "Leary", "Maclaurin", "Necula", "Paszke", "VanderPlas", "Wanderman-Milne", "Zhang"]
+title = "JAX: composable transformations of Python+NumPy programs"
+venue = "software"
+year = [2018]
+source = "paper/refs.bib"
+
+[[paper]]
+key = "pygae-clifford"
+authors = "The pygae developers"
+surnames = ["pygae"]
+title = "clifford: Geometric Algebra for Python"
+venue = "software (GitHub: pygae/clifford, PyPI: clifford)"
+year = []
+source = "paper/refs.bib"
+
+[[paper]]
+key = "Roos2006"
+authors = "Roos, C. F. and Chwalla, M. and Kim, K. and Riebe, M. and Blatt, R."
+surnames = ["Roos", "Chwalla", "Kim", "Riebe", "Blatt"]
+title = "Designer atoms for quantum metrology"
+venue = "Nature 443, 316"
+year = [2006]
+arxiv = "quant-ph/0701215"
+source = "species.py:224-243; benchmarks/SOURCES.md section 7; benchmarks/results/roos_quadrupole_slope.md"
+
+[[paper]]
+key = "Dube2005"
+authors = "Dubé, P. and Madej, A. A. and Bernard, J. E. and Marmet, L. and Boulanger, J.-S. and Cundy, S."
+surnames = ["Dubé", "Madej", "Bernard", "Marmet", "Boulanger", "Cundy"]
+title = "Electric Quadrupole Shift Cancellation in Single-Ion Optical Frequency Standards"
+venue = "Phys. Rev. Lett. 95, 033001"
+year = [2005]
+source = "docs/CONVENTIONS.md section 14; paper/figures/roos_values.py; paper/refs.bib. Byline from Crossref publisher metadata (DOI 10.1103/PhysRevLett.95.033001, fetched 2026-08-12); surname set cross-checked against the owner-supplied primary text extraction (2026-08-11 session)."
+
+[[paper]]
+key = "Lodewyck2012"
+authors = "Lodewyck, J. and Zawada, M. and Lorini, L. and Gurov, M. and Lemonde, P."
+surnames = ["Lodewyck", "Zawada", "Lorini", "Gurov", "Lemonde"]
+title = "Observation and cancellation of a perturbing dc Stark shift in strontium optical lattice clocks"
+venue = "IEEE Trans. Ultrason. Ferroelectr. Freq. Control 59, 411"
+year = [2012]
+arxiv = "1108.4320"
+source = "README.md quickstart (the documented stray-charge event examples/realistic_lattice_sr87.yaml brackets); paper/refs.bib. Byline from Crossref publisher metadata (DOI 10.1109/TUFFC.2012.2209, fetched 2026-08-12); matches the arXiv:1108.4320 listing this project verified in a prior session."
+
+[[paper]]
+key = "vanWestrum2019"
+authors = "van Westrum, D."
+surnames = ["van Westrum"]
+title = "NOAA Technical Memorandum NOS NGS-77"
+venue = "NOAA National Geodetic Survey technical memorandum"
+year = [2019]
+source = "benchmarks/SOURCES.md (secondary source for Bothwell's local g = 9.796 m/s^2, transcribed from Bothwell et al.'s own Methods citation, not independently fetched); paper/refs.bib"
+
+[[paper]]
+key = "Itano2006"
+authors = "Itano, W. M."
+surnames = ["Itano"]
+title = ""
+venue = "Phys. Rev. A 73, 022510"
+year = [2006]
+source = "species.py:231-232,242,272,286; benchmarks/RESULTS.md line 416"
+
+[[paper]]
+key = "Sur2006"
+authors = "Sur, C. and others"
+surnames = ["Sur"]
+title = ""
+venue = "Phys. Rev. Lett. 96, 193001"
+year = [2006]
+source = "species.py:233-234,247-248,258"
+
+[[paper]]
+key = "Shaniv2016"
+authors = "Shaniv, R. and Akerman, N. and Ozeri, R."
+surnames = ["Shaniv", "Akerman", "Ozeri"]
+title = ""
+venue = "Phys. Rev. Lett. 116, 140801"
+year = [2016]
+source = "species.py:245,255"
+
+[[paper]]
+key = "Barrett2019"
+authors = "Barrett group (individual authors not transcribed in the citing source)"
+surnames = ["Barrett"]
+title = ""
+venue = "Phys. Rev. A 99, 022515"
+year = [2019]
+source = "species.py:260-269 ('Barrett group, Phys. Rev. A 99, 022515 (2019)')"
+
+[[paper]]
+key = "Schneider2005"
+authors = "Schneider, T. and Peik, E. and Tamm, Chr."
+surnames = ["Schneider", "Peik", "Tamm"]
+title = ""
+venue = "Phys. Rev. Lett. 94, 230801"
+year = [2005]
+source = "species.py:276,283"
+
+[[paper]]
+key = "Huntemann2012"
+authors = "Huntemann, N. and others"
+surnames = ["Huntemann"]
+title = ""
+venue = "Phys. Rev. Lett. 108, 090801"
+year = [2012]
+source = "species.py:289-300,363-364"
+
+[[paper]]
+key = "Beloy2017quadrupole"
+authors = "Beloy, K. and Leibrandt, D. R. and Itano, W. M."
+surnames = ["Beloy", "Leibrandt", "Itano"]
+title = ""
+venue = "Phys. Rev. A 95, 043405"
+year = [2017]
+source = "species.py:375-395 (distinct from Beloy2018 above)"
+
+[[paper]]
+key = "arXiv2402.16807"
+authors = ""
+surnames = []
+title = "In+/Yb+ Coulomb-crystal evaluation (author not transcribed in the citing source)"
+venue = "arXiv"
+year = [2024]
+arxiv = "2402.16807"
+source = "species.py:394"
+
+[[paper]]
+key = "Brewer2019"
+authors = "Brewer, S. M. and others"
+surnames = ["Brewer"]
+title = "27Al+ Quantum-Logic Clock with a Systematic Uncertainty below 10^-18"
+venue = "Phys. Rev. Lett. 123, 033201"
+year = [2019]
+source = "species.py:348-349,784-799,817-819"
+
+[[paper]]
+key = "Berkeland1998"
+authors = "Berkeland, D. J. and Miller, J. D. and Bergquist, J. C. and Itano, W. M. and Wineland, D. J."
+surnames = ["Berkeland", "Miller", "Bergquist", "Itano", "Wineland"]
+title = ""
+venue = "J. Appl. Phys. 83, 5025"
+year = [1998]
+source = "species.py:350-351,361"
+
+[[paper]]
+key = "Wang2021"
+authors = "Wang, M. and Huang, W. J. and Kondev, F. G. and Audi, G. and Naimi, S."
+surnames = ["Wang", "Huang", "Kondev", "Audi", "Naimi"]
+title = "The AME 2020 atomic mass evaluation (II)"
+venue = "Chinese Physics C 45, 030003"
+year = [2021]
+source = "species.py:608-610,692-693,780-781,834-836"
+
+[[paper]]
+key = "Campbell2017"
+authors = "Campbell, S. L. and others"
+surnames = ["Campbell"]
+title = "A Fermi-degenerate three-dimensional optical lattice clock"
+venue = "Science 358, 90"
+year = [2017]
+source = "species.py:616-617"
+
+[[paper]]
+key = "Nicholson2015"
+authors = "Nicholson, T. L. and others"
+surnames = ["Nicholson"]
+title = "Systematic evaluation of an atomic clock at 2e-18 total uncertainty"
+venue = "Nat. Commun. 6, 6896"
+year = [2015]
+source = "species.py:617-619"
+
+[[paper]]
+key = "McGrew2018"
+authors = "McGrew, W. F. and others"
+surnames = ["McGrew"]
+title = "Atomic clock performance enabling geodesy below the centimetre level"
+venue = "Nature 564, 87"
+year = [2018]
+source = "species.py:698-699"
+
+[[paper]]
+key = "PorsevDerevianko2006"
+authors = "Porsev, S. G. and Derevianko, A."
+surnames = ["Porsev", "Derevianko"]
+title = ""
+venue = "Phys. Rev. A 74, 020502(R), with a 2012 erratum, Phys. Rev. A 86, 029904"
+year = [2006, 2012]
+source = "species.py:715-716; docs/CONVENTIONS.md:466 ('... (2006) with its 2012 erratum, PRA 86, 029904')"
+
+[[paper]]
+key = "Hassan2025"
+authors = "Hassan, K. and others"
+surnames = ["Hassan"]
+title = ""
+venue = "arXiv"
+year = [2025]
+arxiv = "2506.05304"
+source = "species.py:724-725"
+
+[[paper]]
+key = "Beloy2014"
+authors = "Beloy, K. and others"
+surnames = ["Beloy"]
+title = ""
+venue = "Phys. Rev. Lett. 113, 260801"
+year = [2014]
+source = "species.py:294,735-736 (distinct paper from Beloy2017quadrupole/Beloy2018, same surname)"
+
+[[paper]]
+key = "Wei2024"
+authors = "Wei, D. and others"
+surnames = ["Wei"]
+title = ""
+venue = "Phys. Rev. Lett. 133, 033001"
+year = [2024]
+source = "species.py:793"
+
+[[paper]]
+key = "Ohtsubo2017"
+authors = "Ohtsubo, N. and Li, Y. and Matsubara, K. and Ido, T. and Hayasaka, K."
+surnames = ["Ohtsubo", "Li", "Matsubara", "Ido", "Hayasaka"]
+title = "Frequency measurement of the clock transition of an indium ion sympathetically-cooled in a linear trap"
+venue = "Opt. Express 25, 11725"
+year = [2017]
+arxiv = "1703.02717"
+source = "species.py:839-843"
+
+[[paper]]
+key = "Safronova2011"
+authors = "Safronova, M. S. and Porsev, S. G. and Safronova, U. I."
+surnames = ["Safronova", "Porsev"]
+title = ""
+venue = "Phys. Rev. Lett. 107, 143006"
+year = [2011]
+source = "species.py:850-851"
+
+[[paper]]
+key = "Bothwell2022"
+authors = "Bothwell, T. and Kennedy, C. J. and Aeppli, A. and Kedar, D. and Robinson, J. M. and Oelker, E. and Staron, A. and Ye, J."
+surnames = ["Bothwell", "Kennedy", "Aeppli", "Kedar", "Robinson", "Oelker", "Staron", "Ye"]
+title = "Resolving the gravitational redshift across a millimetre-scale atomic sample"
+venue = "Nature 602, 420-424"
+year = [2022]
+arxiv = "2109.12238"
+source = "benchmarks/SOURCES.md section 8; benchmarks/results/bothwell_redshift.md"
+
+[[paper]]
+key = "Itano2000"
+authors = "Itano, W. M."
+surnames = ["Itano"]
+title = ""
+venue = "J. Res. NIST 105, 829"
+year = [2000]
+source = "docs/CONVENTIONS.md:23,542; docs/coupling.md:348 ('Itano, J. Res. NIST 105, 829 (2000), Eq. 46')"
+
+[[paper]]
+key = "Chwalla2009"
+authors = "Chwalla, M. and others"
+surnames = ["Chwalla"]
+title = ""
+venue = "Phys. Rev. Lett. 102, 023002"
+year = [2009]
+source = "docs/cli.md:99; docs/coupling.md:311,337 ('Chwalla et al., PRL 102, 023002 (2009)')"
+
+[[paper]]
+key = "Nakamura2020"
+authors = "Nakamura, T. and others"
+surnames = ["Nakamura"]
+title = "Data for 'Coherent Optical Clock Down-Conversion for Microwave Frequencies with 10-18 Instability'"
+venue = "data.nist.gov"
+year = [2020]
+doi = "10.18434/M32206"
+source = "benchmarks/SOURCES.md section 2"

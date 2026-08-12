@@ -1,0 +1,50 @@
+{
+  "roos_quadrupole_slope_schema": "1.0",
+  "generated_at_utc": "2026-08-12T14:04:18.087815+00:00",
+  "cross_vintage_case_label": "cross-vintage comparison: Roos et al.'s measured Fig. 4a slope against an INDEPENDENT theory Theta (Itano, Phys. Rev. A 73, 022510 (2006)), not against Roos's own extracted Theta; weaker than a blind prediction (Roos's own applied gradient is itself trap-model calibrated, and their own fit produced the slope being predicted), but a genuine external comparison, distinct from arithmetic reproduction (G8 sign-off B4)",
+  "arithmetic_reproduction_case_label": "arithmetic reproduction: Roos et al.'s own extracted Theta, inverted from their own Fig. 4a fit via Theta = (5/12)*h*a, used to predict that SAME fit's slope; circular by construction, a closed-loop factor-consistency check of this engine's chain against Roos's own published conversion relation, never an independent validation (G8 sign-off B4)",
+  "roos_quadrupole_slope_case": {
+    "structural_two_ion_enhancement_ratio": 4.8,
+    "cross_vintage": {
+      "variant_label": "cross-vintage comparison: Roos et al.'s measured Fig. 4a slope against an INDEPENDENT theory Theta (Itano, Phys. Rev. A 73, 022510 (2006)), not against Roos's own extracted Theta; weaker than a blind prediction (Roos's own applied gradient is itself trap-model calibrated, and their own fit produced the slope being predicted), but a genuine external comparison, distinct from arithmetic reproduction (G8 sign-off B4)",
+      "case_class": "cross_vintage_comparison",
+      "theta_au": 1.917,
+      "theta_au_uncertainty": null,
+      "theta_source": "Itano, Phys. Rev. A 73, 022510 (2006)",
+      "predicted_slope_hz_mm2_per_v": 3.1152290511793503,
+      "predicted_slope_band_lo": 3.1152290511793503,
+      "predicted_slope_band_hi": 3.1152290511793503,
+      "measured_slope_hz_mm2_per_v": 2.975,
+      "measured_slope_lo": 2.9730000000000003,
+      "measured_slope_hi": 2.977,
+      "residual_hz_mm2_per_v": 0.14022905117935025,
+      "residual_fractional": 0.04713581552247067,
+      "bands_overlap": false,
+      "kpi_verdict": "NOT MET",
+      "verdict_note": "NOT MET is the EXPECTED outcome for this variant: the residual recovers the literature-known ~4.7% Theta theory-vs-measurement tension (Itano theory 1.917 ea0^2 vs Roos's measured 1.83(1) ea0^2), validating the engine's factor chain while isolating the coefficient. It is not an engine defect. See the case write-up in benchmarks/RESULTS.md and the module docstring."
+    },
+    "arithmetic_reproduction": {
+      "variant_label": "arithmetic reproduction: Roos et al.'s own extracted Theta, inverted from their own Fig. 4a fit via Theta = (5/12)*h*a, used to predict that SAME fit's slope; circular by construction, a closed-loop factor-consistency check of this engine's chain against Roos's own published conversion relation, never an independent validation (G8 sign-off B4)",
+      "case_class": "arithmetic_reproduction",
+      "theta_au": 1.83,
+      "theta_au_uncertainty": 0.01,
+      "theta_source": "Roos et al., quant-ph/0701215v1 (Nature 443, 316 (2006)), Eq. 1 fit",
+      "predicted_slope_hz_mm2_per_v": 2.9738493289818533,
+      "predicted_slope_band_lo": 2.9575987862005317,
+      "predicted_slope_band_hi": 2.990099871763175,
+      "measured_slope_hz_mm2_per_v": 2.975,
+      "measured_slope_lo": 2.9730000000000003,
+      "measured_slope_hi": 2.977,
+      "residual_hz_mm2_per_v": -0.0011506710181468094,
+      "residual_fractional": -0.0003867801741669947,
+      "bands_overlap": true,
+      "kpi_verdict": "MET",
+      "verdict_note": null
+    },
+    "theta_roundtrip_check_au": 1.8300000000000005,
+    "offset_hz": -2.4,
+    "offset_uncertainty_hz": 0.10000000000000009,
+    "kpi_summary_impact": "Does not increment benchmarks/results/wp10_results.json's reproducibility_cases_total (stays 1) or blind_prediction_cases_total (stays 0); tracked separately, same pattern as benchmarks/run_bbr_jila_arithmetic_reproduction.py.",
+    "dossier_citation": "Roos et al., Nature 443, 316 (2006), quant-ph/0701215v1, Eq. 1 + Fig. 4a + p.5-6/p.9 text; benchmarks/SOURCES.md section 7 (owner-supplied primary text, provenance note)."
+  }
+}

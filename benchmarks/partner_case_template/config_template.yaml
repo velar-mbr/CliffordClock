@@ -1,0 +1,82 @@
+# Partner benchmark case: config template.
+#
+# Copy this file into benchmarks/beta_case_<short-name>/config.yaml and
+# replace every <PLACEHOLDER> below. Full schema: docs/cli.md. This
+# template mirrors examples/realistic_lattice_sr87.yaml (the shipped
+# "bring your own field" worked example) field-for-field: if something
+# here is unclear, that file plus docs/byof-guide.md is the reference.
+
+species: <PLACEHOLDER e.g. Sr87>   # Registry DC-Stark data exists today
+                                    # only for Sr87 / Yb171 (docs/coupling.md).
+                                    # Any other species needs an explicit
+                                    # coupling override below.
+
+trap:
+  omega_xyz: [<PLACEHOLDER>, <PLACEHOLDER>, <PLACEHOLDER>]  # rad/s, your
+                                    # trap's secular frequencies (x, y, z).
+  center: [0.0, 0.0, 0.0]          # m, trap center in the field grid's
+                                    # coordinate frame, must fall inside
+                                    # (or close to) your field CSV's
+                                    # bounding box, see docs/byof-guide.md
+                                    # "Grid spacing vs. feature size".
+
+field:
+  # Option A: your own characterized field export (the common case):
+  csv: benchmarks/beta_case_<short-name>/field_grid.csv   # docs/fields.md
+                                    # CSV contract: header x,y,z,Ex,Ey,Ez;
+                                    # positions in METERS, field in V/m.
+  smoothing: <PLACEHOLDER e.g. 1e-8>  # 0.0 only for noiseless/simulated
+                                    # data (e.g. a clean FEA solve); use a
+                                    # small nonzero value for measured/
+                                    # noisy data: docs/byof-guide.md's
+                                    # "smoothing: guidance for noisy
+                                    # exports" section has the full
+                                    # discussion and starting-point advice.
+
+  # Option B: if your field is well described by a closed form instead
+  # of a point-cloud export (delete the `csv`/`smoothing` block above and
+  # use this instead; do not use both):
+  # synthetic:
+  #   kind: uniform   # or "gradient" / "quadrupole": docs/cli.md
+  #   params:
+  #     e0: [<Ex>, <Ey>, <Ez>]   # V/m
+
+coupling:
+  type: stark_dc   # E14b, docs/coupling.md. No override needed for
+                    # Sr87/Yb171: the registry Delta_alpha is used.
+  # For a species not in the registry, uncomment ONE of:
+  # delta_alpha_dc_si: <PLACEHOLDER>          # C^2 m^2 J^-1
+  # stark_coefficient_hz_per_v2_m2: <PLACEHOLDER>
+
+ensemble:
+  regime: lattice                  # Matches examples/realistic_lattice_sr87.yaml;
+                                    # use "classical" instead if your case
+                                    # is better modeled as a classical
+                                    # thermal ensemble: docs/cli.md.
+  temperature_uK: <PLACEHOLDER>    # microkelvin
+  motional_n: [0, 0, 0]            # ground motional state; change if your
+                                    # apparatus's atoms are not (docs/cli.md).
+  n_quad: 8                        # Gauss-Hermite quadrature resolution;
+                                    # 8 is the shipped-example default for
+                                    # a spatially nonuniform field.
+
+integration:
+  time_s: <PLACEHOLDER e.g. 1.0>   # genuine interrogation time, seconds:
+                                    # the E29 lattice fast path costs the
+                                    # same wall time regardless of this
+                                    # value (docs/timescales.md).
+
+output:
+  directory: .
+  report_filename: report.json
+  line_profile_filename: line_profile.csv
+  n_time_samples: 512
+
+uncertainty_notes: >-
+  <PLACEHOLDER: one-line description of this case, e.g. "Beta partner
+  case: <institution/collaborator, or an anonymized label if they'd
+  rather not be named yet>, field characterized via <method>, compared
+  against a measured DC-Stark shift of <value> +/- <uncertainty>. See
+  benchmarks/beta_case_<short-name>/expected.yaml (copied from
+  benchmarks/partner_case_template/expected_data_schema.md) for the full
+  comparison record.">

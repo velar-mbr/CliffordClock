@@ -1,0 +1,113 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# Configuration and allowlist for tools/release_checks.py.
+#
+# Edit THIS FILE to add a deliberate keep or tune the meta-slop phrase list --
+# never special-case a file path inside the scanner code itself.
+
+[meta_slop]
+# Phrase -> bucket. "fatal" phrases cause prose-scan to FAIL; "minor" phrases
+# are reported as findings but do not fail the check on their own (per
+# the WP28 sprint record: "rather than" flagged-not-fatal).
+# Matching is case-insensitive substring matching against prose with fenced
+# code blocks and inline code spans stripped out first.
+fatal = [
+    "stated plainly",
+    "honestly labeled",
+    "it is worth noting",
+    "not merely",
+]
+minor = [
+    "rather than",
+]
+
+[prose_scan.allow]
+# file path (relative to repo root) -> list of exact line substrings that are
+# permitted to match a prose-scan pattern (em dash / dash-as-punctuation /
+# honest-family / meta-slop) and should be skipped, for deliberate keeps.
+# Populate sparingly: today's real findings are meant to surface, not be
+# silenced by a pre-populated allowlist.
+#
+# The two entries below are deliberate keeps, not style violations:
+# benchmarks/SOURCES.md quotes the APS paywall page's own on-screen text
+# verbatim inside an access-attempt log (the "--" belongs to APS, and the
+# quote documents exactly what the page said); docs/CONVENTIONS.md's
+# "not merely comparable" sentence is the G9 theory sign-off's own binding
+# wording for the std-vs-Boulder gravity comparison, preserved verbatim
+# per that sign-off's correction record.
+"benchmarks/SOURCES.md" = [
+    "Authorization Required -- We need you to provide your credentials",
+]
+"docs/CONVENTIONS.md" = [
+    "not merely comparable to it (G9's correction of an earlier",
+]
+
+[tolerance_scan.allow]
+# file path (relative to repo root) -> list of exact call-text substrings
+# permitted to match a tolerance-scan pattern. The one populated entry is
+# the scanner's own planted-violation fixture strings in its test file: a
+# test of "does the scanner catch a vacuous tolerance" necessarily
+# contains one, exactly like the internal-path-check fixtures below.
+"tests/test_release_checks.py" = [
+    "pytest.approx(expected, rel=1e-6)",
+    "pytest.approx(other, rel=1e-6)",
+    "pytest.approx(y, rel=1e-3)",
+    "assert_allclose(actual, expected, rtol=1e-8)",
+]
+
+[notebooks_check]
+# Regexes replaced with a fixed token in notebook output text (committed
+# and re-executed alike) before notebooks-check's byte-compare. Only for
+# prints that legitimately differ on every run; everything around a match
+# still must compare equal. Today: notebook 02's wall-clock timing line
+# (the number IS the demonstration there, but its exact value is
+# machine-dependent by nature).
+volatile_patterns = [
+    'wall time\s*:\s*[0-9][0-9.]* s',
+]
+
+[headline_check]
+# Files where the older "1 of 1 reproducibility case" / "one reproducibility
+# case" phrasing is a pinned, contextualized statement about the frozen WP10
+# benchmark pass specifically (not a stale project-wide claim) -- verified by
+# reading each file: benchmarks/RESULTS.md and its generated artifacts state
+# explicitly that "1 of 1" is a frozen count of that one pass, immediately
+# followed by the project-wide "two reproducibility cases" headline;
+# docs/validation.md's "1 of 1 reproducibility case MET within this
+# dataset-benchmark pass" sentence is followed in the same paragraph by the
+# same project-wide clarification. Any OTHER public file using this phrasing
+# is flagged.
+frozen_artifacts = [
+    "benchmarks/RESULTS.md",
+    "benchmarks/results/wp10_results.json",
+    "benchmarks/results/wp10_results_table.md",
+    "docs/validation.md",
+]
+
+[internal_path_check.allow]
+# file path (relative to repo root) -> list of exact line substrings that are
+# permitted to match a `plan/`/`internal/` path-reference finding and should
+# be skipped, for deliberate keeps.
+#
+# The two populated entries below are not "real" leaks: the first is
+# tests/test_release_checks.py's own planted-violation fixture strings for
+# internal-path-check itself (a scanner test necessarily contains sample
+# path text shaped exactly like what it is designed to catch); the second
+# is this file's own copy of that same allowlist (self-referential by
+# construction -- this config necessarily contains the strings it permits).
+"tests/test_release_checks.py" = [
+    "plan/notes/ion-clock-dossier.md",
+    "internal/signoffs/G7_physics_signoff_theory.md",
+    "plan/notes/bbr-formalism-dossier.md",
+    "internal/signoffs/G8_physics_signoff_theory.md",
+    "plan/notes/foo-dossier.md",
+    "plan/notes/bar-dossier.md",
+]
+"tools/release_checks_allowlist.toml" = [
+    "plan/notes/ion-clock-dossier.md",
+    "internal/signoffs/G7_physics_signoff_theory.md",
+    "plan/notes/bbr-formalism-dossier.md",
+    "internal/signoffs/G8_physics_signoff_theory.md",
+    "plan/notes/foo-dossier.md",
+    "plan/notes/bar-dossier.md",
+]

@@ -1,0 +1,42 @@
+{
+  "wp22_bothwell_benchmark_schema": "1.0",
+  "generated_at_utc": "2026-08-12T13:57:42.804755+00:00",
+  "case_label": "reproducibility, with the INVERTED-NPL caveat: the g/c^2 arithmetic is textbook and the authors computed it themselves trivially (unlike NPL's differential-polarizability reconstruction); what this case validates is the extended-sample MACHINERY (per-site geometry, Gaussian-envelope weighting, map assembly) producing the right measured-map slope end-to-end against a published measured map, with zero adjustable inputs; it does not change the blind-prediction count.",
+  "case_class": "reproducibility",
+  "bothwell_2022_nature_602_420_redshift_case": {
+    "case_class": "reproducibility",
+    "case_label": "reproducibility, with the INVERTED-NPL caveat: the g/c^2 arithmetic is textbook and the authors computed it themselves trivially (unlike NPL's differential-polarizability reconstruction); what this case validates is the extended-sample MACHINERY (per-site geometry, Gaussian-envelope weighting, map assembly) producing the right measured-map slope end-to-end against a published measured map, with zero adjustable inputs; it does not change the blind-prediction count.",
+    "n_sites": 5945,
+    "site_spacing_m": 4.065e-07,
+    "site_spacing_inferred": true,
+    "envelope_sigma_m": 0.0004026666666666666,
+    "envelope_sigma_inferred": true,
+    "g_m_s2": 9.796,
+    "g_citation": "van Westrum, D., NOAA Technical Memorandum NOS NGS-77 (2019), as cited in Bothwell et al., Nature 602, 420 (2022) / arXiv:2109.12238 Methods 'Known Redshift': USGS-surveyed local g = 9.796 m/s^2 at the JILA Boulder, CO site.",
+    "predicted_slope_engine_convention_per_m": 1.0899519949101241e-16,
+    "predicted_slope_per_mm": -1.0899519949101242e-19,
+    "predicted_slope_windowed_per_mm": -1.0899519949101237e-19,
+    "measured_slope_method_a": {
+      "nominal": -9.8e-20,
+      "lo": -1.21e-19,
+      "hi": -7.500000000000001e-20,
+      "units": "fractional/mm",
+      "citation": "Bothwell et al., Nature 602, 420 (2022) / arXiv:2109.12238, Table 1 'Known Redshift' row context + main text 'method A' corrected gradient: -9.8(2.3)e-20/mm (14-dataset campaign, 10 days; raw -1.00(12)e-19/mm before budget-level corrections)."
+    },
+    "measured_slope_method_b": {
+      "nominal": -1.28e-19,
+      "lo": -1.55e-19,
+      "hi": -1.0099999999999998e-19,
+      "units": "fractional/mm",
+      "citation": "Bothwell et al., Nature 602, 420 (2022) / arXiv:2109.12238, main text 'method B' corrected gradient: -1.28(27)e-19/mm (synchronous two-region, 92 h; raw -1.30(18)e-19/mm before budget-level corrections)."
+    },
+    "bands_overlap_method_a": true,
+    "bands_overlap_method_b": true,
+    "sigma_distance_method_a": 0.47805215178314864,
+    "sigma_distance_method_b": 0.7038815003328728,
+    "kpi_verdict_method_a": "MET",
+    "kpi_verdict_method_b": "MET",
+    "isolation_note": "The published corrected slopes already have per-pixel density and second-order-Zeeman corrections applied before the linear fit, plus budget-level corrections (their Table 1, units 1e-20/mm): BBR 0(0.3), lattice light -0.5(0.1), DC Stark +0.3(0.2), pixel calibration 0(0.8), so the corrected slope targets the ISOLATED gravitational gradient E36 predicts. This script's own field is configured to exactly zero (field.synthetic.kind='uniform', e0=[0,0,0]) for the same reason: no DC-Stark/BBR/quadrupole term is active, isolating E36 to match.",
+    "dc_stark_context_note": "Bothwell's own DC-Stark gradient row, +0.3(0.2)e-20/mm (their Table 1 budget-level corrections), is in-scope physics for this engine (CONVENTIONS.md E14b) but is a separate systematic this case does not model (the comparison target already has it corrected out, see isolation_note); it enters this report as a narrative cross-reference only."
+  }
+}

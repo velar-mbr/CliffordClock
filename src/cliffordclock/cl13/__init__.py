@@ -1,0 +1,96 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+"""Cl(1,3) Spacetime Algebra multivector kernel.
+
+A batched 16-component multivector is a plain `jax.numpy` array of shape
+``(..., 16)``, float64, ordered per E2 (see
+:mod:`cliffordclock.cl13.basis`). This package provides the basis ordering
+and structure tensor (E1-E3) and the pure operations built on it (E4-E6);
+see ``docs/CONVENTIONS.md`` for the governing equations.
+"""
+
+from cliffordclock.cl13.basis import (
+    BIVECTOR_SLICE,
+    BLADES,
+    GRADE,
+    GRADE_SLICES,
+    IDX_E0,
+    IDX_E01,
+    IDX_E012,
+    IDX_E0123,
+    IDX_E013,
+    IDX_E02,
+    IDX_E023,
+    IDX_E03,
+    IDX_E1,
+    IDX_E2,
+    IDX_E3,
+    IDX_E12,
+    IDX_E13,
+    IDX_E23,
+    IDX_E123,
+    IDX_SCALAR,
+    METRIC,
+    N_BLADES,
+    PSEUDOSCALAR_SLICE,
+    REVERSE_SIGN,
+    SCALAR_SLICE,
+    TRIVECTOR_SLICE,
+    VECTOR_SLICE,
+    blade_index,
+)
+from cliffordclock.cl13.ops import (
+    bivector_part,
+    commutator,
+    exp_bivector,
+    geometric_product,
+    grade,
+    grade_project,
+    normalize_rotor,
+    reverse,
+    rotor_norm_sq,
+    scalar_part,
+)
+from cliffordclock.cl13.structure import STRUCTURE_TENSOR, build_structure_tensor
+
+__all__ = [
+    "BIVECTOR_SLICE",
+    "BLADES",
+    "GRADE",
+    "GRADE_SLICES",
+    "IDX_E0",
+    "IDX_E1",
+    "IDX_E2",
+    "IDX_E3",
+    "IDX_E01",
+    "IDX_E02",
+    "IDX_E03",
+    "IDX_E012",
+    "IDX_E013",
+    "IDX_E023",
+    "IDX_E0123",
+    "IDX_E12",
+    "IDX_E123",
+    "IDX_E13",
+    "IDX_E23",
+    "IDX_SCALAR",
+    "METRIC",
+    "N_BLADES",
+    "PSEUDOSCALAR_SLICE",
+    "REVERSE_SIGN",
+    "SCALAR_SLICE",
+    "STRUCTURE_TENSOR",
+    "TRIVECTOR_SLICE",
+    "VECTOR_SLICE",
+    "bivector_part",
+    "blade_index",
+    "build_structure_tensor",
+    "commutator",
+    "exp_bivector",
+    "geometric_product",
+    "grade",
+    "grade_project",
+    "normalize_rotor",
+    "reverse",
+    "rotor_norm_sq",
+    "scalar_part",
+]

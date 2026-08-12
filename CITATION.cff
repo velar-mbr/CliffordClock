@@ -1,0 +1,31 @@
+cff-version: 1.2.0
+message: >-
+  If you use this software, please cite it using the metadata below.
+title: "CliffordClock: optical-atomic-clock DC-Stark and
+  second-order Doppler shift calculations via Spacetime Algebra Cl(1,3)
+  rotor dynamics"
+abstract: >-
+  CliffordClock is an open-source Python/JAX library that computes
+  optical-atomic-clock fractional frequency shifts (target regime: 1e-18
+  level) caused by stray static (DC) electric fields and by the atom's
+  own motion. It evaluates the second-order (quadratic) DC-Stark shift
+  for J=0->J=0 lattice clocks and the second-order (kinematic) Doppler
+  shift, using a proper-time/phase-accumulation model built on a
+  Spacetime Algebra Cl(1,3) rotor formalism. See docs/validation.md in
+  the repository for the current validation status.
+type: software
+authors:
+  - family-names: "Rudolph"
+    given-names: "Michael"
+    orcid: "https://orcid.org/0000-0002-0495-5723"
+license: AGPL-3.0-or-later
+repository-code: "https://github.com/velar-mbr/CliffordClock"
+url: "https://github.com/velar-mbr/CliffordClock"
+version: "0.1.0.dev0"
+date-released: "2026-08-12"
+keywords:
+  - optical atomic clocks
+  - metrology
+  - DC Stark shift
+  - Spacetime Algebra
+  - Clifford algebra

@@ -1,0 +1,11 @@
+shift_name,shift_e19,uncertainty_e19,uncertainty_is_upper_bound,in_engine_scope,scope_note
+BBR,-48417.2,7.3,false,false,"Blackbody-radiation shift (static + dynamic differential polarizability vs temperature). No BBR physics module exists in this engine (CONVENTIONS.md scope: E14b scalar DC Stark + E21 second-order Doppler only)."
+Lattice Light,-0.1,3.2,false,false,"AC lattice light shift (trap-light-induced polarizability, magic-wavelength operating-point sensitivity). Out of scope: CONVENTIONS.md E29 fast path is explicitly DC-Stark-only, no AC/optical polarizability term."
+Second Order Zeeman,-855.1,1.0,false,false,"Magnetic-field-induced shift. No magnetic-field/Zeeman physics exists anywhere in this engine."
+Density,-1.1,0.9,false,false,"Cold-collision (atom-atom interaction) shift. No inter-particle/collisional physics in this engine (ensemble atoms are independent, CONVENTIONS.md/WP4 scope)."
+First order Zeeman,0.0,0.7,false,false,"Magnetic-field-induced shift. No magnetic-field/Zeeman physics exists anywhere in this engine."
+Background Gas,-4.7,0.5,false,false,"Background-gas collisional shift. No collisional physics in this engine."
+DC Stark,-1.0,0.1,false,true,"CONVENTIONS.md E14b scalar DC-Stark shift -- directly in engine physics scope. See benchmarks/MAPPING.md for why this row still cannot be turned into an independent predicted-vs-published residual case (the paper reports only the resulting fractional shift, not the residual stray-field magnitude in V/m that produced it)."
+Tunneling,0.0,0.1,true,false,"Inter-site lattice-band tunneling shift (band-structure/Wannier-Stark physics). This engine models motional states via harmonic-oscillator Hermite-Gauss quadrature only (CONVENTIONS.md E29); no lattice band-structure/tunneling physics exists."
+Minor Shifts,0.0,0.1,true,false,"Unspecified grab-bag of sub-1e-20 effects (paper does not itemize); not attributable to any single engine mechanism."
+Total Shift,-49279.2,8.1,false,false,"Sum of all rows above; not a single physical mechanism, so scope classification does not apply to individual engine physics."

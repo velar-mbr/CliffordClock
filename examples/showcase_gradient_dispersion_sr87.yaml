@@ -1,0 +1,144 @@
+# CliffordClock example: the paper's showcase scenario -- a chamber-scale
+# field with genuine spatial structure (examples/generate_showcase_field.py:
+# two asymmetric electrodes plus a patch-potential wall spot, solved by a
+# from-scratch finite-difference Laplace solve, loaded exactly as a lab's
+# own COMSOL export would be) propagated through a classical thermal
+# Monte-Carlo ensemble of Sr-87 atoms whose cloud size is deliberately
+# scaled to sample that structure (see the trap/temperature comment below).
+# See docs/cli.md for the full schema.
+#
+# This config runs the pipeline's scalar (E21/E22) "trajectory mode"
+# (`ensemble.regime: classical`, `integration.mode: direct`, the default
+# for this regime) -- the same coupling.type: stark_dc physical DC-Stark
+# coupling every other physical example in this repository uses. It is
+# runnable as-is via `cliffordclock run examples/showcase_gradient_dispersion_sr87.yaml`.
+#
+# The paper's showcase section and Figure 4
+# (paper/figures/fig4_showcase_gradient_dispersion.py) run this *same*
+# scenario (species, trap, temperature, field, seed, interrogation time)
+# twice: once through this scalar trajectory accumulator (what this YAML
+# config drives), and once more through the Cl(1,3) rotor accumulator
+# directly (`cliffordclock.pipeline._stark_rotor_ensemble`, on the
+# identical Monte-Carlo trajectories this run produces) -- a rotor
+# cross-check this single YAML-driven CLI/API call cannot itself express,
+# since `integration.mode: worldline` is only valid for
+# `ensemble.regime: lattice` (a static-node cross-check) in the shipped
+# pipeline, not a moving classical trajectory. The figure script is the
+# reproducible source for that second (rotor) evaluation; see its module
+# docstring for how it reuses this config.
+#
+# Ensemble sizing (owner-approved scenario-geometry tuning; physical
+# constants are never touched): a real optical-lattice-site cloud is tens
+# of nanometers across (docs/timescales.md) -- far smaller than any
+# realistic chamber-scale field feature, so a lattice-site cloud would
+# never sample genuine field curvature. This scenario instead models a
+# loosely-confined, chamber-scale trapping stage (e.g. a large-volume
+# "science" dipole/magnetic trap used during a free-interrogation window,
+# distinct from a tight lattice site) with omega_xyz = 100 rad/s
+# (2*pi*15.9 Hz) and T = 50 uK: a genuinely cold (laser-cooled-scale)
+# ensemble whose classical thermal position sigma is
+# sigma = sqrt(k_B*T/(m*omega^2)) ~= 692 um -- comparable to (a sizable
+# fraction of) this scenario's field-feature scale (the exported region's
+# 3.2 mm half-extent, and the ~3-4% field-magnitude relative variation
+# per 0.5 mm step generate_showcase_field.py measures at the trap center),
+# so the ensemble's trajectories genuinely sample real field curvature
+# rather than an effectively-uniform field.
+#
+# MEMORY-SAFETY NOTE (binding -- an earlier draft of this scenario used
+# integration.time_s with auto-selected dtau at a much longer interrogation
+# window and a larger field-fit point count; a stray, unmonitored
+# background run at those settings drove memory usage far past available
+# RAM (measured >100 GB) and hung the development machine). This config
+# therefore pins integration.dtau/steps EXPLICITLY rather than
+# auto-selecting them, and ensemble.size was set empirically (not merely
+# estimated) by measuring this exact scenario's peak RSS end to end
+# (pipeline run + the rotor cross-check paper/figures/fig4_*.py performs
+# on the same trajectories) in a fresh subprocess at several sizes before
+# committing this value:
+#   M=40 -> 2.28 GB, M=60 -> 3.13 GB, M=80 -> 3.98 GB, M=100 -> 4.68 GB
+#   (measured with `resource.getrusage(...).ru_maxrss`, this machine).
+# The naive "8 bytes/element" byte-counting estimate used in an earlier
+# draft of this note undercounted the real cost by over an order of
+# magnitude (JAX/XLA's autodiff graph for `FieldSmoother.evaluate`
+# materializes several intermediate query-by-fit-point arrays, not one) --
+# this is why the value below was pinned from a direct measurement, not a
+# recomputed estimate; if this scenario's field-fit point count,
+# ensemble.size, or integration.steps ever changes, re-measure peak RSS
+# in a fresh subprocess before committing the new values, rather than
+# trusting a byte-counting formula alone.
+#   - trajectory storage: size(100) * (steps(318)+1) * 3 * 8 bytes
+#     ~= 7.66e5 bytes (~0.77 MB) -- far under the project's 1 GB bound.
+#   - field-evaluation cost (query-fit pairs, the dominant real cost):
+#     ensemble.size * steps * (FieldSmoother fit points, 729 -- see
+#     generate_showcase_field.py) = 100 * 318 * 729 ~= 2.32e7 pairs.
+# `integration.dtau` below is `fastpath.select_dtau(trap, points_per_period=100)`
+# for this exact trap (computed once, then pinned -- not recomputed or
+# auto-selected at run time); `integration.steps=318` gives a genuine
+# ~0.1998 s interrogation (a handful of the trap's own ~63 ms oscillation
+# periods -- enough for the classical ensemble to genuinely move through
+# the field, not a single frozen snapshot). The per-atom shift *spread*
+# this scenario reports is set by where each atom sits in the field, not
+# by how many periods it is averaged over (the mean phase and its spread
+# both scale ~linearly with the interrogation window here, so T2* is
+# governed by the ensemble's spatial distribution and is not an artifact
+# of this particular, deliberately-small time window -- stated explicitly
+# in the paper's showcase section and in notebooks/05).
+
+species: Sr87
+
+trap:
+  omega_xyz: [100.0, 100.0, 100.0]  # rad/s, isotropic (see header comment)
+  center: [12.0e-3, 12.0e-3, 8.0e-3]  # m -- the showcase field's own trap/export center
+
+field:
+  comsol: examples/showcase_field.txt  # docs/fields.md / docs/byof-guide.md
+                                        # COMSOL-Spreadsheet contract;
+                                        # generated by examples/generate_showcase_field.py
+  smoothing: 0.0  # exact interpolation: the FD solve is noiseless
+
+coupling:
+  type: stark_dc  # E14b; no override fields -> resolved from the Sr87
+                  # species-registry entry's cited Delta_alpha.
+
+ensemble:
+  regime: classical
+  temperature_uK: 50.0
+  size: 100  # see the memory-safety note above -- empirically measured, not estimated
+  seed: 20260811
+
+integration:
+  # Pinned explicitly (never auto-selected) -- see the memory-safety note
+  # above. dtau = fastpath.select_dtau(trap, points_per_period=100) for
+  # this exact trap, computed once and hardcoded here.
+  dtau: 4.8779136675229696e+17
+  steps: 318  # -> a genuine ~0.1998 s interrogation (dtau * steps * tau_C)
+  # This scenario's peak memory was MEASURED at ~4.7 GB (100 atoms x 318
+  # steps against the 729-point field fit; see the memory-safety note
+  # above), and the pipeline's upfront guard conservatively estimates
+  # ~6.7 GB for it -- above the 2 GB default. Declaring the budget
+  # explicitly is the honest way to run a known-heavy config; do NOT
+  # raise this casually for bigger ensembles (the estimate scales
+  # linearly in atoms x steps x fit-points).
+  max_trajectory_memory_gb: 8.0
+
+output:
+  directory: .
+  report_filename: report.json
+  line_profile_filename: line_profile.csv
+  n_time_samples: 2048  # T2* << interrogation time here (see the paper's
+                         # showcase section) -- a finer time grid than the
+                         # other shipped examples resolves the resulting
+                         # broadened line profile.
+
+uncertainty_notes: >-
+  Paper showcase scenario (physical E14b DC-Stark coupling, Sr87 registry
+  Delta_alpha, field loaded from examples/showcase_field.txt via the
+  COMSOL loader and FieldSmoother -- see examples/generate_showcase_field.py
+  for the field's physics/back-of-envelope check). This run reports the
+  scalar "trajectory mode" evaluation only; the paper's Figure 4 and its
+  generating script additionally cross-check this same scenario through
+  the Cl(1,3) rotor accumulator directly (not expressible through this
+  YAML config's integration.mode, which is lattice-only for the
+  worldline/rotor path). No experimental-dataset comparison, no BBR
+  modeling, no systematic-uncertainty budget beyond what coupling/mode
+  provenance notes state.
