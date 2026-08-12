@@ -3,7 +3,7 @@
 ![status: pre-beta](https://img.shields.io/badge/status-pre--beta-orange)
 ![license: AGPLv3](https://img.shields.io/badge/license-AGPLv3-blue)
 
-![CliffordClock showcase animation: Monte Carlo atoms dispersing through a real chamber field, colored by accumulated fractional shift, with the ensemble coherence decaying at T2*](docs/assets/showcase_animation.gif)
+![CliffordClock showcase animation: Monte Carlo atoms dispersing through a real chamber field, colored by accumulated fractional shift, with the ensemble coherence decaying at T2*](https://raw.githubusercontent.com/velar-mbr/CliffordClock/main/docs/assets/showcase_animation.gif)
 
 **CliffordClock predicts how stray electric fields shift and broaden an
 optical lattice clock's frequency, starting from your own field
@@ -46,7 +46,7 @@ pipeline with zero fitted parameters.
   with published coefficients, checked against JILA's published
   evaluation by arithmetic reproduction (a weaker class than an
   independent measurement; see
-  [`docs/validation.md`](docs/validation.md))
+  [`docs/validation.md`](https://github.com/velar-mbr/CliffordClock/blob/main/docs/validation.md))
 - [x] **Real interrogation times**: a 1-second run costs seconds of
   compute
 - [x] **More than the mean shift**: the per-atom shift distribution
@@ -64,7 +64,7 @@ pipeline with zero fitted parameters.
   five literature known-answer cases, plus two published-measurement
   reproductions (NPL's Rydberg electrometry, and Bothwell et al.'s
   mm-scale gravitational-redshift measurement); see
-  [`docs/validation.md`](docs/validation.md)
+  [`docs/validation.md`](https://github.com/velar-mbr/CliffordClock/blob/main/docs/validation.md)
 - [x] **Two independent formulations that must agree**: a direct scalar
   calculation and a geometric-algebra (Cl(1,3) rotor) engine, verified
   against each other to machine precision on every case shipped
@@ -79,7 +79,7 @@ pipeline with zero fitted parameters.
   all included), checked against the published Bothwell mm-scale
   redshift measurement
 
-See [`docs/roadmap.md`](docs/roadmap.md) for what's next, and why it's
+See [`docs/roadmap.md`](https://github.com/velar-mbr/CliffordClock/blob/main/docs/roadmap.md) for what's next, and why it's
 queued the way it is.
 
 ## Quickstart
@@ -90,7 +90,7 @@ pip install cliffordclock
 cliffordclock version
 ```
 
-**New here? Start with [`docs/tutorial.md`](docs/tutorial.md)**: it
+**New here? Start with [`docs/tutorial.md`](https://github.com/velar-mbr/CliffordClock/blob/main/docs/tutorial.md)**: it
 walks each command one at a time and explains every line of output in
 plain language. The fast version, with the examples from a clone of
 this repository:
@@ -116,7 +116,7 @@ in-vacuum surfaces, sized to bracket a documented real event at a Sr
 lattice clock ([Lodewyck et al. 2012](https://arxiv.org/abs/1108.4320)),
 imported from a CSV field file exactly the way your own FEA export would
 be, at a genuine 1-second interrogation. To point it at **your** trap:
-[`docs/byof-guide.md`](docs/byof-guide.md).
+[`docs/byof-guide.md`](https://github.com/velar-mbr/CliffordClock/blob/main/docs/byof-guide.md).
 
 ## Can you trust the numbers?
 
@@ -131,7 +131,7 @@ per-site frequency map, both with **zero fitted parameters**. A blind
 prediction, a shift nobody had already computed from the same published
 inputs, does not exist yet; getting one is the top roadmap item. The
 full case-by-case record, with formulas and sources, is
-[`docs/validation.md`](docs/validation.md).
+[`docs/validation.md`](https://github.com/velar-mbr/CliffordClock/blob/main/docs/validation.md).
 
 ## How it works, in two sentences
 
@@ -143,31 +143,31 @@ also runs through a general geometric-algebra engine, a Cl(1,3) "rotor"
 representing the atom's internal clock, which agrees with the simple
 calculation to machine precision today and exists for the physics a
 single number per point can't express; details in
-[`docs/coupling.md`](docs/coupling.md) and
-[`docs/CONVENTIONS.md`](docs/CONVENTIONS.md).
+[`docs/coupling.md`](https://github.com/velar-mbr/CliffordClock/blob/main/docs/coupling.md) and
+[`docs/CONVENTIONS.md`](https://github.com/velar-mbr/CliffordClock/blob/main/docs/CONVENTIONS.md).
 
 ## Notebooks
 
-- [`notebooks/01_end_to_end_demo.ipynb`](notebooks/01_end_to_end_demo.ipynb):
+- [`notebooks/01_end_to_end_demo.ipynb`](https://github.com/velar-mbr/CliffordClock/blob/main/notebooks/01_end_to_end_demo.ipynb):
   start here. Walks the full pipeline by hand, field synthesis through
   smoother fit, ensemble sampling, integration, and the report, the
   same composition the CLI automates.
-- [`notebooks/05_gradient_showcase.ipynb`](notebooks/05_gradient_showcase.ipynb):
+- [`notebooks/05_gradient_showcase.ipynb`](https://github.com/velar-mbr/CliffordClock/blob/main/notebooks/05_gradient_showcase.ipynb):
   the showcase behind the animation at the top of this page, a
   chamber-scale field with genuine spatial structure carried through to
   a full dispersion budget.
-- [`notebooks/06_npl_reproducibility.ipynb`](notebooks/06_npl_reproducibility.ipynb)
-  through [`09_bothwell_redshift.ipynb`](notebooks/09_bothwell_redshift.ipynb):
+- [`notebooks/06_npl_reproducibility.ipynb`](https://github.com/velar-mbr/CliffordClock/blob/main/notebooks/06_npl_reproducibility.ipynb)
+  through [`09_bothwell_redshift.ipynb`](https://github.com/velar-mbr/CliffordClock/blob/main/notebooks/09_bothwell_redshift.ipynb):
   the validation walkthroughs, one per case (NPL, JILA BBR, Roos
   quadrupole slope, Bothwell redshift), each stating the governing
   equation, building the config, and running the pipeline stage by
   stage.
-- [`notebooks/10_grand_tour.ipynb`](notebooks/10_grand_tour.ipynb): the
+- [`notebooks/10_grand_tour.ipynb`](https://github.com/velar-mbr/CliffordClock/blob/main/notebooks/10_grand_tour.ipynb): the
   grand tour. One chamber-scale scenario with the three lattice-clock
   terms composed live (DC Stark, then +BBR, then +gravity),
   cross-checked through the rotor engine on identical trajectories,
   then bridged to the extended-lattice per-site view.
-- [`notebooks/11_real_budget_slice.ipynb`](notebooks/11_real_budget_slice.ipynb):
+- [`notebooks/11_real_budget_slice.ipynb`](https://github.com/velar-mbr/CliffordClock/blob/main/notebooks/11_real_budget_slice.ipynb):
   the closest-to-a-real-experiment demo. One real clock's published
   evaluation, the JILA Sr system, with the covered rows computed from
   published inputs beside the lab's own numbers in a single composed
@@ -175,23 +175,23 @@ single number per point can't express; details in
 
 ## Documentation
 
-- [`paper/main.pdf`](paper/main.pdf): the paper. The physical model,
+- [`paper/main.pdf`](https://github.com/velar-mbr/CliffordClock/blob/main/paper/main.pdf): the paper. The physical model,
   the numerical methods, the full validation record including both
   reproducibility cases, and the chamber-scale showcase, in one
   self-contained read.
-- [`docs/tutorial.md`](docs/tutorial.md): start here
-- [`docs/index.md`](docs/index.md): full documentation map
-- [`docs/validation.md`](docs/validation.md): what's been checked
+- [`docs/tutorial.md`](https://github.com/velar-mbr/CliffordClock/blob/main/docs/tutorial.md): start here
+- [`docs/index.md`](https://github.com/velar-mbr/CliffordClock/blob/main/docs/index.md): full documentation map
+- [`docs/validation.md`](https://github.com/velar-mbr/CliffordClock/blob/main/docs/validation.md): what's been checked
   against what
-- [`docs/roadmap.md`](docs/roadmap.md): what's next, and why
-- [`docs/byof-guide.md`](docs/byof-guide.md): bring your own field
-- [`docs/cli.md`](docs/cli.md): CLI and config reference
-- [`docs/timescales.md`](docs/timescales.md): execution modes and why
+- [`docs/roadmap.md`](https://github.com/velar-mbr/CliffordClock/blob/main/docs/roadmap.md): what's next, and why
+- [`docs/byof-guide.md`](https://github.com/velar-mbr/CliffordClock/blob/main/docs/byof-guide.md): bring your own field
+- [`docs/cli.md`](https://github.com/velar-mbr/CliffordClock/blob/main/docs/cli.md): CLI and config reference
+- [`docs/timescales.md`](https://github.com/velar-mbr/CliffordClock/blob/main/docs/timescales.md): execution modes and why
   real interrogation times are cheap
-- [`docs/CONVENTIONS.md`](docs/CONVENTIONS.md): every equation, with
+- [`docs/CONVENTIONS.md`](https://github.com/velar-mbr/CliffordClock/blob/main/docs/CONVENTIONS.md): every equation, with
   units
 
 ## Contributing & License
 
-[CONTRIBUTING.md](CONTRIBUTING.md) for dev setup and the quality bar.
-GNU AGPL-3.0-or-later, see [LICENSE](LICENSE).
+[CONTRIBUTING.md](https://github.com/velar-mbr/CliffordClock/blob/main/CONTRIBUTING.md) for dev setup and the quality bar.
+GNU AGPL-3.0-or-later, see [LICENSE](https://github.com/velar-mbr/CliffordClock/blob/main/LICENSE).

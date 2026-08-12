@@ -47,6 +47,9 @@ cliffordclock = "cliffordclock.cli:main"
 
 [project.urls]
 Homepage = "https://github.com/velar-mbr/CliffordClock"
+Documentation = "https://github.com/velar-mbr/CliffordClock/blob/main/docs/index.md"
+Changelog = "https://github.com/velar-mbr/CliffordClock/blob/main/CHANGELOG.md"
+Paper = "https://github.com/velar-mbr/CliffordClock/blob/main/paper/main.pdf"
 
 [tool.setuptools.packages.find]
 where = ["src"]
