@@ -260,12 +260,8 @@ def main() -> None:
         _fmt_sci(g_over_c2_local * 1.0e-3, sig=5),
         "bothwell_values.tex",
     )
-    common.write_tex_macro(
-        "GravExtentWarnM", f"{GRAVITY_EXTENT_WARN_M:.0f}", "bothwell_values.tex"
-    )
-    common.write_tex_macro(
-        "GravUniformBoundM", f"{uniform_g_bound_m:.0f}", "bothwell_values.tex"
-    )
+    common.write_tex_macro("GravExtentWarnM", f"{GRAVITY_EXTENT_WARN_M:.0f}", "bothwell_values.tex")
+    common.write_tex_macro("GravUniformBoundM", f"{uniform_g_bound_m:.0f}", "bothwell_values.tex")
     common.write_tex_macro("BothwellNSites", f"{case.n_sites}", "bothwell_values.tex")
     common.write_tex_macro(
         "BothwellWindowSigma", f"{_ANALYSIS_HALF_WIDTH_SIGMA:g}", "bothwell_values.tex"
@@ -309,7 +305,8 @@ def main() -> None:
 
     print(
         f"Figure 7: {case.n_sites} sites, predicted slope {case.predicted_slope_per_mm:.4e}/mm, "
-        f"sigma distances A={case.sigma_distance_method_a:.2f} B={case.sigma_distance_method_b:.2f}, "
+        f"sigma distances A={case.sigma_distance_method_a:.2f} "
+        f"B={case.sigma_distance_method_b:.2f}, "
         f"verdicts A={case.kpi_verdict_method_a} B={case.kpi_verdict_method_b}"
     )
     print(f"g/c^2 (standard, computed) = {g_over_c2_std:.7e} /m")
