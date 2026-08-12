@@ -85,18 +85,19 @@ queued the way it is.
 ## Quickstart
 
 ```bash
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -e ".[dev]"
+pip install cliffordclock
 
 cliffordclock version
 ```
 
 **New here? Start with [`docs/tutorial.md`](docs/tutorial.md)**: it
 walks each command one at a time and explains every line of output in
-plain language. The fast version:
+plain language. The fast version, with the examples from a clone of
+this repository:
 
 ```bash
+git clone https://github.com/velar-mbr/CliffordClock.git
+cd CliffordClock
 cliffordclock run examples/realistic_lattice_sr87.yaml --output-dir /tmp/cliffordclock_out
 ```
 

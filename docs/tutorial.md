@@ -13,20 +13,27 @@ this page; the numbers shown are real output, not illustrations.
 ## 1. Install
 
 ```bash
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -e ".[dev]"
+pip install cliffordclock
 ```
 
-This installs the `cliffordclock` command-line tool plus the development
-dependencies (test runner, linters). Confirm it worked:
+This installs the library and the `cliffordclock` command-line tool.
+The examples and notebooks this tutorial runs live in the repository,
+so grab a clone alongside:
+
+```bash
+git clone https://github.com/velar-mbr/CliffordClock.git
+cd CliffordClock
+```
+
+(Working on the code itself? Use `CONTRIBUTING.md`'s editable install
+in place of the pip install.) Confirm it worked:
 
 ```bash
 cliffordclock version
 ```
 
 ```
-0.1.0.dev0
+0.1.0
 ```
 
 ## 2. Run the physical example
