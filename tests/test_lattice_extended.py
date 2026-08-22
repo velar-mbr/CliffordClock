@@ -307,7 +307,15 @@ def test_shipped_lattice_examples_byte_identical_with_wp22_present(
     data["output"]["directory"] = str(tmp_path)
     config = PipelineConfig.from_dict(data)
     result = run_pipeline_full(config)
-    np.testing.assert_allclose(result.report.mean_fractional_shift, expected_shift, rtol=0, atol=0)
+    # rtol=1e-12, not exact: the same cross-platform XLA scheduling drift
+    # documented at test_bbr_pipeline.py's sibling snapshot test (runner
+    # linux/x86 measured 5.0e-16 relative here, 2026-08-22) breaks a
+    # bit-for-bit contract; the bound absorbs measured version and
+    # platform drift while leaving any real numeric regression 4+ orders
+    # of magnitude outside it.
+    np.testing.assert_allclose(
+        result.report.mean_fractional_shift, expected_shift, rtol=1e-12, atol=0
+    )
 
 
 # ---------------------------------------------------------------------------

@@ -60,10 +60,12 @@ jobs:
     runs-on: ubuntu-latest
     # Sharded: the not-slow set alone exceeded 40 minutes as a single job
     # on a 2-core runner (JAX compile time dominates tests that are
-    # seconds on a laptop), so it runs as three parallel file-sharded
-    # jobs; wall time is the slowest shard. Balance is by file count,
-    # revisit with a runner-side --durations profile if a shard grows.
-    timeout-minutes: 30
+    # seconds on a laptop), so it runs as three parallel size-balanced
+    # jobs and every shard prints --durations=25 so the balance is
+    # driven by runner-measured data. 45 is a temporary profiling cap so
+    # the heavy shard completes and reports its durations; restore to 30
+    # once the runner-heavy tests are marked slow.
+    timeout-minutes: 45
     strategy:
       fail-fast: false
       matrix:
@@ -89,7 +91,7 @@ jobs:
           # spreads them and still gives any new file a shard.
           FILES=$(wc -c tests/test_*.py | grep -v " total$" | sort -rn | awk '{print $2}' | awk "NR % 3 == ${{ matrix.shard }}")
           echo "shard ${{ matrix.shard }} files:"; echo "$FILES"
-          pytest $FILES -m "not slow" --cov
+          pytest $FILES -m "not slow" --cov --durations=25
         env:
           COVERAGE_FILE: .coverage.fast${{ matrix.shard }}
 
