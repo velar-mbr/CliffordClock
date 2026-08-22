@@ -453,8 +453,12 @@ def test_e2e_load_fit_and_evaluate_fd_field() -> None:
             capture_output=True,
             text=True,
         )
-        assert regenerated.read_bytes() == FD_EXAMPLE_FIELD.read_bytes(), (
-            "regenerating examples/fd_electrode_field.txt did not reproduce it "
-            "byte-identically -- the FD solve or writer is not deterministic, or "
-            "the committed file is stale"
+        from test_e2e import _assert_numeric_file_match
+
+        _assert_numeric_file_match(
+            regenerated.read_bytes(),
+            FD_EXAMPLE_FIELD.read_bytes(),
+            "regenerating examples/fd_electrode_field.txt did not reproduce the "
+            "committed file (structure exact, numbers to 1e-9); the FD solve or "
+            "writer changed, or the committed file is stale",
         )

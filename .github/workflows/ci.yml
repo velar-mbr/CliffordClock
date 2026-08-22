@@ -58,14 +58,12 @@ jobs:
   test:
     name: Test (fast, shard ${{ matrix.shard }})
     runs-on: ubuntu-latest
-    # Sharded: the not-slow set alone exceeded 40 minutes as a single job
-    # on a 2-core runner (JAX compile time dominates tests that are
-    # seconds on a laptop), so it runs as three parallel size-balanced
-    # jobs and every shard prints --durations=25 so the balance is
-    # driven by runner-measured data. 45 is a temporary profiling cap so
-    # the heavy shard completes and reports its durations; restore to 30
-    # once the runner-heavy tests are marked slow.
-    timeout-minutes: 45
+    # Sharded three ways, size-balanced, each printing --durations=25.
+    # Runner profiling (2026-08-22) showed the fast set is minutes per
+    # shard once the two pathological generators (the patch-field and FD
+    # electrode regeneration tests, 29 and 11 runner-minutes) moved to
+    # the slow lane where they belong.
+    timeout-minutes: 15
     strategy:
       fail-fast: false
       matrix:
