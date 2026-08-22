@@ -106,3 +106,10 @@ Background and design reasoning, for understanding *why*:
   enclosure, against the PTB aperture formula and a JILA
   temperature-step check, then a field-deployment sensitivity band from
   per-surface sensor readings and uncertainties.
+- [`notebooks/13_trapped_ion_quantum_motion.ipynb`](../notebooks/13_trapped_ion_quantum_motion.ipynb):
+  the trapped-ion walkthrough, quantum motional states throughout: a
+  ground-state ion's ~10 nm wavepacket sampled against a field with real
+  curvature, the Coulomb-crystal quadrupole case recapped from notebook 08,
+  and the motional time-dilation row (E38) reproduced against a published
+  Al+ evaluation, closing with the excess-micromotion input channel and a
+  scope statement against the RF-dynamics roadmap.
