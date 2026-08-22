@@ -533,9 +533,10 @@ itself is a separate, later WP step with its own review, not part of this
 sign-off's implementation scope.
 
 **(E37) Multi-surface thermal environment (v1.5.0, WP29 Tier 1).** Motivation
-(Jun Ye, JILA, relayed to the project owner: for a field-deployed clock "the
-thermal environment (the blackbody radiation distribution)" is a bigger
-concern than a DC electric field): E32's single radiation temperature `T` is
+(the field-deployment problem class: outside a shielded laboratory, the
+blackbody radiation distribution across a clock's visible surfaces is a
+larger and less controlled systematic than the DC electric field, a point
+practitioners in the community emphasize): E32's single radiation temperature `T` is
 the `⟨T⁴⟩`-matched effective temperature of the atoms' real surroundings, and
 because the dynamic term scales as `T⁶` through `T¹⁰`, a `T` chosen to match
 the static moment does not in general reproduce the higher moments of a
