@@ -579,3 +579,70 @@ ROOS_FIT_OFFSET_HZ = PublishedBand(
         "Eq. 1/Fig. 4a."
     ),
 )
+
+# ---------------------------------------------------------------------------
+# WP30 addendum: Marshall et al., arXiv:2504.13071 (2025), the NIST 27Al+
+# single-ion clock's secular-motion inputs (mode frequencies + sideband-
+# thermometry n_bar) and its published secular-motion systematic-budget row.
+#
+# Source: fetched directly this session (arXiv abstract page + full text),
+# not re-derived from any prior project fixture. See
+# benchmarks/run_motional_al_ion.py's module docstring for the fetch
+# provenance and the exact quoted passages this data is transcribed from.
+# Consumed by benchmarks/run_motional_al_ion.py's arithmetic-reproduction
+# case (CONVENTIONS.md section 16, E38).
+# ---------------------------------------------------------------------------
+
+#: Marshall et al.'s six secular-motion normal modes for the co-trapped
+#: 25Mg+-27Al+ two-ion crystal (arXiv:2504.13071v2, Supplemental Material
+#: Table S2, "Secular motion parameters for the 25Mg+-27Al+ crystal").
+#: Each entry is ``(name, frequency_MHz, n_bar, n_bar_uncertainty)``,
+#: transcribed directly from the table's "Frequency [MHz]" and "Measured
+#: n_bar" rows (the table's own reported 1-sigma uncertainty on n_bar).
+MARSHALL_AL_ION_MODES_MHZ_NBAR: tuple[tuple[str, float, float, float], ...] = (
+    ("axial_com", 2.16, 8.22, 0.48),
+    ("axial_str", 3.75, 4.50, 0.19),
+    ("x_com", 4.22, 5.68, 0.49),
+    ("x_str", 3.48, 6.69, 0.51),
+    ("y_com", 5.37, 4.31, 0.14),
+    ("y_str", 4.75, 4.84, 0.24),
+)
+
+#: Citation for `MARSHALL_AL_ION_MODES_MHZ_NBAR`.
+MARSHALL_AL_ION_MODES_CITATION = (
+    "Marshall, Rodriguez Castillo, Arthur-Dworschack, Aeppli, Kim, Lee, "
+    "Warfield, Hinrichs, Nardelli, Fortier, Ye, Leibrandt, Hume, "
+    '"High-Stability Single-Ion Clock with 5.5x10^-19 Systematic '
+    'Uncertainty," arXiv:2504.13071v2 (2025), Supplemental Material Table '
+    'S2 ("Secular motion parameters for the 25Mg+-27Al+ crystal"): six '
+    'mode frequencies (MHz, row "Frequency [MHz]") and their sideband-'
+    'thermometry-measured occupations (row "Measured n_bar", quoted with '
+    "the table's own 1-sigma uncertainties). Preprint as fetched; no "
+    "journal acceptance confirmed at fetch time; cite as an arXiv "
+    "preprint, not a peer-reviewed final published number. The table also "
+    "lists a per-mode 'Geometric factor kappa' (1.7 axial, 2.3 X/Y), a "
+    "Doppler-cooling-laser geometry factor from the paper's own Eq. 1, "
+    "unrelated to the secular-motion time-dilation row; the physics this "
+    "project's single-species-mass E38 formula does not consume is each "
+    "ion's own per-mode normal-mode amplitude, not kappa (corrected per "
+    "the project's G11 gate record, plan/reviews/G11-e38-motional-time-dilation.md, "
+    "section A3; see benchmarks/run_motional_al_ion.py's module docstring "
+    "for the full caveat)."
+)
+
+#: Marshall et al.'s published secular-motion systematic-budget row
+#: (arXiv:2504.13071v2, Table I, "Secular motion" row: "-114.6  3.8", units
+#: 1e-19; main text: "we add them in quadrature to get a total secular
+#: motion shift of Delta_nu/nu = -(114.6 +/- 3.8) x 10^-19").
+MARSHALL_AL_ION_SECULAR_MOTION_SHIFT = PublishedBand(
+    nominal=-114.6e-19,
+    lo=-114.6e-19 - 3.8e-19,
+    hi=-114.6e-19 + 3.8e-19,
+    units="fractional frequency",
+    citation=(
+        'Marshall et al., arXiv:2504.13071v2 (2025), Table I "Secular '
+        'motion" row: -114.6  3.8 (units 10^-19); main text: "we add them '
+        "in quadrature to get a total secular motion shift of Delta_nu/nu "
+        '= -(114.6 +/- 3.8) x 10^-19."'
+    ),
+)

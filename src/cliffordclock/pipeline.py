@@ -177,6 +177,27 @@ Interface note (binding on this module):
    evaluation-mode call site: BBR is spatially uniform within the atom
    cloud in both the single-temperature and multi-surface cases, so the
    composition into the pivot is identical either way.
+9. **Quantum-motional second-order Doppler / time dilation (WP30,
+   CONVENTIONS.md section 16 E38).** An optional
+   ``environment.motional_state:`` config section
+   (:class:`MotionalStateConfig`, a list of normal-mode ``name``/
+   ``frequency_Hz``/``n_bar``/``n_bar_uncertainty``/
+   ``frequency_uncertainty_Hz`` entries plus an optional
+   ``v_rms_emm_m_s``/``v_rms_emm_uncertainty_m_s`` excess-micromotion
+   pair) requires ``coupling.type='stark_dc'`` (mirrors items 6-8's
+   pattern) AND is REJECTED at parse time for ``ensemble.regime:
+   classical`` (:class:`PipelineConfigError`, the no-double-counting
+   argument: classical trajectories sample real, nonzero velocities,
+   where E21's kinematic second-order Doppler already carries this
+   physics; see :class:`EnvironmentConfig`'s docstring). Allowed for
+   ``ensemble.regime: lattice``/``lattice_extended`` only, where every
+   node is static (``v=0`` exactly) and the kinematic term is identically
+   zero. :func:`_resolve_motional_pivot_perturbation` resolves the
+   configured modes to a single ``(P−1)_motional`` scalar once per run
+   (spatially uniform, exactly like item 6's BBR scalar), threaded
+   through the same ``motional_pivot_perturbation`` keyword-only
+   parameter on :func:`_make_stark_rate_fn`/:func:`_stark_rotor_ensemble`,
+   with no change to any evaluation-mode call site's control flow.
 """
 
 from __future__ import annotations
@@ -253,12 +274,15 @@ from cliffordclock.fields.synthetic import (
 from cliffordclock.integrator import fastpath
 from cliffordclock.integrator.omega import (
     BBR_ENVIRONMENT_WEIGHT_TOLERANCE,
+    MotionalMode,
     RadiationSurface,
     bbr_environment_effective_temperatures,
     bbr_environment_pivot_uncertainty,
     bbr_pivot_uncertainty,
     build_omega_stark,
     height_along_axis,
+    motional_mean_squared_velocity_m2_s2,
+    motional_pivot_uncertainty,
     pivot_perturbation_stark,
     quadrupole_three_orientation_average,
     scalar_rate_perturbation,
@@ -271,6 +295,9 @@ from cliffordclock.integrator.omega import (
 )
 from cliffordclock.integrator.omega import (
     grav_pivot_perturbation as _grav_pivot_perturbation_e36,
+)
+from cliffordclock.integrator.omega import (
+    motional_pivot_perturbation as _motional_pivot_perturbation_e38,
 )
 from cliffordclock.integrator.omega import (
     quadrupole_pivot_perturbation as _quadrupole_pivot_perturbation_e34,
@@ -294,6 +321,7 @@ __all__ = [
     "GravityConfig",
     "IntegrationConfig",
     "LatticeExtendedSiteMap",
+    "MotionalStateConfig",
     "OutputConfig",
     "PhysicsValidationError",
     "PipelineConfig",
@@ -744,15 +772,62 @@ class RadiationEnvironmentConfig:
 
 
 @dataclass(frozen=True)
+class MotionalStateConfig:
+    """Quantum-motional second-order-Doppler (time-dilation) parameters
+    (``environment.motional_state:`` in YAML, WP30, CONVENTIONS.md
+    section 16 E38).
+
+    Generalizes E21's classical kinematic second-order Doppler
+    (`sqrt(1-v^2/c^2)`, identically zero at every static `v=0`
+    lattice/lattice_extended quadrature node) with the QUANTUM
+    expectation value of the motional state's velocity-squared operator,
+    `<v^2> = sum_i (hbar*omega_i/m)*(n_bar_i+1/2)` over the configured
+    normal modes, plus an optional measured excess-micromotion (EMM)
+    contribution; see the module docstring's WP30 note and
+    :func:`_resolve_motional_pivot_perturbation` for how this resolves
+    into the same scalar ``(P-1)_motional`` that threads into every
+    evaluation mode.
+
+    Attributes
+    ----------
+    modes : tuple[MotionalMode, ...]
+        The trap's normal modes contributing to the motional state
+        (`~cliffordclock.integrator.omega.MotionalMode`). Parsed from
+        YAML by :func:`_parse_motional_state`, which enforces each mode's
+        physical invariants (`frequency_Hz > 0`, `n_bar >= 0`,
+        uncertainties `>= 0`) at parse time (:class:`PipelineConfigError`);
+        the same checks are also enforced by
+        `~cliffordclock.integrator.omega.motional_pivot_perturbation`
+        itself when this config is actually resolved against a species
+        (defense in depth for any caller constructing this dataclass
+        directly).
+    v_rms_emm_m_s : float
+        Optional measured rms excess-micromotion velocity, m/s
+        (CONVENTIONS.md E38's EMM scope note: a full RF-dynamics
+        treatment is a roadmap package; this input takes the lab's own
+        measured EMM characterization, already reduced to an equivalent
+        velocity, as given). Default `0.0`: no EMM contribution.
+    v_rms_emm_uncertainty_m_s : float
+        1-sigma uncertainty on `v_rms_emm_m_s`, m/s. Default `0.0`.
+    """
+
+    modes: tuple[MotionalMode, ...]
+    v_rms_emm_m_s: float = 0.0
+    v_rms_emm_uncertainty_m_s: float = 0.0
+
+
+@dataclass(frozen=True)
 class EnvironmentConfig:
-    """Thermal-bath / environment parameters (``environment:`` in YAML, WP20/WP22/WP29).
+    """Thermal-bath / environment parameters (``environment:`` in YAML, WP20/WP22/WP29/WP30).
 
     CONVENTIONS.md E32/E33 (blackbody-radiation shift, uniform-T MVP),
-    E37 (multi-surface thermal environment, WP29 Tier 1), and section 15
-    E36 (gravitational redshift, WP22). See the module docstring's
+    E37 (multi-surface thermal environment, WP29 Tier 1), section 15
+    E36 (gravitational redshift, WP22), and section 16 E38 (quantum-
+    motional second-order Doppler, WP30). See the module docstring's
     "Blackbody-radiation shift" interface note for how BBR composes into
     every evaluation mode; WP22's module-docstring note describes the
-    gravity term's identical threading pattern.
+    gravity term's identical threading pattern; WP30's note describes the
+    motional term's (BBR-like, spatially uniform) threading pattern.
 
     Attributes
     ----------
@@ -800,12 +875,27 @@ class EnvironmentConfig:
         gravity term is composed at the same E14b rate-function call
         sites as BBR/the quadrupole term, G9 sign-off "mirrors BBR
         exactly").
+    motional_state : MotionalStateConfig or None
+        Quantum-motional second-order-Doppler (time-dilation) parameters
+        (WP30, CONVENTIONS.md section 16 E38). `None` (the default, and
+        the key's absence in YAML): the motional term is off, and every
+        existing example config is completely unaffected (byte-identical
+        output). When given, `coupling.type` must be ``"stark_dc"``
+        (mirrors `radiation_temperature_k`'s cross-field validation
+        exactly) AND `ensemble.regime` must NOT be ``"classical"``
+        (:class:`PipelineConfigError`, CONVENTIONS.md E38's no-double-
+        counting argument: `ensemble.regime="classical"` samples real,
+        nonzero velocities along classical trajectories, where E21's
+        kinematic second-order Doppler already carries this physics --
+        composing E38 there would double-count it. See
+        :class:`MotionalStateConfig`.
     """
 
     radiation_temperature_k: float | None = None
     radiation_temperature_uncertainty_k: float | None = None
     radiation_environment: RadiationEnvironmentConfig | None = None
     gravity: GravityConfig | None = None
+    motional_state: MotionalStateConfig | None = None
 
 
 #: Valid `QuadrupoleConfig.averaging_mode` values.
@@ -1044,6 +1134,29 @@ class PipelineConfig:
                 "rate-function call sites as environment.radiation_temperature_K/BBR "
                 "(G9 sign-off: 'E36 mirrors BBR exactly'), which coupling.type='linear_mu' "
                 "does not use."
+            )
+        if environment_cfg.motional_state is not None and coupling_cfg.type != "stark_dc":
+            raise PipelineConfigError(
+                "environment.motional_state requires coupling.type='stark_dc' "
+                f"(got coupling.type={coupling_cfg.type!r}): the quantum-motional "
+                "second-order-Doppler term (CONVENTIONS.md section 16 E38) is composed at "
+                "the same E14b Stark rate-function call sites as "
+                "environment.radiation_temperature_K/BBR, which coupling.type='linear_mu' "
+                "does not use."
+            )
+        if environment_cfg.motional_state is not None and ensemble_cfg.regime == "classical":
+            raise PipelineConfigError(
+                "environment.motional_state requires ensemble.regime != 'classical' "
+                f"(got ensemble.regime={ensemble_cfg.regime!r}): CONVENTIONS.md E38's "
+                "no-double-counting argument is that the engine already carries "
+                "second-order Doppler through the classical kinematic factor "
+                "sqrt(1 - v^2/c^2) (E15/E21) "
+                "along real, sampled trajectories in ensemble.regime='classical', so adding "
+                "the quantum-motional term there would double-count the same physics. The "
+                "lattice/lattice_extended regimes evaluate at static quadrature nodes "
+                "(v=0 exactly), where the classical kinematic contribution is identically "
+                "zero, which is exactly why the motional term is missing there and why it "
+                "is safe to add for those regimes only."
             )
         return cls(
             species=species,
@@ -1401,12 +1514,14 @@ def _parse_environment(data: Any, *, base_dir: Path | None = None) -> Environmen
         radiation_environment_raw, base_dir=base_dir
     )
     gravity = _parse_gravity(data.get("gravity"))
+    motional_state = _parse_motional_state(data.get("motional_state"))
 
     return EnvironmentConfig(
         radiation_temperature_k=temperature_k,
         radiation_temperature_uncertainty_k=temperature_uncertainty_k,
         radiation_environment=radiation_environment,
         gravity=gravity,
+        motional_state=motional_state,
     )
 
 
@@ -1685,6 +1800,87 @@ def _parse_gravity(data: Any) -> GravityConfig | None:
         g_m_s2=g_m_s2,
         up_axis=up_axis,
         reference_height_m=reference_height_m,
+    )
+
+
+def _parse_motional_state(data: Any) -> MotionalStateConfig | None:
+    """Parse the optional ``environment.motional_state:`` YAML section
+    (WP30, :class:`MotionalStateConfig`, CONVENTIONS.md section 16 E38).
+
+    `data` is `None` when the key is absent (the default, common case) --
+    returns `None` (the motional term off), matching `_parse_environment`'s
+    own ``data.get(...)`` -> `None` -> off pattern for `environment:`
+    itself and mirroring :func:`_parse_radiation_environment`'s structure.
+    """
+    if data is None:
+        return None
+    if not isinstance(data, dict):
+        raise PipelineConfigError(
+            f"environment.motional_state: must be a mapping, got {type(data).__name__}"
+        )
+
+    modes_raw = data.get("modes")
+    if not isinstance(modes_raw, list) or not modes_raw:
+        raise PipelineConfigError("environment.motional_state.modes must be a non-empty list")
+
+    modes = []
+    for index, entry in enumerate(modes_raw):
+        context = f"environment.motional_state.modes[{index}]"
+        name = str(entry.get("name", "")) if isinstance(entry, dict) else ""
+        frequency_hz = float(_require(entry, "frequency_Hz", context))
+        n_bar = float(_require(entry, "n_bar", context))
+        n_bar_uncertainty_raw = entry.get("n_bar_uncertainty", 0.0)
+        n_bar_uncertainty = (
+            float(n_bar_uncertainty_raw) if n_bar_uncertainty_raw is not None else 0.0
+        )
+        frequency_uncertainty_raw = entry.get("frequency_uncertainty_Hz", 0.0)
+        frequency_uncertainty_hz = (
+            float(frequency_uncertainty_raw) if frequency_uncertainty_raw is not None else 0.0
+        )
+
+        if frequency_hz <= 0.0:
+            raise PipelineConfigError(f"{context}.frequency_Hz={frequency_hz!r} must be > 0")
+        if n_bar < 0.0:
+            raise PipelineConfigError(f"{context}.n_bar={n_bar!r} must be >= 0")
+        if n_bar_uncertainty < 0.0:
+            raise PipelineConfigError(
+                f"{context}.n_bar_uncertainty={n_bar_uncertainty!r} must be >= 0"
+            )
+        if frequency_uncertainty_hz < 0.0:
+            raise PipelineConfigError(
+                f"{context}.frequency_uncertainty_Hz={frequency_uncertainty_hz!r} must be >= 0"
+            )
+
+        modes.append(
+            MotionalMode(
+                name=name,
+                frequency_hz=frequency_hz,
+                n_bar=n_bar,
+                n_bar_uncertainty=n_bar_uncertainty,
+                frequency_uncertainty_hz=frequency_uncertainty_hz,
+            )
+        )
+
+    v_rms_emm_raw = data.get("v_rms_emm_m_s", 0.0)
+    v_rms_emm_m_s = float(v_rms_emm_raw) if v_rms_emm_raw is not None else 0.0
+    if v_rms_emm_m_s < 0.0:
+        raise PipelineConfigError(
+            f"environment.motional_state.v_rms_emm_m_s={v_rms_emm_m_s!r} must be >= 0"
+        )
+    v_rms_emm_uncertainty_raw = data.get("v_rms_emm_uncertainty_m_s", 0.0)
+    v_rms_emm_uncertainty_m_s = (
+        float(v_rms_emm_uncertainty_raw) if v_rms_emm_uncertainty_raw is not None else 0.0
+    )
+    if v_rms_emm_uncertainty_m_s < 0.0:
+        raise PipelineConfigError(
+            "environment.motional_state.v_rms_emm_uncertainty_m_s="
+            f"{v_rms_emm_uncertainty_m_s!r} must be >= 0"
+        )
+
+    return MotionalStateConfig(
+        modes=tuple(modes),
+        v_rms_emm_m_s=v_rms_emm_m_s,
+        v_rms_emm_uncertainty_m_s=v_rms_emm_uncertainty_m_s,
     )
 
 
@@ -2724,6 +2920,129 @@ def _gravity_extent_warn_note(gravity: GravityConfig, positions_m: jnp.ndarray) 
     )
 
 
+# ---------------------------------------------------------------------------
+# WP30: quantum-motional second-order-Doppler (time-dilation) pivot term
+# (CONVENTIONS.md section 16, E38). Like WP20's BBR term (a single scalar
+# computed once per run, not a per-point quantity): the motional state is
+# spatially uniform within the atom cloud in this tier (one motional state
+# per run), so :func:`_resolve_motional_pivot_perturbation` is the single
+# call site `run_pipeline_full` uses, mirroring
+# :func:`_resolve_bbr_pivot_perturbation` structurally.
+# ---------------------------------------------------------------------------
+
+#: Roadmap-boundary line appended to every motional-term report note (WP30
+#: design note): a full RF-dynamics treatment of excess micromotion (the
+#: trap RF drive, stray-field-induced displacement from the RF null, and
+#: the resulting time-varying velocity, Berkeland, Miller, Bergquist,
+#: Itano, Wineland, J. Appl. Phys. 83, 5025 (1998)) is out of scope for
+#: this tier; `v_rms_emm_m_s` takes the lab's own measured EMM
+#: characterization, already reduced to an equivalent rms velocity, as
+#: given.
+_MOTIONAL_EMM_ROADMAP_NOTE = (
+    "excess-micromotion scope (CONVENTIONS.md section 16 E38): a full RF-dynamics "
+    "treatment of excess micromotion (the trap RF drive, stray-field-induced "
+    "displacement from the RF null, and the resulting time-varying velocity, per "
+    "Berkeland, Miller, Bergquist, Itano, Wineland, J. Appl. Phys. 83, 5025 (1998)) is "
+    "a roadmap package, not modeled here; environment.motional_state.v_rms_emm_m_s "
+    "takes the lab's own measured EMM characterization, already reduced to an "
+    "equivalent rms velocity, as given."
+)
+
+#: Folded into `uncertainty_notes` for `coupling.type='stark_dc'` runs in
+#: `integration.mode='fast_path'` when `environment.motional_state` IS
+#: configured (WP30): supersedes `_FAST_PATH_DOPPLER_EXCLUSION_NOTE`'s
+#: blanket "no motional Doppler contribution" statement for this run,
+#: since the quantum-motional term (E38) now supplies exactly the
+#: contribution that note says is excluded. CONVENTIONS.md E38's
+#: no-double-counting argument: E38 supplies the QUANTUM motional-state
+#: expectation, distinct from (and not a re-derivation of) the classical
+#: kinematic sqrt(1-v^2/c^2) term, which stays identically zero at v=0.
+_FAST_PATH_MOTIONAL_INCLUDED_NOTE = (
+    "fast_path (E29) normally reports the Stark/field shift only (no motional "
+    "second-order Doppler, since static v=0 quadrature nodes carry no classical "
+    "kinematic contribution); this run's environment.motional_state (E38) supplies "
+    "the QUANTUM motional-state velocity-squared expectation explicitly, so the "
+    "reported mean_fractional_shift DOES include the motional time-dilation term for "
+    "this run (CONVENTIONS.md E38's no-double-counting argument)."
+)
+
+
+def _resolve_motional_pivot_perturbation(
+    environment: EnvironmentConfig, species: Species
+) -> tuple[float, str | None]:
+    """``(P−1)_motional`` (E38) plus its report note, or ``(0.0, None)`` if the
+    motional term is off.
+
+    Single call site `run_pipeline_full` uses to compute the motional
+    scalar once per run and assemble its report-note text, mirroring
+    :func:`_resolve_bbr_pivot_perturbation`'s structure exactly.
+
+    Parameters
+    ----------
+    environment : EnvironmentConfig
+    species : Species
+        Resolved run species (used for its `mass_kg`).
+
+    Returns
+    -------
+    tuple[float, str | None]
+        ``(motional_pivot_perturbation, note)``. `note` is `None` iff
+        `environment.motional_state` is `None`.
+
+    Raises
+    ------
+    PipelineConfigError
+        `environment.motional_state.modes`/`v_rms_emm_m_s` violates E38's
+        input invariants (already checked at parse time by
+        :func:`_parse_motional_state`; re-checked here for direct
+        `PipelineConfig` construction, wrapping the underlying `ValueError`).
+    """
+    motional = environment.motional_state
+    if motional is None:
+        return 0.0, None
+
+    try:
+        mean_v2 = motional_mean_squared_velocity_m2_s2(
+            motional.modes, species, motional.v_rms_emm_m_s
+        )
+        motional_value = _motional_pivot_perturbation_e38(
+            motional.modes, species, motional.v_rms_emm_m_s
+        )
+        sigma_frac = motional_pivot_uncertainty(
+            motional.modes,
+            species,
+            motional.v_rms_emm_m_s,
+            motional.v_rms_emm_uncertainty_m_s,
+        )
+    except ValueError as exc:
+        raise PipelineConfigError(str(exc)) from exc
+
+    mode_list = ", ".join(
+        f"{mode.name!r}(f={mode.frequency_hz!r}Hz, n_bar={mode.n_bar!r}"
+        + (f", sigma_n_bar={mode.n_bar_uncertainty!r}" if mode.n_bar_uncertainty > 0.0 else "")
+        + (
+            f", sigma_f={mode.frequency_uncertainty_hz!r}Hz"
+            if mode.frequency_uncertainty_hz > 0.0
+            else ""
+        )
+        + ")"
+        for mode in motional.modes
+    )
+    parts = [
+        f"Quantum-motional time dilation (CONVENTIONS.md section 16 E38): N="
+        f"{len(motional.modes)} modes [{mode_list}], <v^2>={mean_v2!r} m^2/s^2, "
+        f"(P-1)_motional={motional_value!r}"
+        + (f", v_rms_emm_m_s={motional.v_rms_emm_m_s!r}" if motional.v_rms_emm_m_s > 0.0 else ""),
+        (
+            "motional-term uncertainty (propagated from the supplied mode/EMM input "
+            f"uncertainties, arithmetic-reproduction fidelity, not an independent-physics "
+            f"claim): {sigma_frac:.2e} fractional, 1-sigma"
+        ),
+        _MOTIONAL_EMM_ROADMAP_NOTE,
+    ]
+    return motional_value, " ".join(parts)
+
+
 def _make_stark_rate_fn(
     field_fn: CombinedFieldFn,
     species_or_coeffs: Species | StarkCoefficients,
@@ -2731,6 +3050,7 @@ def _make_stark_rate_fn(
     bbr_pivot_perturbation: float = 0.0,
     quadrupole: QuadrupoleConfig | None = None,
     gravity: GravityConfig | None = None,
+    motional_pivot_perturbation: float = 0.0,
 ) -> fastpath.RateFn:
     """Build a `fastpath.RateFn` from `field_fn` + the E14b physical DC-Stark coupling.
 
@@ -2827,6 +3147,13 @@ def _make_stark_rate_fn(
         :func:`~cliffordclock.integrator.omega.grav_pivot_perturbation`,
         composed additively into `p_minus_1` exactly like
         `bbr_pivot_perturbation`/`quadrupole`.
+    motional_pivot_perturbation : float, default 0.0
+        ``(P−1)_motional`` (E38, WP30); see
+        :func:`_resolve_motional_pivot_perturbation`. `0.0` (default): no
+        motional term, byte-identical to pre-WP30 behavior. Composed
+        additively into `p_minus_1` exactly like `bbr_pivot_perturbation`
+        (spatially uniform, one motional state per run, CONVENTIONS.md
+        E38's composition note).
 
     Returns
     -------
@@ -2852,6 +3179,7 @@ def _make_stark_rate_fn(
             bbr_pivot_perturbation=bbr_pivot_perturbation,
             quadrupole_pivot_perturbation=quadrupole_value,
             grav_pivot_perturbation=grav_value,
+            motional_pivot_perturbation=motional_pivot_perturbation,
         )
         v = jnp.asarray(v, dtype=jnp.float64)
         v2 = jnp.sum(v * v, axis=-1)
@@ -3049,6 +3377,7 @@ def _stark_rotor_ensemble(
     bbr_pivot_perturbation: float = 0.0,
     quadrupole: QuadrupoleConfig | None = None,
     gravity: GravityConfig | None = None,
+    motional_pivot_perturbation: float = 0.0,
 ) -> EnsembleResult:
     """True Cl(1,3) rotor accumulation (E17-E24) for `coupling.type='stark_dc'`
     in `mode="worldline"` (WP16 -- replaces :func:`_stark_scalar_ensemble`
@@ -3122,6 +3451,14 @@ def _stark_rotor_ensemble(
         When given, evaluated from each step's `pos_mid` via
         :func:`_grav_pivot_from_position` and threaded into
         `build_omega_stark`'s own `grav_pivot_perturbation`.
+    motional_pivot_perturbation : float, default 0.0
+        ``(P−1)_motional`` (E38, WP30); see
+        :func:`_resolve_motional_pivot_perturbation`. `0.0` (default): no
+        motional term, byte-identical to pre-WP30 behavior. Threaded into
+        every step's `build_omega_stark` call, mirroring
+        `bbr_pivot_perturbation`'s per-step threading exactly (a single
+        per-run scalar, not evaluated from `pos_mid`/`grad_e_mid` like
+        `quadrupole`/`gravity`).
 
     Returns
     -------
@@ -3192,6 +3529,7 @@ def _stark_rotor_ensemble(
                 bbr_pivot_perturbation=bbr_pivot_perturbation,
                 quadrupole_pivot_perturbation=quadrupole_value,
                 grav_pivot_perturbation=grav_value,
+                motional_pivot_perturbation=motional_pivot_perturbation,
             )
             generator = (-0.5 * dtau) * omega
             delta_r = exp_bivector(generator)
@@ -4361,6 +4699,7 @@ def run_pipeline_full(config: PipelineConfig) -> PipelineResult:
     bbr_note: str | None
     quadrupole_note: str | None
     gravity_note: str | None
+    motional_note: str | None
     # WP20 (E32/E33): resolved once per run, before the coupling.type branch,
     # since `_parse_environment`/`PipelineConfig.from_dict`'s cross-field
     # validation already guarantees radiation_temperature_k is None whenever
@@ -4378,6 +4717,12 @@ def run_pipeline_full(config: PipelineConfig) -> PipelineResult:
     # is None whenever coupling.type='linear_mu'.
     gravity = config.environment.gravity
     gravity_note = _gravity_provenance_note(gravity) if gravity is not None else None
+    # WP30 (E38): same cross-field validation guarantees
+    # config.environment.motional_state is None whenever coupling.type='linear_mu'
+    # OR ensemble.regime='classical' (the no-double-counting rejection).
+    motional_value, motional_note = _resolve_motional_pivot_perturbation(
+        config.environment, species
+    )
     if config.coupling.type == "linear_mu":
         assert config.coupling.mu is not None  # enforced by _parse_coupling
         mu = jnp.asarray(config.coupling.mu, dtype=jnp.float64)
@@ -4398,6 +4743,7 @@ def run_pipeline_full(config: PipelineConfig) -> PipelineResult:
             bbr_pivot_perturbation=bbr_value,
             quadrupole=config.quadrupole,
             gravity=gravity,
+            motional_pivot_perturbation=motional_value,
         )
         coupling_note = _stark_coupling_provenance_note(config.coupling, species, k_s)
 
@@ -4631,6 +4977,7 @@ def run_pipeline_full(config: PipelineConfig) -> PipelineResult:
                 bbr_pivot_perturbation=bbr_value,
                 quadrupole=config.quadrupole,
                 gravity=gravity,
+                motional_pivot_perturbation=motional_value,
             )
             t_interrogation_s = n_steps * dt_seconds
             mode_note = (
@@ -4737,6 +5084,7 @@ def run_pipeline_full(config: PipelineConfig) -> PipelineResult:
                 bbr_pivot_perturbation=bbr_value,
                 quadrupole=config.quadrupole,
                 gravity=gravity,
+                motional_pivot_perturbation=motional_value,
             )
             t_interrogation_s = n_steps * dt_seconds
             mode_note = (
@@ -4819,7 +5167,16 @@ def run_pipeline_full(config: PipelineConfig) -> PipelineResult:
     else:
         extra_notes = coupling_note
         if mode == "fast_path":
-            extra_notes = f"{extra_notes} {_FAST_PATH_DOPPLER_EXCLUSION_NOTE}"
+            # WP30: motional_note is not None iff environment.motional_state is
+            # configured, in which case E38 supplies exactly the motional
+            # Doppler contribution the blanket exclusion note says is missing,
+            # so append the superseding note instead (CONVENTIONS.md E38's
+            # no-double-counting argument).
+            extra_notes = f"{extra_notes} " + (
+                _FAST_PATH_MOTIONAL_INCLUDED_NOTE
+                if motional_note is not None
+                else _FAST_PATH_DOPPLER_EXCLUSION_NOTE
+            )
         if bbr_note is not None:
             extra_notes = f"{extra_notes} {bbr_note}"
         if quadrupole_note is not None:
@@ -4830,6 +5187,8 @@ def run_pipeline_full(config: PipelineConfig) -> PipelineResult:
             extent_warn_note = _gravity_extent_warn_note(gravity, trajectories)
             if extent_warn_note is not None:
                 extra_notes = f"{extra_notes} {extent_warn_note}"
+        if motional_note is not None:
+            extra_notes = f"{extra_notes} {motional_note}"
         if config.ensemble.regime == "lattice_extended":
             extra_notes = f"{extra_notes} {LATTICE_EXTENDED_DISPERSION_LABEL_NOTE}"
         if ion_notes:

@@ -475,3 +475,13 @@ venue = "data.nist.gov"
 year = [2020]
 doi = "10.18434/M32206"
 source = "benchmarks/SOURCES.md section 2"
+
+[[paper]]
+key = "Marshall2025"
+authors = "Marshall, Mason C. and Rodriguez Castillo, Daniel A. and Arthur-Dworschack, Willa J. and Aeppli, Alexander and Kim, Kyungtae and Lee, Dahyeon and Warfield, William and Hinrichs, Joost and Nardelli, Nicholas V. and Fortier, Tara M. and Ye, Jun and Leibrandt, David R. and Hume, David B."
+surnames = ["Marshall", "Rodriguez Castillo", "Arthur-Dworschack", "Aeppli", "Kim", "Lee", "Warfield", "Hinrichs", "Nardelli", "Fortier", "Ye", "Leibrandt", "Hume"]
+title = "High-Stability Single-Ion Clock with 5.5x10^-19 Systematic Uncertainty"
+venue = "arXiv preprint (no journal acceptance confirmed at fetch time)"
+year = [2025]
+arxiv = "2504.13071"
+source = "benchmarks/loaders.py (MARSHALL_AL_ION_MODES_MHZ_NBAR/MARSHALL_AL_ION_SECULAR_MOTION_SHIFT); benchmarks/run_motional_al_ion.py; byline transcribed from the arXiv abstract page, fetched this session"
