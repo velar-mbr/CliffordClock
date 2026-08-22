@@ -516,7 +516,16 @@ zero findings. `.venv/bin/python -m pytest tests/test_bbr_environment.py`:
 all 38 tests pass. `docs/cli.md` now carries a dedicated "Multi-surface
 thermal environment" section documenting `environment.radiation_environment:`,
 closing the B5 item 3 needs-change from the original review; the reviewer
-confirmed the section exists and names the config key directly.
+confirmed the section exists and names the config key directly. A full
+`.venv/bin/python -m pytest -q` run over the whole project shows exactly
+two failures, both the same pre-existing, BBR-unrelated float-noise
+snapshot mismatch already identified in the original review
+(`showcase_gradient_dispersion_sr87.yaml`, `1.23e-32` absolute /
+`1.24e-16` relative, present on the pre-branch commit); the third
+pre-existing failure the original review found,
+`test_load_bibliography_keys_are_unique`, is gone, consistent with the
+bibliography deduplication above. No failure anywhere in the project is
+new to this round of changes.
 
 ## Final gate verdict: APPROVE E37 for WP29 Tier 1.
 
