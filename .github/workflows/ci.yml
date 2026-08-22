@@ -6,6 +6,12 @@ name: CI
 # MANUAL ONLY (workflow_dispatch) because the showcase notebook's Monte
 # Carlo run is heavy enough to run for hours on a 2-core hosted runner.
 
+# Superseded runs on the same branch/PR are cancelled automatically so
+# rapid pushes never stack up runner time.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 on:
   push:
     branches: [main]
