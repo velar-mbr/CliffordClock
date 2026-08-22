@@ -424,6 +424,7 @@ def test_shipped_example_output_byte_identical_with_wp22_present(
     np.testing.assert_allclose(result.report.mean_fractional_shift, expected_shift, rtol=0, atol=0)
 
 
+@pytest.mark.slow
 def test_gravity_lattice_fast_path_matches_worldline_rotor_crosscheck(tmp_path: Path) -> None:
     """E29's exact-agreement claim, extended with gravity active: static
     v=0 quadrature nodes mean the rotor's omega_boost is identically zero

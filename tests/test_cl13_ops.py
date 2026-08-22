@@ -161,6 +161,7 @@ def test_reverse_batches_match_python_loop(a: np.ndarray) -> None:
     _assert_allclose_1e12(batched, looped)
 
 
+@pytest.mark.slow
 @_PROPERTY_SETTINGS
 @given(a=_BATCHED_MULTIVECTOR)
 def test_exp_bivector_batches_match_python_loop(a: np.ndarray) -> None:

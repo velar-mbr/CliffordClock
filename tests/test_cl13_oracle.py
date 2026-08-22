@@ -182,6 +182,7 @@ def _pack_bivector(components: np.ndarray) -> jnp.ndarray:
     return jnp.asarray(value)
 
 
+@pytest.mark.slow
 @_ORACLE_SETTINGS
 @given(components=_SMALL_BIVECTOR_COMPONENTS)
 def test_exp_bivector_matches_clifford_oracle_for_small_random_bivectors(
