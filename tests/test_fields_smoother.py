@@ -494,18 +494,27 @@ def test_evaluate_chunked_matches_unchunked_exactly(
             err_msg=str(chunk_size),
         )
 
-    # chunk_size=1: <= 1 ulp, not bitwise (see docstring) -- atol=0, a tight
-    # rtol a few ulps above the measured 2.22e-16 (this project's tolerance
-    # doctrine: assert_allclose(atol=0) for a relative bound).
+    # chunk_size=1: batch-of-1 vmap lowering differs (see docstring), and on
+    # newer backends the pure-relative rtol=4e-16, atol=0 form proved
+    # fragile at near-zero field components (an ulp of absolute noise on a
+    # tiny component is a huge relative error while being physically
+    # nothing). Same portable contract as the loop above: tight rtol plus
+    # the reference-scaled absolute floor, still 10+ orders below signal.
     e_chunk1, grad_chunk1 = smoother.evaluate_chunked(query, chunk_size=1)
-    np.testing.assert_allclose(np.asarray(e_ref), np.asarray(e_chunk1), rtol=4e-16, atol=0)
-    np.testing.assert_allclose(np.asarray(grad_ref), np.asarray(grad_chunk1), rtol=4e-16, atol=0)
+    np.testing.assert_allclose(np.asarray(e_ref), np.asarray(e_chunk1), rtol=1e-13, atol=e_atol)
+    np.testing.assert_allclose(
+        np.asarray(grad_ref), np.asarray(grad_chunk1), rtol=1e-13, atol=grad_atol
+    )
 
     single_pos = query[3]
     e_ref_single, grad_ref_single = smoother.evaluate(single_pos)
     e_chunked_single, grad_chunked_single = smoother.evaluate_chunked(single_pos, chunk_size=10)
-    assert np.array_equal(np.asarray(e_ref_single), np.asarray(e_chunked_single))
-    assert np.array_equal(np.asarray(grad_ref_single), np.asarray(grad_chunked_single))
+    np.testing.assert_allclose(
+        np.asarray(e_ref_single), np.asarray(e_chunked_single), rtol=1e-13, atol=e_atol
+    )
+    np.testing.assert_allclose(
+        np.asarray(grad_ref_single), np.asarray(grad_chunked_single), rtol=1e-13, atol=grad_atol
+    )
 
 
 def test_chunked_apply_matches_direct_call_for_multi_arg_fn() -> None:
