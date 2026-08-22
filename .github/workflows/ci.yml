@@ -26,12 +26,12 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
-    # 60, not 30: the suite's JAX compile-heavy tests (lattice_extended,
-    # worldline) run in minutes on a developer machine but the whole
-    # suite needs ~35-45 min on a 2-core hosted runner; the 30-minute
-    # cap was killing healthy runs at 30m14s. Follow-up tracked: mark
-    # the compile-heavy tests into a slow lane so the default lane
-    # finishes fast again.
+    # Measured 2026-08-22: the full suite EXCEEDS 60 minutes on a 2-core
+    # hosted runner (the JAX compile-heavy lattice_extended/worldline
+    # tests that take minutes on a developer machine dominate), and no
+    # run of it has ever completed here. Until the fast/slow lane split
+    # lands (in progress), this job cannot go green on a full-suite run;
+    # the repo's operative gate is the local pre-PR battery.
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
