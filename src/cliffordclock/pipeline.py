@@ -272,6 +272,11 @@ from cliffordclock.fields.synthetic import (
     uniform_field,
 )
 from cliffordclock.integrator import fastpath
+from cliffordclock.integrator.coherence import (
+    coherent_rotor_composition,
+    phase_to_rotor,
+    ramsey_visibility_and_phase,
+)
 from cliffordclock.integrator.omega import (
     BBR_ENVIRONMENT_WEIGHT_TOLERANCE,
     MotionalMode,
@@ -480,6 +485,23 @@ class EnsembleConfig:
         Gaussian envelope standard deviation, meters; required (and must
         be `> 0`) when `regime="lattice_extended"` and
         `site_envelope="gaussian"`, ignored otherwise.
+    squeezing_r : tuple[float, float, float] or None
+        Per-axis squeezing parameter `r` (WP31, CONVENTIONS.md section 8's
+        E39 squeezed-motional-state sampling input), `regime="classical"`
+        only. `None` (the default, and the key's absence in YAML): today's
+        unsqueezed thermal sampling, byte-identical output. When given,
+        threaded straight into
+        `~cliffordclock.ensemble.classical.sample_maxwell_boltzmann`'s own
+        `squeezing_r` keyword (see its docstring for the exact
+        ``exp(-2r)``-position/``exp(+2r)``-velocity quadrature-variance
+        convention): position quadrature variance scales by ``exp(-2r)``
+        and velocity quadrature variance by ``exp(+2r)`` per axis, so the
+        SAME squeezed `(positions, velocities)` draw feeds both the
+        existing classical mean-shift/E23 pipeline (which consumes
+        `sample_maxwell_boltzmann`'s output unchanged) and the new
+        `ramsey_visibility`/`ramsey_phase` report fields (E39) --
+        class-`i` consistency: one sampled ensemble, every downstream
+        observable computed from the same draw.
     """
 
     regime: str
@@ -493,6 +515,7 @@ class EnsembleConfig:
     site_axis: tuple[float, float, float] = (0.0, 0.0, 1.0)
     site_envelope: str = "gaussian"
     site_envelope_sigma_m: float | None = None
+    squeezing_r: tuple[float, float, float] | None = None
 
 
 #: Valid ``integration.mode`` values, keyed by ``ensemble.regime``.
@@ -795,12 +818,16 @@ class MotionalStateConfig:
         (`~cliffordclock.integrator.omega.MotionalMode`). Parsed from
         YAML by :func:`_parse_motional_state`, which enforces each mode's
         physical invariants (`frequency_Hz > 0`, `n_bar >= 0`,
-        uncertainties `>= 0`) at parse time (:class:`PipelineConfigError`);
-        the same checks are also enforced by
-        `~cliffordclock.integrator.omega.motional_pivot_perturbation`
+        uncertainties `>= 0`, `0 < participation <= 1`) at parse time
+        (:class:`PipelineConfigError`); the same checks are also enforced
+        by `~cliffordclock.integrator.omega.motional_pivot_perturbation`
         itself when this config is actually resolved against a species
         (defense in depth for any caller constructing this dataclass
-        directly).
+        directly). Each mode's optional YAML `participation` key (WP31,
+        default `1.0`, single-species today's-behavior) maps directly to
+        `MotionalMode.participation`; see
+        :func:`~cliffordclock.integrator.omega.two_ion_participations` for
+        the closed-form two-ion crystal source of a non-default value.
     v_rms_emm_m_s : float
         Optional measured rms excess-micromotion velocity, m/s
         (CONVENTIONS.md E38's EMM scope note: a full RF-dynamics
@@ -1304,16 +1331,38 @@ def _parse_ensemble(data: Any) -> EnsembleConfig:
     site_envelope_sigma_m = (
         float(site_envelope_sigma_raw) if site_envelope_sigma_raw is not None else None
     )
+    squeezing_r_raw = data.get("squeezing_r")
+    squeezing_r = (
+        _as_float_tuple3(squeezing_r_raw, "ensemble.squeezing_r")
+        if squeezing_r_raw is not None
+        else None
+    )
 
     if regime == "classical":
         if size is None or size < 1:
             raise PipelineConfigError("ensemble.size is required (>= 1) when regime='classical'")
+        if squeezing_r is not None and any(not math.isfinite(r) for r in squeezing_r):
+            raise PipelineConfigError(f"ensemble.squeezing_r={squeezing_r!r} must be finite")
     elif regime == "lattice":
         if motional_n is None:
             raise PipelineConfigError("ensemble.motional_n is required when regime='lattice'")
         if n_quad < 1:
             raise PipelineConfigError(f"ensemble.n_quad must be >= 1, got {n_quad}")
+        if squeezing_r is not None:
+            raise PipelineConfigError(
+                "ensemble.squeezing_r requires regime='classical' (WP31, E39: squeezing "
+                "extends the classical Monte-Carlo sampler, "
+                "cliffordclock.ensemble.classical.sample_maxwell_boltzmann; "
+                f"got ensemble.regime={regime!r})"
+            )
     elif regime == "lattice_extended":
+        if squeezing_r is not None:
+            raise PipelineConfigError(
+                "ensemble.squeezing_r requires regime='classical' (WP31, E39: squeezing "
+                "extends the classical Monte-Carlo sampler, "
+                "cliffordclock.ensemble.classical.sample_maxwell_boltzmann; "
+                f"got ensemble.regime={regime!r})"
+            )
         if motional_n is None:
             raise PipelineConfigError(
                 "ensemble.motional_n is required when regime='lattice_extended' "
@@ -1356,6 +1405,7 @@ def _parse_ensemble(data: Any) -> EnsembleConfig:
         site_axis=site_axis,
         site_envelope=site_envelope,
         site_envelope_sigma_m=site_envelope_sigma_m,
+        squeezing_r=squeezing_r,
     )
 
 
@@ -1837,6 +1887,8 @@ def _parse_motional_state(data: Any) -> MotionalStateConfig | None:
         frequency_uncertainty_hz = (
             float(frequency_uncertainty_raw) if frequency_uncertainty_raw is not None else 0.0
         )
+        participation_raw = entry.get("participation", 1.0)
+        participation = float(participation_raw) if participation_raw is not None else 1.0
 
         if frequency_hz <= 0.0:
             raise PipelineConfigError(f"{context}.frequency_Hz={frequency_hz!r} must be > 0")
@@ -1850,6 +1902,10 @@ def _parse_motional_state(data: Any) -> MotionalStateConfig | None:
             raise PipelineConfigError(
                 f"{context}.frequency_uncertainty_Hz={frequency_uncertainty_hz!r} must be >= 0"
             )
+        if not (0.0 < participation <= 1.0):
+            raise PipelineConfigError(
+                f"{context}.participation={participation!r} must satisfy 0 < participation <= 1"
+            )
 
         modes.append(
             MotionalMode(
@@ -1858,6 +1914,7 @@ def _parse_motional_state(data: Any) -> MotionalStateConfig | None:
                 n_bar=n_bar,
                 n_bar_uncertainty=n_bar_uncertainty,
                 frequency_uncertainty_hz=frequency_uncertainty_hz,
+                participation=participation,
             )
         )
 
@@ -2964,6 +3021,22 @@ _FAST_PATH_MOTIONAL_INCLUDED_NOTE = (
     "the QUANTUM motional-state velocity-squared expectation explicitly, so the "
     "reported mean_fractional_shift DOES include the motional time-dilation term for "
     "this run (CONVENTIONS.md E38's no-double-counting argument)."
+)
+
+#: Folded into `uncertainty_notes` whenever `ramsey_visibility`/`ramsey_phase`
+#: (WP31, CONVENTIONS.md section 8 E39) are populated in the report --
+#: `integration.mode` in `("direct", "worldline")` only (the two modes that
+#: run a genuine per-worldline dynamical phase accumulation, `mode="direct"`
+#: for `ensemble.regime="classical"` and both for `regime="lattice"`/
+#: `"lattice_extended"`). States the Gaussian-only scope boundary verbatim,
+#: per the E39 report-note requirement.
+_RAMSEY_VISIBILITY_NOTE = (
+    "ramsey_visibility/ramsey_phase (E39, CONVENTIONS.md section 8): the population-"
+    "weighted coherent rotor sum's modulus/argument in the B_hat_C plane, valid only "
+    "for GAUSSIAN-distributed accumulated phases (thermal, coherent, squeezed motional "
+    "states -- genuine positive distributions over worldlines); non-Gaussian motional "
+    "states (Fock n>=1, cat states) are out of scope for this worldline-ensemble "
+    "representation."
 )
 
 
@@ -4302,6 +4375,9 @@ def _build_report(
     weights: jnp.ndarray | None,
     config_hash: str,
     uncertainty_notes: str,
+    *,
+    ramsey_visibility: float | None = None,
+    ramsey_phase: float | None = None,
 ) -> MetrologyReport:
     """Build the `MetrologyReport`, tolerating the M=1 (single-atom) case.
 
@@ -4332,6 +4408,8 @@ def _build_report(
             weights=weights,
             config_hash=config_hash,
             uncertainty_notes=uncertainty_notes,
+            ramsey_visibility=ramsey_visibility,
+            ramsey_phase=ramsey_phase,
         )
 
     shift = mean_fractional_shift(phi_arr, t_interrogation_s, weights)
@@ -4351,6 +4429,8 @@ def _build_report(
         shift_std_error=float("nan"),
         t2_star_s=float("nan"),
         uncertainty_notes=combined_notes,
+        ramsey_visibility=ramsey_visibility,
+        ramsey_phase=ramsey_phase,
     )
 
 
@@ -4756,7 +4836,12 @@ def run_pipeline_full(config: PipelineConfig) -> PipelineResult:
         assert config.ensemble.size is not None  # enforced by _parse_ensemble
         key = jax.random.PRNGKey(config.ensemble.seed)
         positions, velocities = sample_maxwell_boltzmann(
-            key, species, config.ensemble.temperature_uK, config.ensemble.size, trap
+            key,
+            species,
+            config.ensemble.temperature_uK,
+            config.ensemble.size,
+            trap,
+            squeezing_r=config.ensemble.squeezing_r,
         )
         weights = None
 
@@ -5199,6 +5284,31 @@ def run_pipeline_full(config: PipelineConfig) -> PipelineResult:
             else f"{mode_note} {extra_notes}".strip()
         )
 
+    # WP31 (CONVENTIONS.md section 8, E39): ramsey_visibility/ramsey_phase are
+    # populated only for the two modes that run a genuine per-worldline
+    # dynamical phase accumulation ("direct"/"worldline" -- see the module
+    # docstring's mode table); fast_path/secular report neither (None), and
+    # carry no E39 note.
+    ramsey_visibility: float | None
+    ramsey_phase: float | None
+    if mode in ("direct", "worldline"):
+        m_atoms = int(ensemble_result.phase.shape[0])
+        p_weights = (
+            jnp.full(m_atoms, 1.0 / m_atoms, dtype=jnp.float64)
+            if weights is None
+            else jnp.asarray(weights, dtype=jnp.float64)
+            / jnp.sum(jnp.asarray(weights, dtype=jnp.float64))
+        )
+        phase_rotors = phase_to_rotor(ensemble_result.phase)
+        coherence_mv = coherent_rotor_composition(phase_rotors, p_weights)
+        ramsey_v, ramsey_ph = ramsey_visibility_and_phase(coherence_mv)
+        ramsey_visibility = float(ramsey_v)
+        ramsey_phase = float(ramsey_ph)
+        combined_notes = f"{combined_notes} {_RAMSEY_VISIBILITY_NOTE}".strip()
+    else:
+        ramsey_visibility = None
+        ramsey_phase = None
+
     report = _build_report(
         ensemble_result.phase,
         species,
@@ -5207,6 +5317,8 @@ def run_pipeline_full(config: PipelineConfig) -> PipelineResult:
         weights,
         config_hash,
         combined_notes,
+        ramsey_visibility=ramsey_visibility,
+        ramsey_phase=ramsey_phase,
     )
 
     freqs_hz, amplitude = _line_profile_arrays(

@@ -22,7 +22,7 @@ from jax import lax
 
 from cliffordclock import constants
 from cliffordclock.ensemble.species import Species
-from cliffordclock.ensemble.traps import Trap
+from cliffordclock.ensemble.traps import HarmonicTrap, Trap
 
 
 def sample_maxwell_boltzmann(
@@ -31,6 +31,8 @@ def sample_maxwell_boltzmann(
     temperature_uK: float,
     num: int,
     trap: Trap,
+    *,
+    squeezing_r: tuple[float, float, float] | None = None,
 ) -> tuple[jax.Array, jax.Array]:
     """Sample a classical thermal ensemble: positions and Maxwell-Boltzmann velocities.
 
@@ -54,6 +56,23 @@ def sample_maxwell_boltzmann(
         Number of particles to sample.
     trap : Trap
         Trap model supplying the thermal position distribution.
+    squeezing_r : tuple[float, float, float], optional
+        Per-axis squeezing parameter `r` (WP31, CONVENTIONS.md section 8's
+        E39 squeezed-motional-state input), `None` by default -- today's
+        unsqueezed thermal sampling, reproduced bitwise (this keyword is
+        not even read in that case). When given, this trap-frame phase
+        space's POSITION quadrature variance is scaled by ``exp(-2r)``
+        and the VELOCITY quadrature variance by ``exp(+2r)`` per axis (the
+        engine's convention: `r > 0` squeezes position and antisqueezes
+        velocity, the standard optics/motional-squeezing sign choice,
+        chosen so the position variance -- the quantity most directly tied
+        to a field-gradient-driven dephasing spread -- shrinks for
+        positive `r`; the product of the two quadrature standard
+        deviations, and hence the Heisenberg-limited phase-space area, is
+        preserved exactly since ``exp(-r)*exp(+r) = 1``). Requires
+        `trap` to be a :class:`~cliffordclock.ensemble.traps.HarmonicTrap`
+        (the only trap model this MVP's thermal-position sampling
+        supports; see :meth:`~cliffordclock.ensemble.traps.HarmonicTrap.thermal_position_variance`).
 
     Returns
     -------
@@ -61,14 +80,38 @@ def sample_maxwell_boltzmann(
         Shape ``(num, 3)``, meters, dtype float64.
     velocities : jax.Array
         Shape ``(num, 3)``, m/s, dtype float64.
+
+    Raises
+    ------
+    TypeError
+        `squeezing_r` is given but `trap` is not a `HarmonicTrap`.
     """
     key_pos, key_vel = jax.random.split(key)
-    positions = trap.sample_thermal_positions(key_pos, species.mass_kg, temperature_uK, num)
-
     temperature_k = temperature_uK * 1e-6
-    sigma = jnp.sqrt(constants.BOLTZMANN_K * temperature_k / species.mass_kg)
-    noise = jax.random.normal(key_vel, shape=(num, 3), dtype=jnp.float64)
-    velocities = sigma * noise
+
+    if squeezing_r is None:
+        positions = trap.sample_thermal_positions(key_pos, species.mass_kg, temperature_uK, num)
+        sigma = jnp.sqrt(constants.BOLTZMANN_K * temperature_k / species.mass_kg)
+        noise = jax.random.normal(key_vel, shape=(num, 3), dtype=jnp.float64)
+        velocities = sigma * noise
+    else:
+        if not isinstance(trap, HarmonicTrap):
+            raise TypeError(
+                "sample_maxwell_boltzmann: squeezing_r requires trap to be a "
+                f"HarmonicTrap (the only trap model whose thermal position variance "
+                f"this MVP can rescale); got {type(trap).__name__}"
+            )
+        r = jnp.asarray(squeezing_r, dtype=jnp.float64)
+        position_variance = trap.thermal_position_variance(species.mass_kg, temperature_uK)
+        sigma_pos = jnp.sqrt(position_variance) * jnp.exp(-r)
+        center = jnp.asarray(trap.center, dtype=jnp.float64)
+        noise_pos = jax.random.normal(key_pos, shape=(num, 3), dtype=jnp.float64)
+        positions = center + sigma_pos * noise_pos
+
+        sigma_v0 = jnp.sqrt(constants.BOLTZMANN_K * temperature_k / species.mass_kg)
+        sigma_v = sigma_v0 * jnp.exp(r)
+        noise_vel = jax.random.normal(key_vel, shape=(num, 3), dtype=jnp.float64)
+        velocities = sigma_v * noise_vel
 
     return jnp.asarray(positions, dtype=jnp.float64), jnp.asarray(velocities, dtype=jnp.float64)
 

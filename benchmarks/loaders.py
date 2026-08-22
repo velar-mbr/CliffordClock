@@ -646,3 +646,60 @@ MARSHALL_AL_ION_SECULAR_MOTION_SHIFT = PublishedBand(
         '= -(114.6 +/- 3.8) x 10^-19."'
     ),
 )
+
+# ---------------------------------------------------------------------------
+# WP31 addendum: Marshall et al.'s own PER-MODE secular-motion time-dilation
+# weighting -- Table S2's "Frequency shift per quantum" row, re-fetched and
+# independently confirmed directly against the primary source this session
+# (arXiv PDF, pdftotext -layout; the same table row the project's G11 gate
+# record already transcribed by hand, plan/reviews/G11-e38-motional-time-
+# dilation.md section A3). Consumed by benchmarks/run_motional_al_ion.py's
+# participation-corrected per-mode comparison variant (CONVENTIONS.md
+# section 16's participation-factor extension of E38).
+# ---------------------------------------------------------------------------
+
+#: Marshall et al.'s per-mode "Frequency shift per quantum (10^-19)" row
+#: (arXiv:2504.13071v2, Supplemental Material Table S2), same mode order as
+#: `MARSHALL_AL_ION_MODES_MHZ_NBAR`: the fractional-frequency-shift
+#: coefficient MULTIPLYING `(n_bar_i + 1/2)` for that mode (verified
+#: directly: `sum_i value_i*(n_bar_i+1/2)` over these six rows reproduces
+#: `MARSHALL_AL_ION_SECULAR_MOTION_SHIFT.nominal` to five significant
+#: figures, confirming this is the same per-mode weight the paper's own
+#: published total is built from, not a differently-normalized quantity).
+#: Units 1e-19 (fractional frequency), already applied below.
+MARSHALL_AL_ION_FREQUENCY_SHIFT_PER_QUANTUM: tuple[float, ...] = (
+    -0.95e-19,  # axial_com
+    -1.42e-19,  # axial_str
+    -1.77e-19,  # x_com
+    -6.48e-19,  # x_str
+    -1.42e-19,  # y_com
+    -6.53e-19,  # y_str
+)
+
+#: Citation for `MARSHALL_AL_ION_FREQUENCY_SHIFT_PER_QUANTUM`.
+MARSHALL_AL_ION_FREQUENCY_SHIFT_PER_QUANTUM_CITATION = (
+    "Marshall et al., arXiv:2504.13071v2 (2025), Supplemental Material Table S2, "
+    '"Frequency shift per quantum (10^-19)" row: -0.95, -1.42, -1.77, -6.48, -1.42, '
+    "-6.53 for Axial COM, Axial STR, X COM, X STR, Y COM, Y STR respectively "
+    "(same mode order as MARSHALL_AL_ION_MODES_MHZ_NBAR). This is the paper's own "
+    "PUBLISHED per-mode time-dilation weight (distinct from the unrelated 'Geometric "
+    "factor kappa' row, a Doppler-cooling-laser geometry factor, MARSHALL_AL_ION_MODES_"
+    "CITATION's own caveat). Re-fetched and confirmed directly against the arXiv PDF "
+    "text this session."
+)
+
+#: Mg-25 atomic mass, atomic mass units (u): the sympathetic-cooling
+#: partner ion in Marshall et al.'s two-ion crystal. NOT a
+#: `cliffordclock.ensemble.species` registry entry (Mg+ is not a registered
+#: clock species in this project); used only as a raw mass input to
+#: `cliffordclock.integrator.omega.two_ion_participations` for the WP31
+#: participation-corrected benchmark variant. Source: CIAAW/AME2020
+#: standard atomic mass, 24.985837(3) u (Commission on Isotopic Abundances
+#: and Atomic Weights; consistent with the AME2020 evaluation this
+#: project's other species masses already cite, M. Wang et al., Chinese
+#: Physics C 45, 030003 (2021)). Neutral-atom mass used directly (the same
+#: convention `cliffordclock.ensemble.species.AL27_PLUS.mass_amu` already
+#: uses for the singly-ionized clock ion: the single-electron-mass
+#: correction, ~2e-5 relative, is not applied at either mass, consistent
+#: treatment).
+MG25_ATOMIC_MASS_AMU = 24.985837

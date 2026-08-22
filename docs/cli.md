@@ -128,6 +128,12 @@ environment:                           # optional section (WP20, CONVENTIONS.md 
   #       n_bar: 0.05                    # mean vibrational occupation (sideband thermometry)
   #       n_bar_uncertainty: 0.01        # optional (default 0.0), 1-sigma
   #       frequency_uncertainty_Hz: 1.0e+03  # optional (default 0.0), 1-sigma, hertz
+  #       participation: 1.0             # optional (default 1.0, WP31, CONVENTIONS.md section
+  #                                       #   16): the CLOCK ion's squared mass-weighted
+  #                                       #   eigenvector component in this mode, 0 < p <= 1;
+  #                                       #   1.0 reproduces single-species behavior bitwise --
+  #                                       #   see cliffordclock.integrator.omega.two_ion_participations
+  #                                       #   for the closed-form two-ion crystal source
   #     - name: radial
   #       frequency_Hz: 4.0e+06
   #       n_bar: 0.05
@@ -175,6 +181,13 @@ ensemble:
                                         #   gaussian | uniform site-occupation weighting
   site_envelope_sigma_m: 4.0e-04       # lattice_extended + site_envelope=gaussian only
                                         #   (required then): envelope standard deviation, m
+  # squeezing_r: [0.0, 0.0, 0.5]       # optional (default null/None; WP31, CONVENTIONS.md
+                                        #   section 8 E39), regime=classical only: per-axis
+                                        #   squeezing parameter r, threaded into
+                                        #   sample_maxwell_boltzmann. Position quadrature
+                                        #   variance scales by exp(-2r), velocity quadrature
+                                        #   variance by exp(+2r); absent means today's
+                                        #   unsqueezed thermal sampling, byte-identical output.
 
 integration:
   mode: auto                           # optional (default "auto"): auto | fast_path | worldline
@@ -531,6 +544,26 @@ for lattice clocks too.
   name/frequency/`n_bar`, the resolved `<v^2>`, the resulting
   `(P-1)_motional` shift, the EMM input when present, the propagated
   uncertainty, and the excess-micromotion roadmap-boundary note.
+- **Multi-ion crystals (WP31):** each mode's optional `participation`
+  (default `1.0`) generalizes `<v^2>`'s per-mode term to
+  `(hbar*omega_i/m)*participation_i*(n_bar_i+1/2)`; see
+  `cliffordclock.integrator.omega.two_ion_participations` for the
+  closed-form two-ion crystal source and CONVENTIONS.md section 16.
+
+### Ramsey visibility (`ramsey_visibility`/`ramsey_phase` report fields, WP31)
+
+No config section of its own: `ramsey_visibility`/`ramsey_phase`
+(CONVENTIONS.md section 8, E39) are automatically populated in
+`report.json`/`MetrologyReport` for any run whose resolved
+`integration.mode` is `direct` or `worldline` (the two modes with a
+genuine per-worldline dynamical phase accumulation; `fast_path`/`secular`
+leave both `null`). They report the population-weighted coherent rotor
+sum's modulus/phase in the `B_hat_C` plane, the Ramsey fringe
+visibility and phase for the ensemble's own accumulated-phase spread,
+and are valid only for Gaussian-distributed accumulated phases (the
+`uncertainty_notes` scope note states this whenever the fields are
+populated). `REPORT_SCHEMA_VERSION` is `"1.1"` as of WP31 (see
+docs/report-schema.md).
 
 ### Quadrupole shift (`quadrupole:`, WP21)
 

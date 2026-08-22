@@ -134,11 +134,44 @@ Run this yourself: ``python benchmarks/run_motional_al_ion.py`` (from the
 repo root, with ``.venv`` active). Regenerates
 ``benchmarks/results/wp30_motional_al_ion_arithmetic_reproduction.json``
 and the accompanying ``.md`` summary.
+
+**WP31 addendum: the participation-corrected variant.** CONVENTIONS.md
+section 16's participation-factor extension (`MotionalMode.participation`,
+:func:`~cliffordclock.integrator.omega.two_ion_participations`) directly
+answers the open item this module's own caveat above names: "a full
+two-mass normal-mode treatment... taking each ion's own per-mode
+amplitude (participation) vector as an explicit input." This module now
+runs a SECOND case,
+:func:`run_motional_al_ion_participation_variant_case`, computing Al27+'s
+participation in each of Marshall et al.'s six modes from the closed
+form at the Al+/Mg25+ mass ratio and comparing PER MODE against the
+paper's own published per-mode "Frequency shift per quantum" row
+(Table S2), re-fetched and confirmed directly against the primary source
+this session (`loaders.MARSHALL_AL_ION_FREQUENCY_SHIFT_PER_QUANTUM`) --
+the per-mode published values the module docstring's original caveat
+above said were unavailable turned out to exist in Table S2 all along
+(the G11 gate record's own "real(1e-19)" column already used them by
+hand; this module is the first to load them as re-usable data and run
+the actual per-mode comparison programmatically). Result, reported
+honestly, not massaged toward agreement: the AXIAL pair (whose full
+closed-form eigenvector genuinely depends on the mass ratio alone, per
+`two_ion_participations`' own derivation) matches the published per-mode
+values to a few percent; the two RADIAL pairs do NOT match well (the
+disclosed radial-approximation gap `two_ion_participations`' own
+docstring states -- the true radial eigenvector additionally depends on
+trap RF/DC geometry parameters this closed form cannot supply from
+masses alone). Because two of the six modes (the radial STR pair)
+dominate the published total's magnitude, the participation-corrected
+TOTAL does not reproduce Marshall's published band as closely as the
+original single-mass (`participation=1.0`) total does -- both totals are
+reported, each with its own `kpi_verdict`, rather than picking one to
+foreground.
 """
 
 from __future__ import annotations
 
 import json
+import math
 import sys
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
@@ -155,12 +188,14 @@ if str(_BENCHMARKS_DIR) not in sys.path:
 import loaders  # noqa: E402
 import run_benchmarks  # noqa: E402 (reuses the already-tested `_bands_overlap`)
 
+from cliffordclock.constants import ATOMIC_MASS_UNIT, HBAR, SPEED_OF_LIGHT  # noqa: E402
 from cliffordclock.ensemble.species import get_species  # noqa: E402
 from cliffordclock.integrator.omega import (  # noqa: E402
     MotionalMode,
     motional_mean_squared_velocity_m2_s2,
     motional_pivot_perturbation,
     motional_pivot_uncertainty,
+    two_ion_participations,
 )
 
 _RESULTS_DIR = _BENCHMARKS_DIR / "results"
@@ -185,26 +220,39 @@ CASE_LABEL = (
 #: section A3): the missing physics is each ion's own per-mode normal-mode
 #: amplitude, NOT Marshall's published "geometric factor kappa" (a Doppler-
 #: cooling-laser geometry factor from their Eq. 1, unrelated to the
-#: secular-motion time-dilation row).
+#: secular-motion time-dilation row). WP31 UPDATE: the two-ion partition
+#: this caveat originally called an open item is now consumed -- this is
+#: THIS case's OWN caveat (`participation=1.0` throughout, by construction,
+#: to preserve WP30's single-mass total-level reproduction as its own
+#: distinct, independently-verdicted case); see
+#: `MotionalAlIonParticipationVariantCase`/
+#: `run_motional_al_ion_participation_variant_case` below for the
+#: participation-corrected variant this caveat's own "open item" pointed
+#: toward, and its own honestly-reported (partial) result.
 GEOMETRIC_FACTOR_CAVEAT = (
     "SCOPE CAVEAT (corrected per the project's G11 gate record, section A3): "
     "Marshall et al.'s six modes are TWO-ION (27Al+/25Mg+) crystal normal modes. "
     "The physically complete per-mode evaluation partitions each mode's zero-point "
-    "and thermal motion between the two ions by their own normal-mode amplitudes, "
-    "a quantity this project's E38 formula does not consume (one species/mass for "
-    "every mode, CONVENTIONS.md section 16): a documented scope boundary, not an "
-    "oversight. As a result the engine's per-mode contributions differ from "
-    "Marshall's own per-mode values by up to several-fold, while summing over the "
-    "complete six-mode set reproduces their published TOTAL inside both "
-    "uncertainty bands. The G11 gate record derives a genuine orthogonality "
-    "identity over the two-ion normal-mode basis that is qualitatively "
-    "consistent with this total-level agreement despite the per-mode "
-    "differences, but that record also shows the identity alone does not "
-    "certify the observed precision: the mechanism is reported as an open "
-    "empirical observation, not a proven identity. The open item is a full "
-    "two-mass normal-mode treatment (per-ion amplitude vectors as explicit "
-    "input), belonging to the same future package as the RF/micromotion "
-    "dynamics treatment already flagged out of scope for this tier."
+    "and thermal motion between the two ions by their own normal-mode amplitudes. "
+    "THIS case (participation=1.0 throughout, the single-species-mass formula) does "
+    "not consume that partition, by deliberate construction: it isolates the WP30 "
+    "single-mass TOTAL-level reproduction as its own case, independent of the WP31 "
+    "participation-corrected variant reported alongside it below. As a result this "
+    "case's own per-mode contributions differ from Marshall's own per-mode values by "
+    "up to several-fold, while summing over the complete six-mode set reproduces "
+    "their published TOTAL inside both uncertainty bands (an open empirical "
+    "observation about this total-level agreement, not a proven identity; see the "
+    "G11 gate record's own orthogonality-identity discussion, which is qualitatively "
+    "consistent with but does not by itself certify the observed precision). WP31 "
+    "(CONVENTIONS.md section 16's participation-factor extension, "
+    "`cliffordclock.integrator.omega.two_ion_participations`) now consumes the "
+    "two-ion partition directly; see this report's own participation-corrected "
+    "variant case for the per-mode and total-level result that closed-form "
+    "treatment gives (axial modes match well; radial modes do not, a disclosed, "
+    "different scope boundary of THAT closed form, not this one). What remains open "
+    "after WP31 is N>2-ion crystals (a numeric normal-mode eigensolver, no closed "
+    "form in general) and the RF/micromotion dynamics package (unrelated to "
+    "participation)."
 )
 
 
@@ -356,25 +404,260 @@ def run_motional_al_ion_arithmetic_reproduction_case() -> MotionalAlIonArithmeti
     )
 
 
+# ---------------------------------------------------------------------------
+# WP31: the participation-corrected variant (see module docstring's
+# "WP31 addendum" section).
+# ---------------------------------------------------------------------------
+
+#: Mode names, same order as `loaders.MARSHALL_AL_ION_MODES_MHZ_NBAR` /
+#: `loaders.MARSHALL_AL_ION_FREQUENCY_SHIFT_PER_QUANTUM` /
+#: `two_ion_participations`' own return-tuple order.
+_MODE_NAMES: tuple[str, ...] = ("axial_com", "axial_str", "x_com", "x_str", "y_com", "y_str")
+
+#: The two AXIAL modes -- the pair `two_ion_participations`' closed form is
+#: exact for (see that function's docstring: the radial pairs reuse the
+#: same mu-only formula as a documented approximation, not an additional
+#: exact result).
+_AXIAL_MODE_NAMES: frozenset[str] = frozenset({"axial_com", "axial_str"})
+
+
+@dataclass(frozen=True)
+class MotionalAlIonModeComparison:
+    """One mode's participation-corrected prediction vs. Marshall et al.'s
+    own published per-mode "Frequency shift per quantum" value (WP31).
+
+    Attributes
+    ----------
+    name : str
+        Mode name (`_MODE_NAMES` order).
+    is_axial : bool
+        Whether this is one of the two axial modes (the pair
+        `two_ion_participations`'s closed form is EXACT for; the two
+        radial pairs reuse the axial formula as a documented
+        approximation -- see that function's docstring).
+    participation : float
+        Al27+'s participation factor in this mode
+        (`two_ion_participations(m_Al27, m_Mg25)`).
+    predicted_shift_per_quantum : float
+        ``-(hbar*omega_i/m_Al)*participation_i/(2*c^2)``: the
+        participation-corrected coefficient multiplying `(n_bar_i+1/2)`
+        for this mode, dimensionless (the same quantity Table S2's
+        "Frequency shift per quantum" row reports).
+    published_shift_per_quantum : float
+        Marshall et al.'s own published value for this mode
+        (`loaders.MARSHALL_AL_ION_FREQUENCY_SHIFT_PER_QUANTUM`).
+    residual_fractional : float
+        ``predicted_shift_per_quantum - published_shift_per_quantum``.
+    ratio_predicted_over_published : float
+        ``predicted_shift_per_quantum / published_shift_per_quantum``
+        (both negative, so a value near `1.0` is close agreement).
+    """
+
+    name: str
+    is_axial: bool
+    participation: float
+    predicted_shift_per_quantum: float
+    published_shift_per_quantum: float
+    residual_fractional: float
+    ratio_predicted_over_published: float
+
+
+@dataclass(frozen=True)
+class MotionalAlIonParticipationVariantCase:
+    """The WP31 participation-corrected variant of the WP30 Al+
+    secular-motion case (see module docstring's "WP31 addendum" for the
+    full method and its honestly-reported result).
+
+    Attributes
+    ----------
+    case_class : str
+        Always ``"arithmetic_reproduction"`` (same structural class as
+        the single-mass variant -- see that case's own `case_class` note).
+    partner_species_name : str
+        Always ``"Mg25+"`` (not a registered `Species`; mass supplied
+        directly from `loaders.MG25_ATOMIC_MASS_AMU`, see that constant's
+        docstring for the source).
+    per_mode : tuple[MotionalAlIonModeComparison, ...]
+        One entry per mode, `_MODE_NAMES` order.
+    axial_mean_abs_ratio_deviation : float
+        Mean, over the two AXIAL modes only, of
+        ``abs(ratio_predicted_over_published - 1.0)`` -- how close the
+        exact (mu-only) closed form comes to Marshall's own published
+        axial per-mode values.
+    radial_mean_abs_ratio_deviation : float
+        Same statistic over the four RADIAL modes -- expected to be much
+        larger, the disclosed radial-approximation gap.
+    predicted_total_nominal : float
+        The participation-corrected TOTAL `(P-1)_motional`
+        (`motional_pivot_perturbation` with every mode's
+        `participation` set from `two_ion_participations`), summed over
+        all six modes with `(n_bar_i+1/2)`.
+    predicted_total_uncertainty_fractional : float
+        Propagated 1-sigma uncertainty on `predicted_total_nominal`
+        (`motional_pivot_uncertainty`, same n_bar uncertainties as the
+        single-mass variant; participation itself carries no uncertainty
+        channel, see `MotionalMode.participation`'s docstring).
+    predicted_total_band_lo, _hi : float
+        ``predicted_total_nominal +/- predicted_total_uncertainty_fractional``.
+    total_bands_overlap : bool
+        Whether the participation-corrected total's band overlaps
+        Marshall's own published band
+        (`loaders.MARSHALL_AL_ION_SECULAR_MOTION_SHIFT`).
+    total_kpi_verdict : str
+        ``"MET"`` if `total_bands_overlap` else ``"NOT MET"``.
+    per_mode_citation, participation_note : str
+        Citation for the per-mode published data, and a plain-language
+        summary of the axial-matches/radial-does-not-match result.
+    """
+
+    case_class: str
+    partner_species_name: str
+    per_mode: tuple[MotionalAlIonModeComparison, ...]
+    axial_mean_abs_ratio_deviation: float
+    radial_mean_abs_ratio_deviation: float
+    predicted_total_nominal: float
+    predicted_total_uncertainty_fractional: float
+    predicted_total_band_lo: float
+    predicted_total_band_hi: float
+    total_bands_overlap: bool
+    total_kpi_verdict: str
+    per_mode_citation: str
+    participation_note: str
+
+
+#: Plain-language summary of the per-mode comparison result, folded into
+#: the case record (module docstring's "WP31 addendum" states the same
+#: finding in full; this is the short form for the report/markdown).
+_PARTICIPATION_NOTE = (
+    "Participation-corrected per-mode comparison against Marshall et al.'s own published "
+    "'Frequency shift per quantum' row (Table S2): the two AXIAL modes, where "
+    "two_ion_participations' closed form is exact (a function of the Al+/Mg25+ mass ratio "
+    "alone), match the published per-mode values to a few percent, a substantial "
+    "improvement over the single-mass (participation=1.0) variant's ~2x per-mode "
+    "disagreement there. The four RADIAL modes do NOT match well: the true radial "
+    "eigenvector additionally depends on trap RF/DC geometry parameters "
+    "(two_ion_participations' own documented scope caveat) this closed form cannot supply "
+    "from masses alone. Because the radial STR pair carries the largest published "
+    "per-mode magnitudes, the participation-corrected TOTAL does not reproduce Marshall's "
+    "published band as closely as the single-mass total does; both totals are reported "
+    "with their own kpi_verdict, not merged into one number."
+)
+
+
+def run_motional_al_ion_participation_variant_case() -> MotionalAlIonParticipationVariantCase:
+    """Build the WP31 participation-corrected variant (see module
+    docstring's "WP31 addendum" for the full method).
+
+    1. Resolve Al27+'s registry mass and Mg25+'s raw mass
+       (`loaders.MG25_ATOMIC_MASS_AMU`, not a registered `Species`).
+    2. `two_ion_participations(m_Al27, m_Mg25)` -> six participation
+       factors, `_MODE_NAMES` order.
+    3. Build six `MotionalMode` entries (same frequencies/n_bar as the
+       single-mass variant) with `participation` set from step 2.
+    4. Per-mode: compute the participation-corrected coefficient
+       ``-(hbar*omega_i/m_Al)*participation_i/(2*c^2)`` directly (real
+       engine constants, not re-derived) and compare against
+       `loaders.MARSHALL_AL_ION_FREQUENCY_SHIFT_PER_QUANTUM`.
+    5. Total: `motional_pivot_perturbation`/`motional_pivot_uncertainty`
+       over the six participation-weighted modes, compared against
+       `loaders.MARSHALL_AL_ION_SECULAR_MOTION_SHIFT` via
+       `run_benchmarks._bands_overlap`.
+
+    Returns
+    -------
+    MotionalAlIonParticipationVariantCase
+    """
+    species = get_species("Al27+")
+    m_al = species.mass_kg
+    m_mg = loaders.MG25_ATOMIC_MASS_AMU * ATOMIC_MASS_UNIT
+    participations = two_ion_participations(m_al, m_mg)
+
+    modes = tuple(
+        MotionalMode(
+            name=name,
+            frequency_hz=frequency_mhz * 1.0e6,
+            n_bar=n_bar,
+            n_bar_uncertainty=n_bar_uncertainty,
+            participation=participation,
+        )
+        for (name, frequency_mhz, n_bar, n_bar_uncertainty), participation in zip(
+            loaders.MARSHALL_AL_ION_MODES_MHZ_NBAR, participations, strict=True
+        )
+    )
+
+    per_mode = []
+    axial_devs = []
+    radial_devs = []
+    for mode, participation, published_pq in zip(
+        modes, participations, loaders.MARSHALL_AL_ION_FREQUENCY_SHIFT_PER_QUANTUM, strict=True
+    ):
+        omega_i = 2.0 * math.pi * mode.frequency_hz
+        predicted_pq = -(HBAR * omega_i / m_al) * participation / (2.0 * SPEED_OF_LIGHT**2)
+        residual = predicted_pq - published_pq
+        ratio = predicted_pq / published_pq
+        is_axial = mode.name in _AXIAL_MODE_NAMES
+        per_mode.append(
+            MotionalAlIonModeComparison(
+                name=mode.name,
+                is_axial=is_axial,
+                participation=participation,
+                predicted_shift_per_quantum=predicted_pq,
+                published_shift_per_quantum=published_pq,
+                residual_fractional=residual,
+                ratio_predicted_over_published=ratio,
+            )
+        )
+        (axial_devs if is_axial else radial_devs).append(abs(ratio - 1.0))
+
+    predicted_total = motional_pivot_perturbation(modes, species)
+    predicted_sigma = motional_pivot_uncertainty(modes, species)
+    published = loaders.MARSHALL_AL_ION_SECULAR_MOTION_SHIFT
+    band_lo = predicted_total - predicted_sigma
+    band_hi = predicted_total + predicted_sigma
+    overlap = run_benchmarks._bands_overlap(  # noqa: SLF001 (reusing the tested helper)
+        band_lo, band_hi, published.lo, published.hi
+    )
+
+    return MotionalAlIonParticipationVariantCase(
+        case_class="arithmetic_reproduction",
+        partner_species_name="Mg25+",
+        per_mode=tuple(per_mode),
+        axial_mean_abs_ratio_deviation=math.fsum(axial_devs) / len(axial_devs),
+        radial_mean_abs_ratio_deviation=math.fsum(radial_devs) / len(radial_devs),
+        predicted_total_nominal=predicted_total,
+        predicted_total_uncertainty_fractional=predicted_sigma,
+        predicted_total_band_lo=band_lo,
+        predicted_total_band_hi=band_hi,
+        total_bands_overlap=overlap,
+        total_kpi_verdict="MET" if overlap else "NOT MET",
+        per_mode_citation=loaders.MARSHALL_AL_ION_FREQUENCY_SHIFT_PER_QUANTUM_CITATION,
+        participation_note=_PARTICIPATION_NOTE,
+    )
+
+
 def build_report() -> dict[str, Any]:
-    """Build the full WP30 motional-Al-ion benchmark report as a
+    """Build the full WP30/WP31 motional-Al-ion benchmark report as a
     JSON-serializable dict.
 
     Returns
     -------
     dict[str, Any]
-        Metadata plus the single case (see
-        :func:`run_motional_al_ion_arithmetic_reproduction_case`).
+        Metadata plus both cases: the WP30 single-mass variant (see
+        :func:`run_motional_al_ion_arithmetic_reproduction_case`) and the
+        WP31 participation-corrected variant (see
+        :func:`run_motional_al_ion_participation_variant_case`).
         Deliberately NOT merged into `run_benchmarks.build_report`'s WP10
         report or `kpi_summary`; see module docstring.
     """
     case = run_motional_al_ion_arithmetic_reproduction_case()
+    participation_case = run_motional_al_ion_participation_variant_case()
     return {
-        "wp30_motional_al_ion_benchmark_schema": "1.0",
+        "wp30_motional_al_ion_benchmark_schema": "1.1",
         "generated_at_utc": datetime.now(UTC).isoformat(),
         "case_label": CASE_LABEL,
         "case_class": case.case_class,
         "marshall_2504_13071_secular_motion_arithmetic_reproduction_case": asdict(case),
+        "marshall_2504_13071_participation_corrected_variant_case": asdict(participation_case),
     }
 
 
@@ -395,6 +678,7 @@ def render_markdown(report: dict[str, Any]) -> str:
         `benchmarks/RESULTS.md`.
     """
     case = report["marshall_2504_13071_secular_motion_arithmetic_reproduction_case"]
+    p_case = report["marshall_2504_13071_participation_corrected_variant_case"]
     lines = [
         "# WP30 motional Al+ ion benchmark case (generated)",
         "",
@@ -437,6 +721,40 @@ def render_markdown(report: dict[str, Any]) -> str:
         "separate report. See this script's module docstring for the full "
         "SOURCES provenance, the Brewer 2019 alternative-source discussion, "
         "and the two-mass normal-mode scope caveat.",
+        "",
+        "## WP31: participation-corrected variant (two_ion_participations, Al27+/Mg25+)",
+        "",
+        f"**{p_case['participation_note']}**",
+        "",
+        "| Mode | Axial? | Participation | Predicted shift/quantum | Published "
+        "shift/quantum | Ratio (pred/pub) |",
+        "|---|---|---|---|---|---|",
+        *(
+            f"| {m['name']} | {m['is_axial']} | {m['participation']:.4f} | "
+            f"{m['predicted_shift_per_quantum']:+.4e} | "
+            f"{m['published_shift_per_quantum']:+.4e} | "
+            f"{m['ratio_predicted_over_published']:+.4f} |"
+            for m in p_case["per_mode"]
+        ),
+        "",
+        f"Axial mean |ratio-1| deviation: {p_case['axial_mean_abs_ratio_deviation']:.4f}. "
+        f"Radial mean |ratio-1| deviation: {p_case['radial_mean_abs_ratio_deviation']:.4f}.",
+        "",
+        "| Quantity | Value |",
+        "|---|---|",
+        f"| Participation-corrected total (P-1)_motional | "
+        f"{p_case['predicted_total_nominal']:+.6e} |",
+        f"| Participation-corrected uncertainty (1-sigma) | "
+        f"+/-{p_case['predicted_total_uncertainty_fractional']:.3e} |",
+        (
+            "| Participation-corrected band | "
+            f"[{p_case['predicted_total_band_lo']:+.6e}, "
+            f"{p_case['predicted_total_band_hi']:+.6e}] |"
+        ),
+        f"| Total bands overlap | {p_case['total_bands_overlap']} |",
+        f"| **total_kpi_verdict** | **{p_case['total_kpi_verdict']}** |",
+        "",
+        f"Per-mode published-value citation: {p_case['per_mode_citation']}",
     ]
     return "\n".join(lines) + "\n"
 

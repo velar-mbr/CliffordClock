@@ -485,3 +485,25 @@ venue = "arXiv preprint (no journal acceptance confirmed at fetch time)"
 year = [2025]
 arxiv = "2504.13071"
 source = "benchmarks/loaders.py (MARSHALL_AL_ION_MODES_MHZ_NBAR/MARSHALL_AL_ION_SECULAR_MOTION_SHIFT); benchmarks/run_motional_al_ion.py; byline transcribed from the arXiv abstract page, fetched this session"
+
+[[paper]]
+key = "James1998"
+authors = "James, D. F. V."
+surnames = ["James"]
+title = "Quantum dynamics of cold trapped ions with application to quantum computation"
+venue = "Appl. Phys. B 66, 181"
+year = [1998]
+arxiv = "quant-ph/9702053"
+doi = "10.1007/s003400050373"
+source = "src/cliffordclock/integrator/omega.py (two_ion_participations docstring, WP31); byline/venue verified against the arXiv abstract page and Springer Nature Link, fetched this session (single author). Fetched full text (arXiv PDF, pdftotext -layout) confirms this paper treats N EQUAL-mass trapped ions only (no mass-ratio/mixed-species treatment anywhere in the text); its N=2 equal-mass special case (the standard sqrt(3) stretch-mode frequency) is reproduced exactly by two_ion_participations' own mu=1 limit, the genuine connection to this WP's closed form, but the mu-dependent unequal-mass eigenvector formula itself is NOT derivable from this paper -- see the Wubbena2012 entry below for its actual primary source."
+
+[[paper]]
+key = "Wubbena2012"
+authors = "Wübbena, Jannes B. and Amairi, Sana and Mandel, Olaf and Schmidt, Piet O."
+surnames = ["Wübbena", "Amairi", "Mandel", "Schmidt"]
+title = "Sympathetic Cooling of Mixed Species Two-Ion Crystals for Precision Spectroscopy"
+venue = "Phys. Rev. A 85, 043412"
+year = [2012]
+arxiv = "1202.2730"
+doi = "10.1103/PhysRevA.85.043412"
+source = "src/cliffordclock/integrator/omega.py (two_ion_participations docstring, WP31): the actual primary source of the closed-form two-ion mixed-mass normal-mode eigenvector formula (axial Eqs. 12-14) this function implements. Byline/venue verified against the arXiv abstract page, fetched this session; Eqs. 12-18 confirmed directly in the fetched full text (arXiv PDF, pdftotext -layout)."

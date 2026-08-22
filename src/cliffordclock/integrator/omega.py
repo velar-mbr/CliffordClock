@@ -1932,6 +1932,18 @@ class MotionalMode:
     name : str
         Label for this mode (e.g. ``"axial"``, ``"radial_1"``), used only
         in error messages and pipeline report notes, not a registry key.
+    participation : float
+        This mode's per-mode participation factor (WP31, CONVENTIONS.md
+        section 16's participation-factor extension): the CLOCK ion's
+        squared mass-weighted eigenvector component in this normal mode,
+        `0 < participation <= 1`. Default `1.0` -- today's single-species
+        behavior (the clock ion carries the mode's ENTIRE `<v^2>`
+        contribution), reproduced bitwise. For a multi-ion crystal, set
+        this to the clock ion's own participation in this mode (e.g. from
+        :func:`two_ion_participations` for a two-ion crystal); `1.0`
+        remains correct only when every mode's motion is carried entirely
+        by the clock species (a single-ion trap, or a mode the clock ion
+        does not share with any other trapped ion).
     """
 
     frequency_hz: float
@@ -1939,6 +1951,7 @@ class MotionalMode:
     n_bar_uncertainty: float = 0.0
     frequency_uncertainty_hz: float = 0.0
     name: str = ""
+    participation: float = 1.0
 
 
 def _validate_motional_modes(modes: Sequence[MotionalMode], v_rms_emm_m_s: float) -> None:
@@ -1970,6 +1983,11 @@ def _validate_motional_modes(modes: Sequence[MotionalMode], v_rms_emm_m_s: float
                 f"motional mode {mode.name!r}: frequency_uncertainty_hz="
                 f"{mode.frequency_uncertainty_hz!r} must be >= 0"
             )
+        if not (0.0 < mode.participation <= 1.0):
+            raise ValueError(
+                f"motional mode {mode.name!r}: participation={mode.participation!r} "
+                "must satisfy 0 < participation <= 1"
+            )
     if v_rms_emm_m_s < 0.0:
         raise ValueError(f"v_rms_emm_m_s={v_rms_emm_m_s!r} must be >= 0")
 
@@ -1980,13 +1998,18 @@ def motional_mean_squared_velocity_m2_s2(
     """``<v^2>`` (CONVENTIONS.md E38): the velocity-variance expectation over
     the motional state, plus the optional excess-micromotion contribution.
 
-    ``<v^2> = sum_i (hbar*omega_i/m)*(n_bar_i + 1/2) + v_rms_emm_m_s^2``
-    with ``omega_i = 2*pi*frequency_hz`` (mode frequencies are ORDINARY
-    frequencies, e.g. from sideband thermometry, not angular) and ``m``
-    the species' registry mass (`species.mass_kg`, never hand-typed).
-    `math.fsum` accumulates the per-mode sum (E10-style precision
-    discipline, mirroring `_bbr_weighted_moments`'s use of the same
-    compensated-summation primitive).
+    ``<v^2> = sum_i (hbar*omega_i/m)*participation_i*(n_bar_i + 1/2) +
+    v_rms_emm_m_s^2`` with ``omega_i = 2*pi*frequency_hz`` (mode
+    frequencies are ORDINARY frequencies, e.g. from sideband thermometry,
+    not angular), ``m`` the species' registry mass (`species.mass_kg`,
+    never hand-typed), and `participation_i` (WP31,
+    :class:`MotionalMode`'s `participation` field, default `1.0`) the
+    CLOCK ion's squared mass-weighted eigenvector component in mode `i`
+    -- reproduces the pre-WP31 formula bitwise when every mode's
+    `participation` is left at its `1.0` default. `math.fsum` accumulates
+    the per-mode sum (E10-style precision discipline, mirroring
+    `_bbr_weighted_moments`'s use of the same compensated-summation
+    primitive).
 
     Parameters
     ----------
@@ -2018,7 +2041,10 @@ def motional_mean_squared_velocity_m2_s2(
     _validate_motional_modes(modes, v_rms_emm_m_s)
     mass_kg = species.mass_kg
     modal_sum = math.fsum(
-        (HBAR * 2.0 * math.pi * mode.frequency_hz / mass_kg) * (mode.n_bar + 0.5) for mode in modes
+        (HBAR * 2.0 * math.pi * mode.frequency_hz / mass_kg)
+        * mode.participation
+        * (mode.n_bar + 0.5)
+        for mode in modes
     )
     return modal_sum + v_rms_emm_m_s**2
 
@@ -2083,11 +2109,20 @@ def motional_pivot_uncertainty(
     framing (CONVENTIONS.md section 13's uncertainty note): this propagates
     the uncertainty of the *supplied* mode/EMM inputs through the formula,
     not an independent assessment of the underlying trap physics. Writing
-    ``omega_i = 2*pi*f_i``:
+    ``omega_i = 2*pi*f_i`` and `participation_i` for each mode's
+    `MotionalMode.participation` (WP31, default `1.0`):
 
-    - Each mode's `n_bar_i`: ``d(P-1)/d(n_bar_i) = -(hbar*omega_i/m)/(2c^2)``.
-    - Each mode's `f_i`: ``d(P-1)/d(f_i) = -(hbar*2*pi*(n_bar_i+1/2)/m)/(2c^2)``.
+    - Each mode's `n_bar_i`: ``d(P-1)/d(n_bar_i) =
+      -(hbar*omega_i/m)*participation_i/(2c^2)``.
+    - Each mode's `f_i`: ``d(P-1)/d(f_i) =
+      -(hbar*2*pi*(n_bar_i+1/2)/m)*participation_i/(2c^2)``.
     - `v_rms_emm_m_s`: ``d(P-1)/d(v_rms_emm) = -v_rms_emm/c^2``.
+
+    `participation_i` is treated as an exact input (no uncertainty
+    channel of its own) here, matching `MotionalMode`'s own field set --
+    the closed-form `two_ion_participations` output, or any other
+    externally-supplied participation value, carries no propagated
+    uncertainty at this tier.
 
     Every term's contribution (`partial * sigma_input`) is squared and
     summed via `math.fsum` before the final `sqrt` (E10-style compensated
@@ -2119,10 +2154,109 @@ def motional_pivot_uncertainty(
     terms_sq = []
     for mode in modes:
         omega_i = 2.0 * math.pi * mode.frequency_hz
-        d_dn_bar = -(HBAR * omega_i / mass_kg) / two_c2
-        d_df_hz = -(HBAR * 2.0 * math.pi * (mode.n_bar + 0.5) / mass_kg) / two_c2
+        d_dn_bar = -(HBAR * omega_i / mass_kg) * mode.participation / two_c2
+        d_df_hz = (
+            -(HBAR * 2.0 * math.pi * (mode.n_bar + 0.5) / mass_kg) * mode.participation / two_c2
+        )
         terms_sq.append((d_dn_bar * mode.n_bar_uncertainty) ** 2)
         terms_sq.append((d_df_hz * mode.frequency_uncertainty_hz) ** 2)
     d_d_vrms = -v_rms_emm_m_s / SPEED_OF_LIGHT**2
     terms_sq.append((d_d_vrms * v_rms_emm_uncertainty_m_s) ** 2)
     return math.sqrt(math.fsum(terms_sq))
+
+
+# ---------------------------------------------------------------------------
+# WP31: per-mode participation factors for a two-ion mixed-species crystal
+# (CONVENTIONS.md section 16's participation-factor extension of E38).
+# ---------------------------------------------------------------------------
+
+
+def two_ion_participations(
+    m_clock: float, m_partner: float
+) -> tuple[float, float, float, float, float, float]:
+    """Closed-form clock-ion participation factors for a two-ion crystal's
+    six normal modes (CONVENTIONS.md section 16, WP31).
+
+    Standard mode ordering, matching
+    `benchmarks/loaders.MARSHALL_AL_ION_MODES_MHZ_NBAR`'s own six-mode
+    layout: ``(axial_com, axial_str, x_com, x_str, y_com, y_str)``.
+
+    **Derivation and its scope (axial exact, radial a documented
+    approximation).** For two ions of mass `m1` (the clock ion) and `m2`
+    (the partner/cooling ion) held in the SAME linear Paul trap and
+    coupled by their Coulomb repulsion, the coupled equations of motion
+    along a given axis have two normal modes -- an IN-PHASE mode (both
+    ions move the same direction) and an OUT-OF-PHASE mode (opposite
+    directions) -- whose eigenvector components depend only on the mass
+    ratio `mu = m2/m1` for the AXIAL direction (Wübbena, Amairi, Mandel,
+    Schmidt, "Sympathetic Cooling of Mixed Species Two-Ion Crystals for
+    Precision Spectroscopy," Phys. Rev. A 85, 043412 (2012),
+    arXiv:1202.2730, Eqs. 12-14). Writing `b1^2` for ion 1's (the clock
+    ion's) squared eigenvector component in the in-phase mode:
+
+        b1_sq = (1 - mu + sqrt(1 - mu + mu^2)) / (2*sqrt(1 - mu + mu^2))
+        b2_sq = 1 - b1_sq   (out-of-phase mode; Eq. 14's own "b2 = sqrt(1-b1^2)")
+
+    `b1_sq`/`b2_sq` are ENERGY (equivalently, `<v^2>`) participation
+    fractions, not just displacement-amplitude ratios: writing the modal
+    coordinates in MASS-WEIGHTED form (`Q_k = sqrt(m_k) q_k`) turns
+    Wübbena Eqs. 10-11's coordinate transformation into a genuine 2x2
+    orthogonal rotation with matrix ``[[b1, b2], [b2, -b1]]``, so ion 1's
+    quantum `<v^2>` contribution from a mode of occupation `n_bar` and
+    (ordinary) frequency `f` is exactly
+    ``b1_sq * (hbar*2*pi*f/m1)*(n_bar+1/2)`` -- the same
+    `participation_i * (hbar*omega_i/m)*(n_bar_i+1/2)` form
+    `motional_mean_squared_velocity_m2_s2` implements, confirming
+    `participation_i = b1_sq`/`b2_sq` is the correct quantity for
+    `MotionalMode.participation`, not merely a plausible-looking
+    substitute.
+
+    **RADIAL scope caveat (WP31, honestly disclosed, not silently
+    assumed).** The AXIAL closed form above depends on `mu` alone. The
+    full RADIAL two-ion eigenvector closed form (Wübbena Eqs. 15-18) is
+    NOT a function of `mu` alone -- it additionally depends on the trap's
+    own RF/DC geometry parameters (`alpha`, the DC-endcap asymmetry
+    factor, and `epsilon = omega_p/omega_z`, the RF-to-axial frequency
+    ratio), neither of which this function's `(m_clock, m_partner)`-only
+    signature can supply. This function applies the SAME `mu`-only axial
+    closed form to the two radial pairs as a documented approximation
+    (the mass-ratio-dependent PART of the radial physics, omitting the
+    trap-geometry-dependent part) -- exact for the axial pair, approximate
+    for the radial pairs. See `benchmarks/run_motional_al_ion.py`'s
+    participation-variant case for a direct, honest per-mode comparison
+    against a published two-ion crystal's real per-mode values, which
+    confirms the axial pair matches well and the radial pairs do not (the
+    disclosed radial approximation's real limitation, not a bug).
+
+    Parameters
+    ----------
+    m_clock : float
+        The clock ion's mass, kilograms (`Species.mass_kg`). Must be `> 0`.
+    m_partner : float
+        The partner (sympathetic-cooling) ion's mass, kilograms. Must be
+        `> 0`.
+
+    Returns
+    -------
+    tuple[float, float, float, float, float, float]
+        ``(axial_com, axial_str, x_com, x_str, y_com, y_str)``, each the
+        clock ion's participation factor for that mode, each in
+        `(0, 1)` for `m_clock != m_partner` and exactly `0.5` for every
+        mode when `m_clock == m_partner` (the equal-mass limit: each ion
+        carries exactly half of every mode).
+
+    Raises
+    ------
+    ValueError
+        `m_clock` or `m_partner` is not `> 0`.
+    """
+    if m_clock <= 0.0:
+        raise ValueError(f"m_clock={m_clock!r} must be > 0")
+    if m_partner <= 0.0:
+        raise ValueError(f"m_partner={m_partner!r} must be > 0")
+
+    mu = m_partner / m_clock
+    root = math.sqrt(1.0 - mu + mu * mu)
+    b1_sq = (1.0 - mu + root) / (2.0 * root)
+    b2_sq = 1.0 - b1_sq
+    return (b1_sq, b2_sq, b1_sq, b2_sq, b1_sq, b2_sq)

@@ -42,6 +42,7 @@ from cliffordclock.integrator.omega import (
     quadrupole_pivot_perturbation,
     spin_connection_stark,
     stark_pivot_terms,
+    two_ion_participations,
 )
 from cliffordclock.pipeline import (
     _FAST_PATH_DOPPLER_EXCLUSION_NOTE,
@@ -788,3 +789,186 @@ def test_motional_state_config_is_frozen_and_equal_by_value() -> None:
 
 def test_environment_config_default_has_motional_state_none() -> None:
     assert EnvironmentConfig().motional_state is None
+
+
+# ---------------------------------------------------------------------------
+# 14. WP31: per-mode participation factors for multi-ion crystals
+#     (CONVENTIONS.md section 16's participation-factor extension).
+# ---------------------------------------------------------------------------
+
+
+def test_participation_default_is_bitwise_identical_to_pre_wp31_results() -> None:
+    """`MotionalMode.participation` defaults to `1.0`; every WP30-era
+    computation (the `_TWO_MODES` regression at the top of this file) is
+    bitwise-unchanged by the WP31 formula generalization.
+    """
+    reference = float(_decimal_two_mode_reference())
+    value = motional_pivot_perturbation(_TWO_MODES, _AL27_PLUS)
+    np.testing.assert_allclose(value, reference, rtol=1e-12, atol=0)
+
+    # Explicit participation=1.0 modes give the IDENTICAL float64 result
+    # to modes built without the keyword at all (true bitwise identity,
+    # not just tolerance-close).
+    explicit_modes = tuple(
+        MotionalMode(
+            name=m.name,
+            frequency_hz=m.frequency_hz,
+            n_bar=m.n_bar,
+            n_bar_uncertainty=m.n_bar_uncertainty,
+            frequency_uncertainty_hz=m.frequency_uncertainty_hz,
+            participation=1.0,
+        )
+        for m in _TWO_MODES
+    )
+    assert motional_pivot_perturbation(explicit_modes, _AL27_PLUS) == value
+    assert motional_mean_squared_velocity_m2_s2(
+        explicit_modes, _AL27_PLUS
+    ) == motional_mean_squared_velocity_m2_s2(_TWO_MODES, _AL27_PLUS)
+    assert motional_pivot_uncertainty(explicit_modes, _AL27_PLUS) == motional_pivot_uncertainty(
+        _TWO_MODES, _AL27_PLUS
+    )
+
+
+def test_two_ion_participations_hand_derived_mu_25_over_27() -> None:
+    """Hand-derived regression at `mu = m2/m1 = 25/27` (CONVENTIONS.md
+    section 16, WP31; Wubbena et al. 2012 Eqs. 12-14, the closed-form
+    two-ion axial in-phase/out-of-phase eigenvector solution):
+
+        mu = 25/27
+        root = sqrt(1 - mu + mu^2)
+        b1_sq (in-phase / "COM") = (1 - mu + root) / (2*root)
+        b2_sq (out-of-phase / "STR") = 1 - b1_sq
+
+    Hand computation (double-checked against a plain calculator, not
+    copied from the implementation):
+
+        mu = 25/27 = 0.9259259259259259
+        mu^2 = 0.8573388203017833
+        1 - mu + mu^2 = 0.9314128943758574
+        root = sqrt(0.9314128943758574) = 0.9650973496885469
+        1 - mu + root = 1.0000000000... - 0.9259259259... + 0.9650973496...
+                       = 1.0391714237...
+        b1_sq = 1.0391714237... / (2*0.9650973496...) = 0.5383764778...
+        b2_sq = 1 - 0.5383764778... = 0.4616235221...
+
+    `two_ion_participations` applies the SAME (axial) closed form to all
+    six standard-ordering slots (a documented approximation for the
+    radial pairs, see that function's docstring), so this hand-derived
+    pair should appear identically at indices (0, 1), (2, 3), and (4, 5).
+    """
+    m_clock = 27.0
+    m_partner = 25.0
+    mu = m_partner / m_clock
+    root = math.sqrt(1.0 - mu + mu * mu)
+    expected_b1_sq = (1.0 - mu + root) / (2.0 * root)
+    expected_b2_sq = 1.0 - expected_b1_sq
+
+    np.testing.assert_allclose(expected_b1_sq, 0.5383764778226668, rtol=0, atol=1e-15)
+    np.testing.assert_allclose(expected_b2_sq, 0.46162352217733316, rtol=0, atol=1e-15)
+
+    result = two_ion_participations(m_clock, m_partner)
+    assert len(result) == 6
+    for pair_start in (0, 2, 4):
+        np.testing.assert_allclose(result[pair_start], expected_b1_sq, rtol=0, atol=1e-14)
+        np.testing.assert_allclose(result[pair_start + 1], expected_b2_sq, rtol=0, atol=1e-14)
+
+
+def test_two_ion_participations_sum_rule() -> None:
+    """The closed form's sum rule: `b1_sq + b2_sq = 1` exactly for every
+    mode pair (the clock ion's participation summed across a mode PAIR
+    equals 1 -- derived directly from the closed form's own
+    `b2_sq = 1 - b1_sq` construction, and equivalently, per the mass-
+    weighted-orthogonal-transformation derivation in
+    `two_ion_participations`'s docstring, the same identity governing
+    both ions' participation summed across a single mode). Checked at
+    several representative mass ratios, not just mu=1.
+    """
+    for m_clock, m_partner in [(27.0, 25.0), (1.0, 1.0), (1.0, 10.0), (40.0, 9.0), (171.0, 1.0)]:
+        result = two_ion_participations(m_clock, m_partner)
+        for pair_start in (0, 2, 4):
+            total = result[pair_start] + result[pair_start + 1]
+            np.testing.assert_allclose(total, 1.0, rtol=0, atol=1e-13)
+
+
+def test_two_ion_participations_kill_test_equal_mass_limit_is_one_half() -> None:
+    """Kill test: at the equal-mass limit (`m_clock == m_partner`), each
+    ion carries EXACTLY half of every mode -- `participation = 0.5`, not
+    `1.0`. An implementation that returned `1.0` at equal mass (e.g. one
+    that failed to account for the second ion's share at all) is caught
+    directly by this assertion.
+    """
+    result = two_ion_participations(30.0, 30.0)
+    for value in result:
+        np.testing.assert_allclose(value, 0.5, rtol=0, atol=1e-14)
+        assert abs(value - 1.0) > 0.49  # explicit: nowhere near the "no partner" value
+
+
+def test_two_ion_participations_rejects_non_positive_masses() -> None:
+    with pytest.raises(ValueError, match="m_clock"):
+        two_ion_participations(0.0, 25.0)
+    with pytest.raises(ValueError, match="m_clock"):
+        two_ion_participations(-1.0, 25.0)
+    with pytest.raises(ValueError, match="m_partner"):
+        two_ion_participations(27.0, 0.0)
+    with pytest.raises(ValueError, match="m_partner"):
+        two_ion_participations(27.0, -5.0)
+
+
+def test_participation_validated_in_range_zero_to_one() -> None:
+    """`MotionalMode.participation` must satisfy `0 < participation <= 1`
+    -- both engine-level (`_validate_motional_modes`, exercised via
+    `motional_pivot_perturbation`) and pipeline-parse-level validation.
+    """
+    bad_mode_zero = MotionalMode(frequency_hz=1e6, n_bar=0.0, participation=0.0)
+    with pytest.raises(ValueError, match="participation"):
+        motional_pivot_perturbation((bad_mode_zero,), _AL27_PLUS)
+
+    bad_mode_negative = MotionalMode(frequency_hz=1e6, n_bar=0.0, participation=-0.1)
+    with pytest.raises(ValueError, match="participation"):
+        motional_pivot_perturbation((bad_mode_negative,), _AL27_PLUS)
+
+    bad_mode_too_big = MotionalMode(frequency_hz=1e6, n_bar=0.0, participation=1.5)
+    with pytest.raises(ValueError, match="participation"):
+        motional_pivot_perturbation((bad_mode_too_big,), _AL27_PLUS)
+
+    # 1.0 itself (the boundary) is valid.
+    good_mode = MotionalMode(frequency_hz=1e6, n_bar=0.0, participation=1.0)
+    motional_pivot_perturbation((good_mode,), _AL27_PLUS)  # does not raise
+
+
+def test_environment_motional_state_parses_participation() -> None:
+    """`environment.motional_state.modes[].participation` (WP31) parses
+    into `MotionalMode.participation`, default `1.0` when omitted.
+    """
+    config = _parse_motional_state(
+        {
+            "modes": [
+                {"name": "axial", "frequency_Hz": 2.0e6, "n_bar": 0.05, "participation": 0.54},
+                {"name": "radial", "frequency_Hz": 4.0e6, "n_bar": 0.05},
+            ]
+        }
+    )
+    assert config is not None
+    assert config.modes[0].participation == 0.54
+    assert config.modes[1].participation == 1.0
+
+
+def test_environment_motional_state_rejects_bad_participation() -> None:
+    for bad_value in (0.0, -0.2, 1.2):
+        with pytest.raises(PipelineConfigError, match="participation"):
+            _parse_motional_state(
+                {"modes": [{"frequency_Hz": 2.0e6, "n_bar": 0.05, "participation": bad_value}]}
+            )
+
+
+def test_participation_composes_into_velocity_squared_expectation() -> None:
+    """A halved participation factor exactly halves that mode's
+    contribution to `<v^2>` (E38's per-mode term is linear in
+    `participation`), a direct algebraic check independent of the
+    two-ion closed form.
+    """
+    full = MotionalMode(frequency_hz=3.0e6, n_bar=0.1, participation=1.0)
+    half = MotionalMode(frequency_hz=3.0e6, n_bar=0.1, participation=0.5)
+    v2_full = motional_mean_squared_velocity_m2_s2((full,), _AL27_PLUS)
+    v2_half = motional_mean_squared_velocity_m2_s2((half,), _AL27_PLUS)
+    np.testing.assert_allclose(v2_half, 0.5 * v2_full, rtol=1e-14, atol=0)

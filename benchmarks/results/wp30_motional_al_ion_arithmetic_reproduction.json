@@ -1,6 +1,6 @@
 {
-  "wp30_motional_al_ion_benchmark_schema": "1.0",
-  "generated_at_utc": "2026-08-22T20:51:52.194155+00:00",
+  "wp30_motional_al_ion_benchmark_schema": "1.1",
+  "generated_at_utc": "2026-08-22T22:32:44.306564+00:00",
   "case_label": "arithmetic reproduction of a published standard-formula evaluation (arithmetic-reproduction fidelity, validates the engine's E38 implementation and unit chain, NOT an independent motional-Doppler physics prediction; Marshall et al.'s own secular-motion row is itself computed from their own measured inputs through the same standard formula)",
   "case_class": "arithmetic_reproduction",
   "marshall_2504_13071_secular_motion_arithmetic_reproduction_case": {
@@ -21,6 +21,76 @@
     "kpi_verdict": "MET",
     "modes_citation": "Marshall, Rodriguez Castillo, Arthur-Dworschack, Aeppli, Kim, Lee, Warfield, Hinrichs, Nardelli, Fortier, Ye, Leibrandt, Hume, \"High-Stability Single-Ion Clock with 5.5x10^-19 Systematic Uncertainty,\" arXiv:2504.13071v2 (2025), Supplemental Material Table S2 (\"Secular motion parameters for the 25Mg+-27Al+ crystal\"): six mode frequencies (MHz, row \"Frequency [MHz]\") and their sideband-thermometry-measured occupations (row \"Measured n_bar\", quoted with the table's own 1-sigma uncertainties). Preprint as fetched; no journal acceptance confirmed at fetch time; cite as an arXiv preprint, not a peer-reviewed final published number. The table also lists a per-mode 'Geometric factor kappa' (1.7 axial, 2.3 X/Y), a Doppler-cooling-laser geometry factor from the paper's own Eq. 1, unrelated to the secular-motion time-dilation row; the physics this project's single-species-mass E38 formula does not consume is each ion's own per-mode normal-mode amplitude, not kappa (corrected per the project's G11 gate record, plan/reviews/G11-e38-motional-time-dilation.md, section A3; see benchmarks/run_motional_al_ion.py's module docstring for the full caveat).",
     "published_shift_citation": "Marshall et al., arXiv:2504.13071v2 (2025), Table I \"Secular motion\" row: -114.6  3.8 (units 10^-19); main text: \"we add them in quadrature to get a total secular motion shift of Delta_nu/nu = -(114.6 +/- 3.8) x 10^-19.\"",
-    "geometric_factor_caveat": "SCOPE CAVEAT (corrected per the project's G11 gate record, section A3): Marshall et al.'s six modes are TWO-ION (27Al+/25Mg+) crystal normal modes. The physically complete per-mode evaluation partitions each mode's zero-point and thermal motion between the two ions by their own normal-mode amplitudes, a quantity this project's E38 formula does not consume (one species/mass for every mode, CONVENTIONS.md section 16): a documented scope boundary, not an oversight. As a result the engine's per-mode contributions differ from Marshall's own per-mode values by up to several-fold, while summing over the complete six-mode set reproduces their published TOTAL inside both uncertainty bands. The G11 gate record derives a genuine orthogonality identity over the two-ion normal-mode basis that is qualitatively consistent with this total-level agreement despite the per-mode differences, but that record also shows the identity alone does not certify the observed precision: the mechanism is reported as an open empirical observation, not a proven identity. The open item is a full two-mass normal-mode treatment (per-ion amplitude vectors as explicit input), belonging to the same future package as the RF/micromotion dynamics treatment already flagged out of scope for this tier."
+    "geometric_factor_caveat": "SCOPE CAVEAT (corrected per the project's G11 gate record, section A3): Marshall et al.'s six modes are TWO-ION (27Al+/25Mg+) crystal normal modes. The physically complete per-mode evaluation partitions each mode's zero-point and thermal motion between the two ions by their own normal-mode amplitudes. THIS case (participation=1.0 throughout, the single-species-mass formula) does not consume that partition, by deliberate construction: it isolates the WP30 single-mass TOTAL-level reproduction as its own case, independent of the WP31 participation-corrected variant reported alongside it below. As a result this case's own per-mode contributions differ from Marshall's own per-mode values by up to several-fold, while summing over the complete six-mode set reproduces their published TOTAL inside both uncertainty bands (an open empirical observation about this total-level agreement, not a proven identity; see the G11 gate record's own orthogonality-identity discussion, which is qualitatively consistent with but does not by itself certify the observed precision). WP31 (CONVENTIONS.md section 16's participation-factor extension, `cliffordclock.integrator.omega.two_ion_participations`) now consumes the two-ion partition directly; see this report's own participation-corrected variant case for the per-mode and total-level result that closed-form treatment gives (axial modes match well; radial modes do not, a disclosed, different scope boundary of THAT closed form, not this one). What remains open after WP31 is N>2-ion crystals (a numeric normal-mode eigensolver, no closed form in general) and the RF/micromotion dynamics package (unrelated to participation)."
+  },
+  "marshall_2504_13071_participation_corrected_variant_case": {
+    "case_class": "arithmetic_reproduction",
+    "partner_species_name": "Mg25+",
+    "per_mode": [
+      {
+        "name": "axial_com",
+        "is_axial": true,
+        "participation": 0.5383182958618564,
+        "predicted_shift_per_quantum": -9.566690214148586e-20,
+        "published_shift_per_quantum": -9.5e-20,
+        "residual_fractional": -6.669021414858614e-22,
+        "ratio_predicted_over_published": 1.0070200225419563
+      },
+      {
+        "name": "axial_str",
+        "is_axial": true,
+        "participation": 0.4616817041381436,
+        "predicted_shift_per_quantum": -1.4244353778671586e-19,
+        "published_shift_per_quantum": -1.42e-19,
+        "residual_fractional": -4.435377867158599e-22,
+        "ratio_predicted_over_published": 1.0031235055402525
+      },
+      {
+        "name": "x_com",
+        "is_axial": false,
+        "participation": 0.5383182958618564,
+        "predicted_shift_per_quantum": -1.869047810356807e-19,
+        "published_shift_per_quantum": -1.77e-19,
+        "residual_fractional": -9.904781035680703e-21,
+        "ratio_predicted_over_published": 1.0559592148908514
+      },
+      {
+        "name": "x_str",
+        "is_axial": false,
+        "participation": 0.4616817041381436,
+        "predicted_shift_per_quantum": -1.321876030660723e-19,
+        "published_shift_per_quantum": -6.48e-19,
+        "residual_fractional": 5.158123969339277e-19,
+        "ratio_predicted_over_published": 0.20399321460813627
+      },
+      {
+        "name": "y_com",
+        "is_axial": false,
+        "participation": 0.5383182958618564,
+        "predicted_shift_per_quantum": -2.378385483795273e-19,
+        "published_shift_per_quantum": -1.42e-19,
+        "residual_fractional": -9.583854837952731e-20,
+        "ratio_predicted_over_published": 1.6749193547854035
+      },
+      {
+        "name": "y_str",
+        "is_axial": false,
+        "participation": 0.4616817041381436,
+        "predicted_shift_per_quantum": -1.8042848119650676e-19,
+        "published_shift_per_quantum": -6.53e-19,
+        "residual_fractional": 4.725715188034932e-19,
+        "ratio_predicted_over_published": 0.27630701561486487
+      }
+    ],
+    "axial_mean_abs_ratio_deviation": 0.005071764041104432,
+    "radial_mean_abs_ratio_deviation": 0.5626445848633135,
+    "predicted_total_nominal": -5.759424995747776e-18,
+    "predicted_total_uncertainty_fractional": 1.3695753372869084e-19,
+    "predicted_total_band_lo": -5.896382529476467e-18,
+    "predicted_total_band_hi": -5.622467462019085e-18,
+    "total_bands_overlap": false,
+    "total_kpi_verdict": "NOT MET",
+    "per_mode_citation": "Marshall et al., arXiv:2504.13071v2 (2025), Supplemental Material Table S2, \"Frequency shift per quantum (10^-19)\" row: -0.95, -1.42, -1.77, -6.48, -1.42, -6.53 for Axial COM, Axial STR, X COM, X STR, Y COM, Y STR respectively (same mode order as MARSHALL_AL_ION_MODES_MHZ_NBAR). This is the paper's own PUBLISHED per-mode time-dilation weight (distinct from the unrelated 'Geometric factor kappa' row, a Doppler-cooling-laser geometry factor, MARSHALL_AL_ION_MODES_CITATION's own caveat). Re-fetched and confirmed directly against the arXiv PDF text this session.",
+    "participation_note": "Participation-corrected per-mode comparison against Marshall et al.'s own published 'Frequency shift per quantum' row (Table S2): the two AXIAL modes, where two_ion_participations' closed form is exact (a function of the Al+/Mg25+ mass ratio alone), match the published per-mode values to a few percent, a substantial improvement over the single-mass (participation=1.0) variant's ~2x per-mode disagreement there. The four RADIAL modes do NOT match well: the true radial eigenvector additionally depends on trap RF/DC geometry parameters (two_ion_participations' own documented scope caveat) this closed form cannot supply from masses alone. Because the radial STR pair carries the largest published per-mode magnitudes, the participation-corrected TOTAL does not reproduce Marshall's published band as closely as the single-mass total does; both totals are reported with their own kpi_verdict, not merged into one number."
   }
 }

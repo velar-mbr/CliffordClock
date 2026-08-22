@@ -70,6 +70,7 @@ from cliffordclock.fields.synthetic import as_field_fn, constant_gradient_field,
 from cliffordclock.integrator import fastpath
 from cliffordclock.integrator.worldline import EnsembleResult
 from cliffordclock.pipeline import (
+    _RAMSEY_VISIBILITY_NOTE,
     DEFAULT_MAX_TRAJECTORY_MEMORY_GB,
     MAX_ROTOR_NORM_ERROR,
     VALID_EVALUATION_MODES,
@@ -177,7 +178,7 @@ def test_case_a_report_and_csv_well_formed(tmp_path: Path) -> None:
 
     with report_path.open(encoding="utf-8") as f:
         loaded = json.load(f)
-    assert loaded["report_schema"] == "1.0"
+    assert loaded["report_schema"] == "1.1"
     assert loaded["species_name"] == "Sr87"
     assert loaded["ensemble_size"] == 30
     assert np.isfinite(loaded["mean_fractional_shift"])
@@ -512,7 +513,7 @@ def test_case_d_cli_smoke_quadrupole_classical(tmp_path: Path) -> None:
 
     with report_path.open(encoding="utf-8") as f:
         report = json.load(f)
-    assert report["report_schema"] == "1.0"
+    assert report["report_schema"] == "1.1"
     assert np.isfinite(report["mean_fractional_shift"])
 
     with csv_path.open(newline="", encoding="utf-8") as f:
@@ -2634,12 +2635,17 @@ def test_step0_linear_mu_output_unchanged_from_pre_step0_behavior(tmp_path: Path
     identical to what it was before step 0 (no coupling-provenance note,
     no fast_path Doppler-exclusion note folded in) -- the explicit
     backward-compatibility contract for the pre-existing Sprint-1/WP8
-    coupling path.
+    coupling path -- MODULO the WP31 (E39) Ramsey-visibility note, which
+    (unlike every other WP's report-note addition) is not gated behind an
+    opt-in config section: it is appended to every `mode="direct"`/
+    `"worldline"` run's `uncertainty_notes` (REPORT_SCHEMA_VERSION bumped
+    to "1.1" for exactly this reason -- see docs/report-schema.md).
     """
     config = _case_a_config(tmp_path / "out")
     result = run_pipeline_full(config)
     assert result.report.uncertainty_notes == "integration.mode=direct dtau=0.5 steps=200 " + (
-        "dtau_auto_selected=False renorm_every=1000 (E19, E31 points_per_period=100)"
+        "dtau_auto_selected=False renorm_every=1000 (E19, E31 points_per_period=100) "
+        + _RAMSEY_VISIBILITY_NOTE
     )
     assert "coupling=" not in result.report.uncertainty_notes
 
