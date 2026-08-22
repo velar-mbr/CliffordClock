@@ -388,6 +388,19 @@ def test_internal_path_regex_negative_case():
     assert rc.INTERNAL_PATH_RE.search(text) is None
 
 
+def test_internal_path_regex_allows_public_gate_records():
+    """plan/reviews/ holds this repository's committed, public gate
+    records (the working-repo convention since the repo transition), so
+    citing one by path is legitimate; every sibling plan/ path stays
+    flagged."""
+    ok = "corrected per plan/reviews/G11-e38-motional-time-dilation.md, section A3."
+    assert rc.INTERNAL_PATH_RE.search(ok) is None
+    still_flagged = "see plan/notes/ion-clock-dossier.md for the extraction."
+    assert rc.INTERNAL_PATH_RE.search(still_flagged) is not None
+    also_flagged = "tracked in plan/STATUS.md and internal/signoffs/G8_physics_signoff_theory.md."
+    assert rc.INTERNAL_PATH_RE.search(also_flagged) is not None
+
+
 def test_internal_path_regex_no_false_positive_on_deeper_path_segment():
     # A "plan"/"internal" directory nested inside an unrelated, legitimate
     # path (e.g. a vendored third-party subpackage) must not be mistaken

@@ -656,7 +656,13 @@ def headline_check(allowlist: dict[str, Any]) -> CheckResult:
 # at least one more path-ish character), not itself preceded by a word
 # character or another slash (so it does not fire on an unrelated deeper
 # path segment, e.g. a vendored third-party "internal" subpackage).
-INTERNAL_PATH_RE = re.compile(r"(?<![\w/])(?:plan|internal)/[\w.\-/]+")
+# plan/reviews/ is deliberately NOT matched: since the repository became
+# the public working repo (2026-08-22), gate records are committed there
+# as public documents and citing them by path is encouraged. Every other
+# plan/... or internal/... path stays flagged, because those directories
+# exist only in the private pre-release archive and a public reader
+# cannot resolve them.
+INTERNAL_PATH_RE = re.compile(r"(?<![\w/])(?:plan/(?!reviews/)|internal/)[\w.\-/]+")
 
 # Directories this repo's own export tooling excludes from the public
 # release tree (see this project's fresh-history export script, WP12/
