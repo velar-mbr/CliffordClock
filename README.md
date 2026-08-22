@@ -182,9 +182,11 @@ single number per point can't express; details in
   the trapped-ion walkthrough, quantum motional states throughout: a
   ground-state ion's ~10 nm wavepacket sampled against a field with real
   curvature, the Coulomb-crystal quadrupole case recapped from notebook 08,
-  and the motional time-dilation row (E38) reproduced against a published
-  Al+ evaluation, closing with the excess-micromotion input channel and a
-  scope statement against the RF-dynamics roadmap.
+  the motional time-dilation row (E38) reproduced against a published Al+
+  evaluation and its per-mode participation-factor correction for the
+  two-ion crystal, and the coherent Ramsey fringe visibility a squeezed
+  motional state leaves behind (E39), closing with the excess-micromotion
+  input channel and a scope statement against the RF-dynamics roadmap.
 
 ## Documentation
 
