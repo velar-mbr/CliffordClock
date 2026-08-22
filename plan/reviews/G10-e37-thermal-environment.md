@@ -59,11 +59,11 @@ paper and Bothwell's exchange-factor formalism both show, a reflected photon
 still originated at some surface's own Planck emission, so a reflection only
 moves weight between sources, changing which `w_i` multiplies which `T_i`
 without introducing any nonlinear or cross term. That reweighting is exactly
-where A2 below finds a defect.
+where A2 below initially found a defect.
 
 ### A2. The PTB emissivity formula
 
-Verdict: FAIL, BLOCKER.
+Verdict: PASS, after one fix loop.
 
 The reviewer fetched arXiv:2507.14030 directly (PDF text extraction, not the
 abstract page) and located the formula in section 3, equations 2 through 4.
@@ -94,48 +94,122 @@ property attached to the aperture. The two weights `Omega_eff/4pi` and `1 -
 Omega_eff/4pi` are complementary by construction and already sum to 1; the
 paper performs no renormalization step.
 
-The implementation instead attaches an optional emissivity to each surface
-independently, computes `raw_i = w_i` when no emissivity is given or `raw_i =
-w_i/(w_i + (1-w_i)*epsilon_i)` when one is given, and then renormalizes the
-full set of `raw_i` by dividing every entry by their sum. The reviewer
-computed both approaches directly for the exact two-surface case the
-implementation's own test uses to validate this formula, an aperture surface
-with `w = 0.1` and `epsilon = 0.5` paired with a shield surface at `w = 0.9`
-and no emissivity. PTB's own equations, applied to this pair, give weights
-`(0.181818..., 0.818182...)`. The implementation's renormalize-by-sum
-approach gives `(0.168067..., 0.831933...)`, a 7.56 percent relative
-difference on the aperture's weight. The reviewer swept the discrepancy
-across other `(w, epsilon)` pairs: it shrinks to about 0.01 percent at PTB's
-own tiny-aperture parameters (`w = 1.17e-3`, `epsilon = 0.926`), but grows to
-0.52 percent at `w = 0.05, epsilon = 0.9` and to 22.4 percent at `w = 0.3,
-epsilon = 0.3`. The larger end of that range sits inside the exact
-"viewport running warmer than the chamber" scenario the dossier itself uses
-to motivate this work package (a single window covering five to thirty
-percent of the atom's solid angle), so this is not a corner case outside the
-tier's intended use.
+The initial implementation instead attached an optional emissivity to each
+surface independently, computed `raw_i = w_i` when no emissivity is given or
+`raw_i = w_i/(w_i + (1-w_i)*epsilon_i)` when one is given, and then
+renormalized the full set of `raw_i` by dividing every entry by their sum.
+The reviewer computed both approaches directly for the exact two-surface case
+the implementation's own test uses to validate this formula, an aperture
+surface with `w = 0.1` and `epsilon = 0.5` paired with a shield surface at
+`w = 0.9` and no emissivity. PTB's own equations, applied to this pair, give
+weights `(0.181818..., 0.818182...)`. The renormalize-by-sum approach gave
+`(0.168067..., 0.831933...)`, a 7.56 percent relative difference on the
+aperture's weight. The reviewer swept the discrepancy across other `(w,
+epsilon)` pairs: it shrinks to about 0.01 percent at PTB's own tiny-aperture
+parameters (`w = 1.17e-3`, `epsilon = 0.926`), but grows to 0.52 percent at
+`w = 0.05, epsilon = 0.9` and to 22.4 percent at `w = 0.3, epsilon = 0.3`.
+The larger end of that range sits inside the exact "viewport running warmer
+than the chamber" scenario the dossier itself uses to motivate this work
+package (a single window covering five to thirty percent of the atom's solid
+angle), so this was not a corner case outside the tier's intended use.
 
-Both `docs/CONVENTIONS.md` and the `_bbr_effective_weights` docstring state
-that this renormalized, per-surface approach "generaliz[es] PTB's two-surface
-(shield/aperture) formula to an arbitrary surface count" and that it reduces
-to PTB's formula for that case. That claim is not correct: the implementation
-does not reproduce PTB's own two-surface weights, as shown above. This goes
-beyond an undocumented extrapolation, which would itself need flagging per
-this review's own instructions; it is a specific, checkable claim of exact
-correspondence to a published formula that does not hold. None of the tests
-in `tests/test_bbr_environment.py` catch this, because the file's own
-"independent" decimal reference (`_decimal_bbr_environment_pivot_perturbation`)
-reimplements the identical renormalize-by-sum algorithm rather than checking
-against PTB's actual complementary-weight pair, and the one test that
-exercises `epsilon = 1` is a degenerate case in which the renormalization is
-a no-op and so cannot expose the discrepancy.
+Both `docs/CONVENTIONS.md` (around line 566) and the `_bbr_effective_weights`
+docstring stated that this renormalized, per-surface approach "generaliz[es]
+PTB's two-surface (shield/aperture) formula to an arbitrary surface count"
+and that it reduces to PTB's formula for that case. That claim was not correct:
+the renormalize-by-sum scheme does not reproduce PTB's own two-surface
+weights, as shown above. This went beyond an undocumented extrapolation,
+which would itself have needed flagging per this review's own instructions;
+it was a specific, checkable claim of exact correspondence to a published
+formula that did not hold. None of the tests in `tests/test_bbr_environment.py`
+caught this at the time, because the file's own "independent" decimal
+reference (`_decimal_bbr_environment_pivot_perturbation`) reimplemented the
+identical renormalize-by-sum algorithm instead of checking against PTB's
+actual complementary-weight pair, and the one test that exercises
+`epsilon = 1` is a degenerate case in which the renormalization is a no-op
+and so could not expose the discrepancy.
 
-This is the single highest-risk transcription item in the work package, per
-this review's own mandate, and the reviewer's finding is that it needs a
+This was the single highest-risk transcription item in the work package, per
+this review's own mandate, and the reviewer's finding was that it needed a
 code change, not just a documentation caveat: either the multi-surface
-correction needs a derivation that actually reduces to PTB's formula at
-`N = 2`, or the current behavior needs to be relabeled plainly as a distinct,
-unvalidated extrapolation with its own numeric uncertainty budget, not as a
-generalization of the cited paper.
+correction needed a derivation that actually reduces to PTB's formula at
+`N = 2`, or the current behavior needed to be relabeled plainly as a
+distinct, unvalidated extrapolation with its own numeric uncertainty budget,
+not as a generalization of the cited paper. The builder took the first path:
+rebuilding the topology instead of just changing the label.
+
+`_bbr_effective_weights` in `src/cliffordclock/integrator/omega.py` is now
+built around a single reflective enclosure plus one or more apertures,
+matching PTB's own derivation directly. `_bbr_validate_environment` rejects
+any environment with more than one `emissivity`-carrying surface, both in
+`omega.py` (`ValueError`, "at most one surface may carry an emissivity") and,
+independently, at parse time in `src/cliffordclock/pipeline.py`'s
+`_parse_radiation_environment` (`PipelineConfigError`, the matching
+message); the reviewer confirmed the pipeline-layer rejection directly by
+calling `_parse_environment` with two `emissivity`-carrying surfaces and
+catching the raised `PipelineConfigError`. The function now computes the
+apertures' combined raw weight `W`, corrects each aperture's own weight by
+`w_i/(W + (1-W)*epsilon)`, and gives the enclosure whatever is left,
+`1 - sum` of the apertures' corrected weights, instead of renormalizing
+every surface's weight against a shared total.
+
+The reviewer recomputed the fix independently, in a fresh script calling
+nothing from the implementation, for two cases:
+
+- The project's own two-surface case (`w = 0.1` aperture, `epsilon = 0.5`
+  enclosure at `w = 0.9`): PTB's closed form gives `w_aperture_eff =
+  0.18181818181818181818...` and `w_enclosure_eff =
+  0.81818181818181818181...`, summing to exactly `1`. Calling
+  `bbr_environment_pivot_perturbation` on the matching `RadiationSurface`
+  pair gives `-1.0176625717213564e-15`; the independent decimal computation
+  of the full shift from those same weights gives
+  `-1.0176625717213562e-15`, an absolute difference of `2.0e-31`.
+- A three-surface case chosen fresh for this re-verification, not reused
+  from any test: one enclosure at `w = 0.5`, `epsilon = 0.7`, `T = 150` K,
+  and two apertures at `w = 0.35`, `T = 310` K and `w = 0.15`, `T = 340` K.
+  The combined aperture weight is `W = 0.5`, giving `denominator = 0.5 +
+  0.5*0.7 = 0.85`, aperture weights `0.35/0.85 = 0.41176470588...` and
+  `0.15/0.85 = 0.17647058823...`, and an enclosure weight of
+  `1 - (0.41176... + 0.17647...) = 0.41176470588...`, all summing to `1`
+  exactly; the two apertures' effective weights preserve their raw `7:3`
+  ratio exactly, confirming the proportional-split property the topology
+  relies on. `bbr_environment_pivot_perturbation` on this configuration
+  gives `-4.227008375180008e-15` against an independent decimal
+  computation of `-4.2270083751800065e-15`, an absolute difference of
+  `1.6e-30`, and `T_eff,4` agrees to `282.50434529878027` K in both.
+
+Both cases confirm the code's Eq. 3-4 reduction to within float64 noise
+across two independently constructed configurations, one of them matching
+neither the project's tests nor the reviewer's own two-surface
+re-verification. `docs/CONVENTIONS.md`'s `*Emissivity correction*`
+paragraph (now titled "one enclosure, one or more apertures") and the
+`_bbr_effective_weights` docstring were both rewritten to describe this
+topology directly; the reviewer confirmed the earlier claim of an
+"arbitrary surface count" renormalized generalization no longer appears
+anywhere in the diff, and the new text states plainly that the enclosure
+"never" gets a value computed from its own raw `weight`, the exact property
+that failed before.
+
+The reviewer also checked that the new tests guarding this fix are
+genuinely independent, not circular.
+`tests/test_bbr_environment.py::test_ptb_two_surface_enclosure_aperture_matches_published_closed_form`
+and its three-surface counterpart compute their reference values with
+`decimal.Decimal` arithmetic coded directly from PTB's published formula
+(`w_eff = w / (w + (1-w)*epsilon)`, the combined-aperture generalization
+written out by hand), calling neither `_bbr_effective_weights` nor the file's
+own `_decimal_bbr_environment_pivot_perturbation` helper; the test file's own
+comment block states this directly and names the reason, that either
+shortcut would risk baking the same bug into the implementation and its
+check at once. The reviewer confirmed this by inspection: the reference
+computation in both tests is self-contained, with the weight formula,
+temperature powers, and coefficient sum all written inline in the test body.
+As a kill test, the reviewer reintroduced the old renormalize-by-sum scheme
+directly in `_bbr_effective_weights`, in a scratch copy of the package, and
+reran both new PTB tests against it. Both failed: the two-surface case
+returned `-5.636994e-16` against an expected `-1.017663e-15` (44.6 percent
+relative error), and the three-surface case returned `-1.651751e-15` against
+an expected `-2.480907e-15` (33.4 percent relative error), both far beyond
+the tests' `rtol=1e-9`.
 
 ### A3. Independent moment-algebra recomputation
 
@@ -189,7 +263,7 @@ surface above that threshold by name, mirroring the single-temperature path.
 
 ### A5. Bylines
 
-Verdict: PASS, with the caveat recorded in the process note above.
+Verdict: PASS, with the caveat recorded in B5 item 4 below.
 
 Nosske, Vishwakarma, Lucke, Rahm, Poudel, Weyers, Benkler, Dorscher, Lisdat,
 arXiv:2507.14030, was fetched directly and its author list matches every
@@ -198,9 +272,16 @@ matches the entry already carried in the project's BBR thermal-environment
 dossier. Middelmann et al., Phys. Rev. Lett. 109, 263004 (2012), Lisdat et
 al., Phys. Rev. Research 3, L042036 (2021), and the rest of
 `_BBR_SPECIES_CITATIONS` are unchanged, pre-existing, already-verified
-strings that this diff reuses rather than edits.
+strings that this diff reuses unedited.
 
-## Part A verdict: FAIL, one blocker (A2).
+## Part A verdict: PASS, approve.
+
+One fix loop was needed, in A2 (the PTB emissivity formula): the initial
+renormalize-by-sum scheme did not reduce to PTB's own two-surface weights,
+the builder rebuilt the weighting around PTB's actual enclosure-plus-aperture
+topology, and the rebuilt version now reproduces PTB's closed form exactly on
+both the original two-surface case and a fresh three-surface case. A1, A3,
+A4, and A5 passed on the first review with no changes needed.
 
 ## Part B: code review
 
@@ -218,8 +299,10 @@ reviewer also ran the full existing test suite; three tests fail, all
 confirmed (by running the identical tests against the pre-branch commit) to
 be pre-existing failures unrelated to this diff: a float-noise mismatch in
 two unrelated shipped-example regression snapshots and a duplicate
-bibliography key in `tools/release_checks.py`'s own test suite. No new
-failures anywhere in the project are introduced by this branch.
+bibliography key in `tools/release_checks.py`'s own test suite (closed later
+in the Overall verdict section below, as a bonus fix alongside this diff's
+own two fix-loop items). No new failures anywhere in the project are
+introduced by this branch.
 
 ### B2. Kill-test quality
 
@@ -256,25 +339,36 @@ window, so none would have relied on the old non-raising behavior.
 
 ### B4. Style and prose
 
-Verdict: FAIL, BLOCKER.
+Verdict: PASS, after one fix loop.
 
-`.venv/bin/python tools/release_checks.py --only prose-scan` reports a
-`FAIL`-severity finding introduced by this diff: `docs/CONVENTIONS.md:616`,
-the phrase "not merely" inside the new E37 "Exact reduction to E32"
-paragraph ("agree bit for bit ... not merely to a numerical tolerance"). The
-reviewer confirmed by checking out the pre-branch commit that this specific
-finding is absent on main and new to this branch; the allowlist carries one
-pre-existing, deliberately preserved "not merely comparable" line for the G9
-gravity text, but no equivalent entry exists for this new line, so the
-automated release gate would fail on this diff as written. No other
-fatal-listed phrase ("stated plainly," "it is worth noting," "honestly
-labeled") or honest-family word appears anywhere in the diff's added
-markdown, docstrings, or tests. The same "not merely" phrase also appears
-several more times in the diff's added Python docstrings inside `omega.py`;
-`release_checks.py`'s prose-scan only covers markdown, notebooks, and the
-paper's LaTeX, so these do not trip the automated gate, but they carry the
-same banned phrase and should be edited alongside the primary instance for
-consistency.
+`.venv/bin/python tools/release_checks.py --only prose-scan` initially
+reported a `FAIL`-severity finding introduced by this diff:
+`docs/CONVENTIONS.md:616`, the phrase "not merely" inside the new E37 "Exact
+reduction to E32" paragraph ("agree bit for bit ... not merely to a
+numerical tolerance"). The reviewer confirmed by checking out the
+pre-branch commit that this specific finding was absent on main and new to
+this branch; the allowlist carries one pre-existing, deliberately preserved
+"not merely comparable" line for the G9 gravity text, but no equivalent
+entry existed for this new line, so the automated release gate would have
+failed on this diff as written. No other fatal-listed phrase ("stated
+plainly," "it is worth noting," "honestly labeled") or honest-family word
+appeared anywhere in the diff's added markdown, docstrings, or tests. The
+same "not merely" phrase also appeared several more times in the diff's
+added Python docstrings inside `omega.py`; `release_checks.py`'s prose-scan
+only covers markdown, notebooks, and the paper's LaTeX, so these did not
+trip the automated gate, but they carried the same banned phrase and were
+flagged for editing alongside the primary instance for consistency.
+
+`.venv/bin/python tools/release_checks.py --only prose-scan` now reports
+zero `FAIL`-severity findings (48 `MINOR` "rather than" findings remain,
+unrelated to this diff and already present before it). The specific
+`docs/CONVENTIONS.md:616` finding from the initial pass is gone; the
+paragraph it was in was rewritten as part of the A2 fix. A repeat grep for
+the other fatal-listed phrases ("stated plainly," "it is worth noting,"
+honest-family words) across the full diff still finds none. The handful of
+pre-existing "not merely" occurrences elsewhere in `omega.py` flagged above
+as a non-blocking cleanup item are untouched and are not part of the new E37
+text, so they remain a cosmetic item, not a gate issue.
 
 ### B5. The five ambiguity flags
 
@@ -286,18 +380,20 @@ consistency.
    name is generic, but the docstring immediately disambiguates it as
    `Omega_i/(4*pi)`; a more specific name such as `solid_angle_fraction`
    would reduce reliance on the docstring but is not required.
-3. `docs/cli.md` not updated: needs change. The reviewer grepped the entire
-   `docs/` tree; `radiation_environment` appears only in
-   `docs/CONVENTIONS.md`. `docs/cli.md` documents `radiation_temperature_K`
-   at length in a dedicated section and has no mention of the new config key
-   at all, so a user reading the project's own CLI reference would not learn
-   this feature exists. This should be added before or immediately after
-   this ships.
+3. `docs/cli.md` not updated: resolved. The reviewer's original pass grepped
+   the entire `docs/` tree and found `radiation_environment` only in
+   `docs/CONVENTIONS.md`; `docs/cli.md` documented `radiation_temperature_K`
+   at length in a dedicated section with no mention of the new config key,
+   so a user reading the project's own CLI reference would not have learned
+   this feature exists. `docs/cli.md` now carries a dedicated "Multi-surface
+   thermal environment" section documenting
+   `environment.radiation_environment:`; the reviewer confirmed the section
+   exists and names the config key directly.
 4. No separate sign-off ceremony line: accept, resolved by this record. This
    review was commissioned as the stand-in gate for E37 specifically because
    it carries no spacetime-algebra content; producing this file closes that
    gap. `docs/CONVENTIONS.md`'s version header should be updated to cite this
-   gate once it is committed, a small follow-up rather than a blocker.
+   gate once it is committed, a small follow-up item, not a gate requirement.
 5. `math.fsum` usage: accept. The correct choice for the weight-sum and
    moment-sum accumulations, consistent with the project's existing
    precision-discipline conventions; no issue found.
@@ -320,163 +416,22 @@ surface exceeds the 300 K cross-verified band. A reader can reconstruct the
 input environment from the note text alone, without access to the run's
 configuration file.
 
-## Part B verdict: FAIL, one blocker (B4), one needs-change (B5 item 3).
+## Part B verdict: PASS, approve.
 
-## Summary
+One fix loop was needed, in B4 (style and prose): the initial diff tripped
+the release gate's prose-scan with an uncovered "not merely" phrase, the
+builder reworded the affected paragraph, and the prose-scan now reports zero
+`FAIL`-severity findings. B5 item 3 (`docs/cli.md` coverage) was also closed
+alongside it. B1, B2, B3, B5's remaining items, and B6 passed on the first
+review with no changes needed.
 
-Part A: FAIL-with-blockers.
-Part B: FAIL-with-blockers.
+## Overall verdict
 
-Blockers:
-
-1. `src/cliffordclock/integrator/omega.py`, `_bbr_effective_weights`
-   (and the matching prose in `docs/CONVENTIONS.md` around line 566 and the
-   function's own docstring): the per-surface emissivity correction followed
-   by renormalize-by-sum does not reduce to PTB's own two-surface formula
-   (arXiv:2507.14030, equations 3 and 4) and is documented as if it does.
-   Verified numerically: PTB weights `(0.181818, 0.818182)` versus the
-   implementation's `(0.168067, 0.831933)` for the aperture/shield pair the
-   project's own test uses (`w = 0.1`, `epsilon = 0.5`), a 7.56 percent
-   relative error that grows past 20 percent at more viewport-like weights.
-   Needs either a corrected derivation that actually reduces to PTB's
-   formula at `N = 2`, or explicit relabeling as an unvalidated
-   extrapolation with its own uncertainty budget.
-2. `docs/CONVENTIONS.md:616`: the phrase "not merely" in the new E37 text
-   fails `tools/release_checks.py --only prose-scan` at `FAIL` severity and
-   is not covered by the existing allowlist entry. Needs rewording or an
-   explicit, deliberate allowlist addition mirroring the one already present
-   for the G9 gravity text.
-
-Notes (non-blocking):
-
-- `docs/cli.md` does not document `environment.radiation_environment:`
-  anywhere; the feature is invisible to a reader of the project's own CLI
-  reference. Should be added.
-- The same "not merely" phrase recurs several times in the new
-  `omega.py` docstrings; `release_checks.py`'s prose-scan does not cover
-  `.py` files, so these do not fail the automated gate, but should be edited
-  alongside the CONVENTIONS.md instance for consistency.
-- `docs/CONVENTIONS.md`'s version header currently states this addition
-  carries "not carrying its own separate formalism sign-off record"; once
-  this gate record is committed, that line should point to it by name.
-- `RadiationSurface.weight` is a generic name for a solid-angle fraction;
-  adequately disambiguated by its docstring today, a more specific name
-  would be a reasonable future cleanup, not a requirement.
-
-## Closure: re-verification after the builder's fixes
-
-The builder closed both blockers and the `docs/cli.md` needs-change item.
-This section records a targeted re-verification of each, read only against
-the current diff (`docs/CONVENTIONS.md`, `docs/cli.md`,
-`src/cliffordclock/integrator/omega.py`, `src/cliffordclock/pipeline.py`,
-`tools/bibliography.toml`, `tests/test_bbr_environment.py`), plus the two
-spot-checks requested alongside it. The blocker text above is left as
-written; this section is the record of what changed and what the reviewer
-confirmed about it.
-
-### A2 closure: the enclosure-plus-apertures topology
-
-Verdict: RESOLVED.
-
-`_bbr_effective_weights` in `src/cliffordclock/integrator/omega.py` is now
-built around a single reflective enclosure plus one or more apertures,
-matching PTB's own derivation rather than approximating it.
-`_bbr_validate_environment` rejects any environment with more than one
-`emissivity`-carrying surface, both in `omega.py` (`ValueError`, "at most
-one surface may carry an emissivity") and, independently, at parse time in
-`src/cliffordclock/pipeline.py`'s `_parse_radiation_environment`
-(`PipelineConfigError`, the matching message); the reviewer confirmed the
-pipeline-layer rejection directly by calling `_parse_environment` with two
-`emissivity`-carrying surfaces and catching the raised
-`PipelineConfigError`. The function now computes the apertures' combined
-raw weight `W`, corrects each aperture's own weight by `w_i/(W + (1-W)*
-epsilon)`, and gives the enclosure whatever is left, `1 - sum` of the
-apertures' corrected weights, rather than renormalizing every surface's
-weight against a shared total.
-
-The reviewer recomputed this independently, in a fresh script calling
-nothing from the implementation, for two cases:
-
-- The project's own two-surface case (`w = 0.1` aperture, `epsilon = 0.5`
-  enclosure at `w = 0.9`): PTB's closed form gives `w_aperture_eff =
-  0.18181818181818181818...` and `w_enclosure_eff =
-  0.81818181818181818181...`, summing to exactly `1`. Calling
-  `bbr_environment_pivot_perturbation` on the matching `RadiationSurface`
-  pair gives `-1.0176625717213564e-15`; the independent decimal computation
-  of the full shift from those same weights gives
-  `-1.0176625717213562e-15`, an absolute difference of `2.0e-31`.
-- A three-surface case chosen fresh for this closure, not reused from any
-  test: one enclosure at `w = 0.5`, `epsilon = 0.7`, `T = 150` K, and two
-  apertures at `w = 0.35`, `T = 310` K and `w = 0.15`, `T = 340` K. The
-  combined aperture weight is `W = 0.5`, giving `denominator = 0.5 +
-  0.5*0.7 = 0.85`, aperture weights `0.35/0.85 = 0.41176470588...` and
-  `0.15/0.85 = 0.17647058823...`, and an enclosure weight of
-  `1 - (0.41176... + 0.17647...) = 0.41176470588...`, all summing to `1`
-  exactly; the two apertures' effective weights preserve their raw `7:3`
-  ratio exactly, confirming the proportional-split property the topology
-  relies on. `bbr_environment_pivot_perturbation` on this configuration
-  gives `-4.227008375180008e-15` against an independent decimal
-  computation of `-4.2270083751800065e-15`, an absolute difference of
-  `1.6e-30`, and `T_eff,4` agrees to `282.50434529878027` K in both.
-
-Both cases confirm the code's Eq. 3-4 reduction to within float64 noise
-across two independently constructed configurations, one of them matching
-neither the project's tests nor the reviewer's own earlier re-verification.
-`docs/CONVENTIONS.md`'s `*Emissivity correction*` paragraph (now titled
-"one enclosure, one or more apertures") and the `_bbr_effective_weights`
-docstring were both rewritten to describe this topology directly; the
-reviewer confirmed the earlier claim of an "arbitrary surface count"
-renormalized generalization no longer appears anywhere in the diff, and the
-new text states plainly that the enclosure "never" gets "a value computed
-from its own raw `weight`," the exact property that failed before.
-
-### B4 closure: prose-scan
-
-Verdict: RESOLVED.
-
-`.venv/bin/python tools/release_checks.py --only prose-scan` now reports
-zero `FAIL`-severity findings (48 `MINOR` "rather than" findings remain,
-unrelated to this diff and already present before it). The specific
-`docs/CONVENTIONS.md:616` finding from the earlier review is gone; the
-paragraph it was in was rewritten as part of the A2 fix. A repeat grep for
-the other fatal-listed phrases ("stated plainly," "it is worth noting,"
-honest-family words) across the full diff still finds none. The handful of
-pre-existing "not merely" occurrences elsewhere in `omega.py` noted as a
-non-blocking cleanup item in the original review are untouched and are not
-part of the new E37 text, so they remain a cosmetic item, not a gate issue.
-
-### Spot-check: the new PTB tests are genuinely independent
-
-Verdict: confirmed.
-
-`tests/test_bbr_environment.py::test_ptb_two_surface_enclosure_aperture_matches_published_closed_form`
-and its three-surface counterpart compute their reference values with
-`decimal.Decimal` arithmetic coded directly from PTB's published formula
-(`w_eff = w / (w + (1-w)*epsilon)`, the combined-aperture generalization
-written out by hand), calling neither `_bbr_effective_weights` nor the
-file's own `_decimal_bbr_environment_pivot_perturbation` helper; the test
-file's own comment block states this directly and names the reason, that
-either shortcut would risk baking the same bug into the implementation and
-its check at once. The reviewer confirms this by inspection: the reference
-computation in both tests is self-contained, with the weight formula,
-temperature powers, and coefficient sum all written inline in the test
-body.
-
-The reviewer also confirmed the kill-test discriminates by reintroducing
-the old renormalize-by-sum scheme directly in `_bbr_effective_weights`, in
-a scratch copy of the package, and rerunning both new PTB tests against it.
-Both fail: the two-surface case returns `-5.636994e-16` against an expected
-`-1.017663e-15` (44.6 percent relative error), and the three-surface case
-returns `-1.651751e-15` against an expected `-2.480907e-15` (33.4 percent
-relative error), both far beyond the tests' `rtol=1e-9`.
-
-### Bibliography merge
-
-Verdict: confirmed.
+Verdict: APPROVE E37 for WP29 Tier 1.
 
 `tools/bibliography.toml` carried two entries under the key `Lodewyck2012`
-before this round, the duplicate this review's first pass flagged as a
-pre-existing, unrelated test failure
+before this round, the duplicate the first review pass flagged in B1 above
+as a pre-existing, unrelated test failure
 (`test_load_bibliography_keys_are_unique`). The duplicate has been removed;
 one entry remains, keeping the first entry's `doi` field and its title's
 original capitalization, with its `source` field extended to carry both
@@ -488,34 +443,26 @@ from either original entry was dropped. `.venv/bin/python -m pytest
 tests/test_release_checks.py::test_load_bibliography_keys_are_unique`
 passes.
 
-### Other checks re-run
-
 `.venv/bin/python -m mypy --strict` on both changed source files: no
 issues. `.venv/bin/python -m ruff check` on the three changed/added Python
 files: all checks passed. `tools/release_checks.py --only tolerance-scan`:
 zero findings. `.venv/bin/python -m pytest tests/test_bbr_environment.py`:
-all 38 tests pass. `docs/cli.md` now carries a dedicated "Multi-surface
-thermal environment" section documenting `environment.radiation_environment:`,
-closing the B5 item 3 needs-change from the original review; the reviewer
-confirmed the section exists and names the config key directly. A full
-`.venv/bin/python -m pytest -q` run over the whole project shows exactly
-two failures, both the same pre-existing, BBR-unrelated float-noise
-snapshot mismatch already identified in the original review
-(`showcase_gradient_dispersion_sr87.yaml`, `1.23e-32` absolute /
-`1.24e-16` relative, present on the pre-branch commit); the third
+all 38 tests pass. A full `.venv/bin/python -m pytest -q` run over the whole
+project shows exactly two failures, both the same pre-existing,
+BBR-unrelated float-noise snapshot mismatch already identified in the
+original review (`showcase_gradient_dispersion_sr87.yaml`, `1.23e-32`
+absolute / `1.24e-16` relative, present on the pre-branch commit); the third
 pre-existing failure the original review found,
 `test_load_bibliography_keys_are_unique`, is gone, consistent with the
-bibliography deduplication above. No failure anywhere in the project is
-new to this round of changes.
+bibliography deduplication above. No failure anywhere in the project is new
+to this round of changes.
 
-## Final gate verdict: APPROVE E37 for WP29 Tier 1.
-
-Both blockers from the original review are resolved and independently
-re-verified against fresh, self-chosen numbers rather than against the
-diff's own tests. The one remaining needs-change item (`docs/cli.md`) is
-also closed. The non-blocking notes from the original review that are still
-open are cosmetic: the pre-existing "not merely" occurrences elsewhere in
+Both fix-loop items from the original review, A2 and B4, are resolved and
+independently re-verified against fresh, self-chosen numbers, not against
+the diff's own tests. The one needs-change item, B5 item 3
+(`docs/cli.md`), is also closed. The remaining notes are cosmetic and
+non-blocking: the pre-existing "not merely" occurrences elsewhere in
 `omega.py`, unrelated to E37's own text; `RadiationSurface.weight` as a
 generic but adequately documented name; and `docs/CONVENTIONS.md`'s version
 header, which should be updated to cite this record by name once it is
-committed alongside the work package. None of these block approval.
+committed alongside the work package. None of these affect the approval.
