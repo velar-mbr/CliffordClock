@@ -82,7 +82,12 @@ jobs:
 
       - name: Test (pytest, excluding slow, this shard's files)
         run: |
-          FILES=$(ls tests/test_*.py | sort | awk "NR % 3 == ${{ matrix.shard }}")
+          # Round-robin over files sorted by size (a cheap runtime proxy):
+          # the heavy JAX test files cluster alphabetically, so a plain
+          # alphabetical interleave once landed nearly all of them in one
+          # shard, which then timed out. Size-descending round-robin
+          # spreads them and still gives any new file a shard.
+          FILES=$(wc -c tests/test_*.py | grep -v " total$" | sort -rn | awk '{print $2}' | awk "NR % 3 == ${{ matrix.shard }}")
           echo "shard ${{ matrix.shard }} files:"; echo "$FILES"
           pytest $FILES -m "not slow" --cov
         env:
