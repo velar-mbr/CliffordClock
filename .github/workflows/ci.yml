@@ -70,6 +70,9 @@ jobs:
           path: .coverage.fast
           retention-days: 1
           if-no-files-found: error
+          # upload-artifact@v4 excludes dotfiles by default; the coverage
+          # data file is one.
+          include-hidden-files: true
 
   test-slow:
     name: Test (slow)
@@ -103,6 +106,9 @@ jobs:
           path: .coverage.slow
           retention-days: 1
           if-no-files-found: error
+          # upload-artifact@v4 excludes dotfiles by default; the coverage
+          # data file is one.
+          include-hidden-files: true
 
   coverage:
     name: Combined coverage gate
