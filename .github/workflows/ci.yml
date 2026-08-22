@@ -1,10 +1,16 @@
 name: CI
 
 # Cost policy (owner directive, 2026-08-11): CI on GitHub-hosted runners
-# is kept minimal because everything here is runnable locally. One fast
-# job on push/PR with a hard timeout; the notebook-execution job is
-# MANUAL ONLY (workflow_dispatch) because the showcase notebook's Monte
-# Carlo run is heavy enough to run for hours on a 2-core hosted runner.
+# is kept minimal because everything here is runnable locally. The pytest
+# suite is dominated by a handful of JAX compile-heavy integration tests
+# (marked `slow`, registered in pyproject.toml), so the suite runs as two
+# parallel jobs instead of one long serial one: `test` (lint, format,
+# mypy, and every test except `slow`) and `test-slow` (`slow` tests only).
+# A third job combines their coverage data so the 90% gate still applies
+# to the whole suite rather than to either half alone. The
+# notebook-execution job remains MANUAL ONLY (workflow_dispatch) because
+# the showcase notebook's Monte Carlo run is heavy enough to run for
+# hours on a 2-core hosted runner.
 
 on:
   push:
@@ -19,8 +25,9 @@ on:
 
 jobs:
   test:
+    name: Test (fast)
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
 
@@ -42,8 +49,74 @@ jobs:
       - name: Type check (mypy)
         run: mypy src/
 
-      - name: Test (pytest)
-        run: pytest --cov --cov-fail-under=90
+      - name: Test (pytest, excluding slow)
+        run: pytest -m "not slow" --cov
+        env:
+          COVERAGE_FILE: .coverage.fast
+
+      - name: Upload coverage data
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-fast
+          path: .coverage.fast
+          retention-days: 1
+          if-no-files-found: error
+
+  test-slow:
+    name: Test (slow)
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install package with dev dependencies
+        run: pip install -e ".[dev]"
+
+      - name: Test (pytest, slow only)
+        run: pytest -m slow --cov
+        env:
+          COVERAGE_FILE: .coverage.slow
+
+      - name: Upload coverage data
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-slow
+          path: .coverage.slow
+          retention-days: 1
+          if-no-files-found: error
+
+  coverage:
+    name: Combined coverage gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    needs: [test, test-slow]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install coverage
+        run: pip install "coverage[toml]"
+
+      - name: Download coverage data
+        uses: actions/download-artifact@v4
+        with:
+          pattern: coverage-*
+          merge-multiple: true
+
+      - name: Combine and enforce 90% coverage
+        run: |
+          coverage combine .coverage.fast .coverage.slow
+          coverage report --fail-under=90
 
   notebooks:
     # Manual only: run from the Actions tab when a notebook-affecting

@@ -441,6 +441,7 @@ def test_site_map_local_field_varies_by_site_position() -> None:
     assert abs(shifts[1]) < abs(shifts[0]) < abs(shifts[2])
 
 
+@pytest.mark.slow
 def test_lattice_extended_fast_path_matches_worldline_with_gravity_active(tmp_path: Path) -> None:
     """E29's exact-agreement claim, extended to `lattice_extended` with
     gravity active: every node is static (v=0), so mode="worldline" must
@@ -492,6 +493,7 @@ def test_lattice_extended_fast_path_matches_worldline_with_gravity_active(tmp_pa
     )
 
 
+@pytest.mark.slow
 def test_lattice_extended_linear_mu_worldline_cross_check_runs(tmp_path: Path) -> None:
     """`coupling.type='linear_mu'` (the E14a validation coupling) also
     works with `lattice_extended` via the `worldline` rotor path, exactly

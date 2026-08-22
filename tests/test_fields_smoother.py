@@ -429,6 +429,7 @@ def test_evaluate_outside_bounding_box_warns() -> None:
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.slow
 def test_evaluate_chunked_matches_unchunked_exactly(
     quadrupole_smoother: tuple[FieldSmoother, jnp.ndarray, jnp.ndarray],
 ) -> None:

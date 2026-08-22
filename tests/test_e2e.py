@@ -448,6 +448,7 @@ def test_case_c_rotor_path_e24_cross_check(tmp_path: Path) -> None:
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.slow
 def test_case_d_cli_smoke_quadrupole_classical(tmp_path: Path) -> None:
     """``cliffordclock run`` on examples/quadrupole_classical.yaml via subprocess (WP6 spec)."""
     config_path = _EXAMPLES_DIR / "quadrupole_classical.yaml"

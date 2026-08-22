@@ -195,6 +195,7 @@ def test_shipped_example_output_byte_identical_to_pre_wp20_snapshot(
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.slow
 def test_bbr_lattice_fast_path_matches_worldline_rotor_crosscheck(tmp_path: Path) -> None:
     """E29's exact-agreement claim, extended with BBR active (WP20: "extend
     the WP16 head-to-head test with BBR active rather than duplicating

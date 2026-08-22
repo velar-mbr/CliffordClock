@@ -80,6 +80,9 @@ ignore_missing_imports = true
 [tool.pytest.ini_options]
 addopts = "-q"
 testpaths = ["tests"]
+markers = [
+    "slow: JAX compile-heavy or long-running tests, split into a separate CI job (deselect with -m \"not slow\")",
+]
 
 [tool.coverage.run]
 source = ["src"]

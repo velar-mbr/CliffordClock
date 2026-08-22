@@ -156,6 +156,7 @@ def _shadow_energy(
     return 0.5 * mass_kg * jnp.sum(omega**2 * pos_traj**2 + vel_traj**2 / correction, axis=-1)
 
 
+@pytest.mark.slow
 def test_verlet_conserves_the_exact_discrete_invariant() -> None:
     """Velocity-Verlet exactly conserves its shadow Hamiltonian to ~roundoff.
 
@@ -178,6 +179,7 @@ def test_verlet_conserves_the_exact_discrete_invariant() -> None:
     assert relative_drift < 1e-8
 
 
+@pytest.mark.slow
 def test_verlet_energy_oscillation_is_bounded_not_secular() -> None:
     """The literal continuum energy's oscillation band does not grow with run length.
 

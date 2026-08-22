@@ -118,6 +118,7 @@ def test_v2_constant_gradient_closed_form() -> None:
     np.testing.assert_allclose(float(result.phase), float(expected_phase), rtol=1e-14, atol=0)
 
 
+@pytest.mark.slow
 def test_norm_preservation_one_million_steps() -> None:
     """WP3 test contract item 2: |<R R~>_0 - 1| < 1e-12 after 1,000,000
     Compton steps in a constant-gradient field, with renormalization-

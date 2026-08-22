@@ -729,6 +729,7 @@ def test_main_exit_code_nonzero_on_fail(monkeypatch):
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.slow
 def test_determinism_check_restores_committed_files_regardless_of_outcome():
     # Snapshot the WHOLE benchmarks/results/ directory, not just the pinned
     # .json targets -- each regeneration script also rewrites a sibling .md
