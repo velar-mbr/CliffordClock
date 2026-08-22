@@ -70,9 +70,27 @@ environment:                           # optional section (WP20, CONVENTIONS.md 
                                         #   with no environment section at all: see
                                         #   docs/coupling.md's "Blackbody-radiation shift" section
   radiation_temperature_K: 300.0       # kelvin; requires coupling.type=stark_dc; must lie in
-                                        #   [50, 350] (hard PipelineConfigError outside it)
+                                        #   [50, 350] (hard PipelineConfigError outside it).
+                                        #   Mutually exclusive with radiation_environment below.
   radiation_temperature_uncertainty_K: 0.004  # optional, kelvin; requires
                                         #   radiation_temperature_K to also be set
+  # radiation_environment:               # optional, WP29 Tier 1, CONVENTIONS.md E37; a
+  #                                       #   multi-surface alternative to radiation_temperature_K
+  #                                       #   above (mutually exclusive with it). See the
+  #                                       #   "Multi-surface thermal environment" section below.
+  #   surfaces:
+  #     - name: shield                   # label only, used in error messages/report notes
+  #       weight: 0.9                    # solid-angle fraction Omega_i/4pi; all surfaces'
+  #                                       #   weights must sum to 1 (tolerance 1e-9)
+  #       temperature_K: 100.0           # must lie in [50, 350], same window as above
+  #       emissivity: 0.5                # optional, (0, 1]; at most one surface may set this
+  #                                       #   (that surface is the reflective enclosure)
+  #     - name: aperture
+  #       weight: 0.1
+  #       temperature_K: 300.0
+  #       temperature_uncertainty_K: 0.01  # optional per-surface 1-sigma uncertainty, kelvin
+  #   correlated: false                  # optional (default false): per-surface temperature-
+  #                                       #   uncertainty combination mode, see below
   gravity:                             # optional sub-section (WP22, CONVENTIONS.md section 15
                                         #   E36); absent means the gravitational-redshift term
                                         #   is off, byte-identical to a config with no gravity
@@ -289,6 +307,53 @@ for the config schema specifically:
 - Currently populated for `Sr87`/`Yb171` only (same registry-population
   pattern as `coupling.type: stark_dc`'s `delta_alpha_dc_si`); `Al27+`
   raises a clear, caught error.
+
+### Multi-surface thermal environment (`environment.radiation_environment:`, WP29 Tier 1)
+
+`environment.radiation_environment` is a multi-surface alternative to
+`radiation_temperature_K` (CONVENTIONS.md E37): instead of one ambient
+temperature, the atoms sit in an enclosure of `N` named surfaces, each
+with its own solid-angle weight, temperature, optional temperature
+uncertainty, and optional emissivity. It resolves to the same `(P-1)_BBR`
+scalar `radiation_temperature_K` does and threads into every evaluation
+mode identically.
+
+- **Mutually exclusive with `radiation_temperature_K`.** Setting both is
+  a `PipelineConfigError` at config-load time naming both keys.
+- **Requires `coupling.type: stark_dc`**, and every other `radiation_temperature_K`
+  cross-field requirement above (registry `BbrCoefficients`, currently
+  `Sr87`/`Yb171` only).
+- **`surfaces` is a non-empty list**, each entry requiring `name`,
+  `weight`, and `temperature_K`; `temperature_uncertainty_K` (default
+  `0.0`) and `emissivity` (default: none) are optional per surface.
+- **Weights must sum to 1** across all surfaces, within a `1e-9` absolute
+  tolerance: `PipelineConfigError` otherwise, checked at config-load time.
+- **`temperature_K` must lie in `[50, 350]`** for every surface, the same
+  hard-validated window as `radiation_temperature_K` above.
+- **`emissivity`, when set, must lie in `(0, 1]`, and at most one surface
+  in the whole list may set it.** That surface is treated as a single
+  reflective enclosure (PTB's own topology, Nosske et al.
+  arXiv:2507.14030): every other surface is a direct-view aperture, and
+  the enclosure's effective weight is whatever is left after the
+  apertures' weights are corrected for reflections
+  (`w_i_eff = w_i / (W + (1 - W) * emissivity)`, `W` the apertures'
+  combined raw weight), never an independently renormalized share.
+  Setting `emissivity` on more than one surface is a `PipelineConfigError`:
+  multi-reflector radiosity (more than one partially-reflective enclosure
+  surface) is out of scope for this tier.
+- **`correlated`** (default `false`) selects how per-surface temperature
+  uncertainties combine: `false` combines them independently, in
+  quadrature; `true` treats every surface's temperature error as moving
+  together (a shared calibration-chain error) and combines them linearly
+  before taking the magnitude, never smaller than the independent mode
+  for the same inputs.
+- **A uniform, single-surface environment** (`weight: 1.0`, no
+  `emissivity`) reduces to `radiation_temperature_K`'s result bit for
+  bit, not just numerically.
+- **The report's `uncertainty_notes`** lists every surface's
+  name/weight/temperature, the per-moment effective temperatures
+  `T_eff,n` (one per registry dynamic-term power plus `n=4`), and the
+  uncertainty combination mode.
 
 ### Gravitational redshift (`environment.gravity:`, WP22)
 

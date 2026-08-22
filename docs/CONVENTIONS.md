@@ -1,12 +1,16 @@
 # Physics & Numerical Conventions: CliffordClock
 
-**Version:** 1.4.0 · **Status: reviewed and approved** (2026-08-11, per
+**Version:** 1.5.0 · **Status: reviewed and approved** (2026-08-11, per
 the project's G9 theory sign-off record, following
 the owner's trigger after reviewing the Fortier/Luiten/Margolis survey
 (Optica 13, 143 (2026)): mm-scale extended samples and their gravitational
-redshift observable). §15 (E36) was approved 2026-08-11 conditional on the
-A1 computed-magnitude regression and the A4 extended-mode dispersion-
-labeling edit; see §15's sign-off note for the itemized record.
+redshift observable), **plus §13's E37 addition (2026-08-22, WP29 Tier 1)**,
+a multi-surface generalization of the already-approved E32/E33 BBR term
+specified directly by the project owner following the project's internal
+BBR thermal-environment research dossier, not carrying its own separate
+formalism sign-off record. §15 (E36) was approved 2026-08-11
+conditional on the A1 computed-magnitude regression and the A4 extended-mode
+dispersion-labeling edit; see §15's sign-off note for the itemized record.
 §1–§11 (E1–E28) were reviewed and
 approved 2026-08-08 (signature/metric convention, the ħ-vs-h resolution,
 the E14 coupling split, the rotor/Ω construction, the T₂* formula, and the
@@ -528,6 +532,163 @@ a published standard-formula evaluation") ratified: that benchmark case
 itself is a separate, later WP step with its own review, not part of this
 sign-off's implementation scope.
 
+**(E37) Multi-surface thermal environment (v1.5.0, WP29 Tier 1).** Motivation
+(Jun Ye, JILA, relayed to the project owner: for a field-deployed clock "the
+thermal environment (the blackbody radiation distribution)" is a bigger
+concern than a DC electric field): E32's single radiation temperature `T` is
+the `⟨T⁴⟩`-matched effective temperature of the atoms' real surroundings, and
+because the dynamic term scales as `T⁶` through `T¹⁰`, a `T` chosen to match
+the static moment does not in general reproduce the higher moments of a
+non-uniform environment. The project's internal BBR thermal-environment
+dossier quantifies the resulting mismatch against the Sr-87 registry
+coefficients: it
+crosses `1e-18` at an 11 K spread across two surfaces and `1e-17` by 35 K, well
+within what an uncontrolled or partially thermally controlled enclosure can
+show. E37 replaces the single `T` with an explicit multi-surface description
+and evaluates E32's static and dynamic terms directly against that
+description's per-moment sums, so the mismatch above is computed exactly
+instead of approximated away.
+
+*Surfaces and weights.* The enclosure is described as `N` surfaces, each
+carrying an effective solid-angle fraction `w_i` (`Omega_i/4pi`), a
+temperature `T_i`, an optional temperature uncertainty `sigma_{T_i}`, and an
+optional emissivity `epsilon_i`. The fractions are an input, not a computed
+quantity: v1 takes `w_i` as supplied by the lab (from geometry, an FEA model,
+or a ray-traced exchange-factor calculation, per the dossier's part A survey
+of how every published evaluation already does this reduction), with no CAD
+import in this tier. `sum_i w_i = 1` is enforced at parse time and again at
+evaluation time, both to a `1e-9` absolute tolerance
+(`cliffordclock.integrator.omega.BBR_ENVIRONMENT_WEIGHT_TOLERANCE`); an
+unnormalized set of fractions is a configuration error, not something the
+engine silently renormalizes.
+
+*Emissivity correction: one enclosure, one or more apertures.* PTB's
+transportable-clock paper (Nosske et al., arXiv:2507.14030) models the
+atoms as sitting inside a single reflective enclosure of interior
+emissivity `epsilon`, pierced by one or more apertures leaking in a
+different temperature; the enclosure's own reflections give that leaked-in
+radiation more chances to reach the atoms than its raw geometric solid
+angle alone would suggest. Their published closed form, for one aperture
+of raw fraction `w = Omega/4pi`, is
+
+    Omega_eff/4pi = 1 / [1 + (4pi/Omega - 1) * epsilon]
+
+equivalently `w_eff = w / (w + (1 - w) * epsilon)`. `epsilon = 1` (a
+perfectly absorbing interior) reduces this to `w_eff = w`, the naive
+geometric weighting; as `epsilon` drops toward 0 (a more reflective
+interior), `w_eff` grows past `w`.
+
+E37 carries this topology directly: at most one surface in an environment
+may set an `epsilon_i`, and that surface is the enclosure; every other
+surface is a direct-view aperture. Writing `W` for the apertures' combined
+raw fraction (`sum` of their `w_i`, jointly forming the single lumped
+aperture PTB's formula treats), each aperture's effective fraction is
+
+    w_i_eff = w_i / (W + (1 - W) * epsilon)
+
+PTB's own single-aperture formula with `w` replaced by the combined `W`,
+then split across the individual apertures in proportion to their own raw
+share of `W`; summing every `w_i_eff` over the apertures reproduces PTB's
+combined effective fraction exactly. For a single aperture (`W = w_1`)
+this is PTB's formula unchanged, character for character: `w=0.1`,
+`epsilon=0.5` gives `w_eff = 0.1/0.55 = 0.181818...`, matching PTB's own
+worked value. The enclosure then gets whatever effective fraction is
+left, `1 - sum_i w_i_eff` (here `0.818182...`), never a value computed
+from its own raw `weight`: PTB's derivation is a two-temperature mixture
+(the enclosure, the leaked-in aperture temperature), so the two effective
+fractions are complementary by construction, not independently
+renormalized shares of every surface's weight. An environment with no
+`epsilon_i` set on any surface returns every raw `w_i` unchanged.
+**Scope boundary:** multi-reflector radiosity (more than one partially-
+reflective enclosure surface, each contributing its own reflected share)
+is out of scope for this tier and is rejected with a configuration error
+naming the boundary; a future tier that needs it is genuine future work,
+not an oversight here. Implemented in
+`cliffordclock.integrator.omega._bbr_effective_weights`.
+
+*Per-moment sums.* Write `T0 = BBR_REFERENCE_TEMPERATURE_K = 300 K` and let
+`M_n = sum_i w_eff_i * (T_i/T0)^n` be the `n`-th weighted moment over the
+(effective-weight-corrected) surfaces. E32's static and dynamic terms are
+evaluated directly against these moments in place of a single `(T/T0)^n`
+power:
+
+    (P-1)_BBR = [Delta_nu_stat * M_4 + sum_n c_n * M_n] / nu_0
+
+with `c_n` the same per-species `dyn_coeffs_hz` registry entries E32 already
+uses. Equivalently, each moment defines its own per-moment effective
+temperature `T_eff,n = T0 * M_n^(1/n)`; for a non-uniform environment
+`T_eff,4` (the static-term match) and `T_eff,6`/`T_eff,8`/`T_eff,10` (the
+dynamic-term matches) are generally different numbers, and that divergence is
+exactly the mismatch the dossier's part C quantifies. The pipeline report
+exposes all of a run's `T_eff,n` values (one per registry-dynamic power plus
+`n=4`) so a user can see this divergence directly instead of inferring it
+from the shift alone. Implemented in
+`cliffordclock.integrator.omega.bbr_environment_pivot_perturbation` (the
+scalar shift) and `bbr_environment_effective_temperatures` (the `T_eff,n`
+values), both consuming
+`cliffordclock.integrator.omega._bbr_weighted_moments`.
+
+*Exact reduction to E32.* A uniform environment (one surface, `w_1 = 1`, no
+emissivity) makes every `M_n` equal to `(T_1/T0)^n` exactly, so E37 reduces to
+E32 term for term, not just to numerical agreement: `E32`'s scalar
+`bbr_pivot_perturbation(T, species)` is implemented as the single-surface call
+`bbr_environment_pivot_perturbation((RadiationSurface(weight=1.0,
+temperature_k=T, ...),), species)`, so the two paths share the same
+coefficient-evaluation code and agree bit for bit, an exact reproduction
+(`tests/test_bbr_environment.py`'s reduction test).
+
+*Validity window.* The `50-350 K` fit-range window E32 already states
+(`BBR_VALIDITY_MIN_K`/`BBR_VALIDITY_MAX_K`, per-species
+`BbrCoefficients.validity_min_k`/`validity_max_k`) applies to every surface's
+`T_i` individually: a single out-of-window surface is rejected with the same
+class of error the single-temperature path raises (`PipelineConfigError` at
+the pipeline's config-parse boundary; `ValueError` from
+`cliffordclock.integrator.omega` when the environment functions are called
+directly), for the same reason E32 states it: silently extrapolating the fit
+past its published support is exactly how wrong clock corrections get made.
+
+*Uncertainty.* Per-surface temperature uncertainties `sigma_{T_i}` propagate
+through the same analytic-derivative pattern `bbr_pivot_uncertainty` already
+uses for a single `T` (CONVENTIONS.md section 13's uncertainty note above):
+writing `a_i = w_eff_i * d(Delta_nu_hz)/dT` evaluated at `T_i` (the same
+polynomial derivative E32's uncertainty note gives, scaled by the surface's
+own effective weight), two combination modes are supported.
+**Independent** (the default): the surfaces' temperature errors are treated
+as uncorrelated and combined in quadrature,
+`sigma_T = sqrt(sum_i (a_i * sigma_{T_i})^2)`. **Correlated**
+(`correlated=true`): the surfaces' temperature errors are treated as moving
+together (a single shared calibration-chain error affecting every sensor
+coherently, the motivation Aeppli's 2025 JILA thesis gives for combining its
+own four correlated temperature estimates by linear pooling instead of
+independent averaging, per the dossier's part A), so the per-surface terms
+are summed linearly before taking the magnitude,
+`sigma_T = |sum_i (a_i * sigma_{T_i})|`. For same-sign partials (the ordinary
+case: every registry coefficient here is negative, so every `a_i` is
+negative) the correlated combination is never smaller than the independent
+one, and strictly larger whenever more than one surface carries a nonzero
+uncertainty, since an L1 norm is never smaller than the corresponding L2
+norm. Either `sigma_T` is combined in quadrature with the same
+coefficient-uncertainty term E32's uncertainty note already computes
+(`arithmetic-reproduction fidelity`, not an independent BBR-accuracy claim,
+the same caveat as the single-`T` path). Implemented in
+`cliffordclock.integrator.omega.bbr_environment_pivot_uncertainty`.
+
+**Scope boundary.** E37 is position-independent within the atom cloud in
+this tier: every atom sees the identical enclosure description, exactly as
+E32's single `T` is spatially uniform across the cloud today. A per-atom
+solid-angle map (the atoms' own extent changing which fraction of each
+surface they see, the dossier's part D/E "per-atom effective moments"
+product) is future work, not built here; E37's spin-connection contribution
+is therefore exactly zero for the same reason E32's is (CONVENTIONS.md
+section 13's composition note above), and the same keyword-only
+`bbr_pivot_perturbation` composition point E33 already threads through every
+evaluation mode carries E37's resolved scalar with no further signature
+change. Config surface: `environment.radiation_environment` (a list of
+per-surface `name`/`weight`/`temperature_K`/`temperature_uncertainty_K`/
+`emissivity` entries plus a `correlated` flag), mutually exclusive with
+`environment.radiation_temperature_K`
+(`cliffordclock.pipeline.EnvironmentConfig`).
+
 ## 14. Ion-clock electric-quadrupole shift (v1.3.0, WP21 Tier 2)
 
 Motivation (owner, 2026-08-11: "what would it take to add [ions]?"): a
@@ -983,6 +1144,16 @@ deliberate, not coincidental.
 
 ---
 *Changelog:*
+*1.5.0 (2026-08-22): WP29 Tier 1, specified directly by the project owner
+following the project's internal BBR thermal-environment research dossier
+(no separate formalism sign-off ceremony recorded for this entry): §13
+extended with E37
+(multi-surface BBR thermal environment: per-surface weight/temperature/
+emissivity input, the PTB aperture-form emissivity correction, per-moment
+sums replacing the single-`T` static/dynamic evaluation, per-moment
+effective temperatures `T_eff,n`, the exact bit-for-bit reduction to E32 for
+a uniform environment, and independent/correlated per-surface temperature-
+uncertainty combination modes).*
 *1.4.0 (2026-08-11): WP22, G9 theory sign-off (conditional on the A1
 computed-magnitude regression and the A4 dispersion-labeling edit, both
 satisfied): §15 added (E36 gravitational-redshift pivot term, its sign/
