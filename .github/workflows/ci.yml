@@ -33,7 +33,10 @@ jobs:
   test:
     name: Test (fast)
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    # 25, not 15: the not-slow set measured 15m15s+ on the 2-core runner
+    # (the local profiling that suggested under 10 minutes does not
+    # transfer 1:1); 25 leaves headroom without masking a hang.
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
 
