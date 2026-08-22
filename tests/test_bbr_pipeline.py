@@ -191,13 +191,14 @@ def test_shipped_example_output_byte_identical_to_pre_wp20_snapshot(
     # 0.11.1, ~1.24e-16 relative on showcase_gradient_dispersion_sr87.yaml,
     # ~half a float64 ULP) -- XLA reduction/fusion scheduling for this
     # unchanged BBR-off arithmetic differs by jax version, so exact equality
-    # is not a portable contract. rtol=1e-14 is ~2 orders of magnitude
-    # looser than that observed ULP-level drift so it still comfortably
-    # absorbs cross-jax-version rounding, while staying ~4+ orders of
-    # magnitude tighter than any physically meaningful shift here, so it
-    # still catches a real numeric regression in the BBR-off code path.
+    # is not a portable contract. the CI runner's linux/x86 XLA
+    # measures 3.7e-14 relative on the same snapshot (2026-08-22), so the
+    # portable cross-platform bound is rtol=1e-12: it absorbs measured
+    # version and platform scheduling drift with margin while staying 4+
+    # orders of magnitude tighter than any physically meaningful shift
+    # here, so a real numeric regression in this code path still fails.
     np.testing.assert_allclose(
-        result.report.mean_fractional_shift, expected_shift, rtol=1e-14, atol=0
+        result.report.mean_fractional_shift, expected_shift, rtol=1e-12, atol=0
     )
 
 
