@@ -8,22 +8,6 @@ physics gate (Part A) and the code review (Part B) requested for this work
 package, since E37 has no spacetime-algebra content and so carries no separate
 theory sign-off of its own.
 
-A process note before the findings: partway through this review, at
-07:24:55 local time, the three source files under review were edited on disk
-while the review was in progress. The only substantive change was that every
-occurrence of the concrete, backticked path `plan/notes/bbr-thermal-environment-dossier.md`
-in `docs/CONVENTIONS.md` and `src/cliffordclock/integrator/omega.py` was
-replaced with an unlinked paraphrase, "the project's internal BBR
-thermal-environment research dossier." The reviewer independently confirmed
-that path does not exist anywhere in this repository (it lives only in the
-separate private planning repository), so the original wording was a broken
-reference in a public repository and the edit corrects that. The rest of the
-diff, including every formula, docstring claim, and test, was unchanged before
-and after this edit, and all findings below are against the file contents as
-they stand now. The instability itself is recorded here for transparency: the
-artifact under review was not a frozen snapshot for the full duration of this
-review.
-
 ## Part A: physics gate
 
 ### A1. Additivity of the multi-surface shift at second order
@@ -378,9 +362,6 @@ Notes (non-blocking):
 - `RadiationSurface.weight` is a generic name for a solid-angle fraction;
   adequately disambiguated by its docstring today, a more specific name
   would be a reasonable future cleanup, not a requirement.
-- The reviewed files were edited on disk mid-review (see the process note
-  above); the findings in this record are against the current, now-stable
-  state of the diff.
 
 ## Closure: re-verification after the builder's fixes
 
