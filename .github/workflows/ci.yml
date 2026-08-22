@@ -30,15 +30,10 @@ on:
         default: false
 
 jobs:
-  test:
-    name: Test (fast)
+  checks:
+    name: Lint, format, types
     runs-on: ubuntu-latest
-    # 40: the not-slow set measured past 25 minutes of runner time
-    # (local profiling does not transfer 1:1 to 2 shared x86 cores; JAX
-    # compile time dominates tests that are seconds on a laptop). A
-    # runner-side --durations profile should drive a second slow-marking
-    # pass; until then 40 is the measured-reality cap.
-    timeout-minutes: 40
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
 
@@ -60,16 +55,44 @@ jobs:
       - name: Type check (mypy)
         run: mypy src/
 
-      - name: Test (pytest, excluding slow)
-        run: pytest -m "not slow" --cov
+  test:
+    name: Test (fast, shard ${{ matrix.shard }})
+    runs-on: ubuntu-latest
+    # Sharded: the not-slow set alone exceeded 40 minutes as a single job
+    # on a 2-core runner (JAX compile time dominates tests that are
+    # seconds on a laptop), so it runs as three parallel file-sharded
+    # jobs; wall time is the slowest shard. Balance is by file count,
+    # revisit with a runner-side --durations profile if a shard grows.
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [0, 1, 2]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install package with dev dependencies
+        run: pip install -e ".[dev]"
+
+      - name: Test (pytest, excluding slow, this shard's files)
+        run: |
+          FILES=$(ls tests/test_*.py | sort | awk "NR % 3 == ${{ matrix.shard }}")
+          echo "shard ${{ matrix.shard }} files:"; echo "$FILES"
+          pytest $FILES -m "not slow" --cov
         env:
-          COVERAGE_FILE: .coverage.fast
+          COVERAGE_FILE: .coverage.fast${{ matrix.shard }}
 
       - name: Upload coverage data
         uses: actions/upload-artifact@v4
         with:
-          name: coverage-fast
-          path: .coverage.fast
+          name: coverage-fast-${{ matrix.shard }}
+          path: .coverage.fast${{ matrix.shard }}
           retention-days: 1
           if-no-files-found: error
           # upload-artifact@v4 excludes dotfiles by default; the coverage
@@ -117,6 +140,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     needs: [test, test-slow]
+    # (matrix `test` gates on all three shards)
     steps:
       - uses: actions/checkout@v4
 
@@ -136,7 +160,7 @@ jobs:
 
       - name: Combine and enforce 90% coverage
         run: |
-          coverage combine .coverage.fast .coverage.slow
+          coverage combine
           coverage report --fail-under=90
 
   notebooks:
