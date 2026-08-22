@@ -590,9 +590,11 @@ PTB's own single-aperture formula with `w` replaced by the combined `W`,
 then split across the individual apertures in proportion to their own raw
 share of `W`; summing every `w_i_eff` over the apertures reproduces PTB's
 combined effective fraction exactly. For a single aperture (`W = w_1`)
-this is PTB's formula unchanged, character for character: `w=0.1`,
-`epsilon=0.5` gives `w_eff = 0.1/0.55 = 0.181818...`, matching PTB's own
-worked value. The enclosure then gets whatever effective fraction is
+this is PTB's formula unchanged, character for character: an
+illustrative round-number check of this project's own choosing, `w=0.1`,
+`epsilon=0.5`, gives `w_eff = 0.1/0.55 = 0.181818...` from that formula
+(the paper itself publishes only its apparatus values, aperture fraction
+`1.17(3)e-3` with `epsilon = 0.926(43)`). The enclosure then gets whatever effective fraction is
 left, `1 - sum_i w_i_eff` (here `0.818182...`), never a value computed
 from its own raw `weight`: PTB's derivation is a two-temperature mixture
 (the enclosure, the leaked-in aperture temperature), so the two effective

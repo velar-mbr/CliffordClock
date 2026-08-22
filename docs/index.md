@@ -100,3 +100,9 @@ Background and design reasoning, for understanding *why*:
   one real clock, the JILA Sr system: the covered slice of its
   published systematic evaluation computed from published inputs,
   beside the lab's own numbers, in a single composed pipeline run.
+- [`notebooks/12_thermal_environment.ipynb`](../notebooks/12_thermal_environment.ipynb):
+  the multi-surface thermal environment (E37), quantifying live where a
+  single effective temperature stops representing a real, non-uniform
+  enclosure, against the PTB aperture formula and a JILA
+  temperature-step check, then a field-deployment sensitivity band from
+  per-surface sensor readings and uncertainties.

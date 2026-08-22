@@ -172,6 +172,12 @@ single number per point can't express; details in
   evaluation, the JILA Sr system, with the covered rows computed from
   published inputs beside the lab's own numbers in a single composed
   pipeline run.
+- [`notebooks/12_thermal_environment.ipynb`](https://github.com/velar-mbr/CliffordClock/blob/main/notebooks/12_thermal_environment.ipynb):
+  the multi-surface thermal environment (E37), for field-deployed
+  clocks sitting in a real, non-uniform radiation environment no lab
+  shield has engineered flat, quantifying live where a single effective
+  temperature stops representing it and closing with a sensitivity band
+  built from per-surface sensor readings and uncertainties.
 
 ## Documentation
 

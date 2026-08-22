@@ -91,6 +91,15 @@ doi = "10.1063/1.347610"
 source = "paper/refs.bib"
 
 [[paper]]
+key = "Aeppli2025thesis"
+authors = "Aeppli, Alexander Gerald"
+surnames = ["Aeppli"]
+title = "Clock with 8 x 10^-19 systematic uncertainty"
+venue = "PhD thesis, University of Colorado Boulder, Department of Physics"
+year = [2025]
+source = "Owner-supplied PDF, title page read directly (2026-08-22 session); thesis directed by Professor Jun Ye; cited in docs/CONVENTIONS.md E37 and notebooks/12_thermal_environment.ipynb"
+
+[[paper]]
 key = "Aeppli2024"
 authors = "Aeppli, Alexander and Kim, Kyungtae and Warfield, William and Safronova, Marianna S. and Ye, Jun"
 surnames = ["Aeppli", "Kim", "Warfield", "Safronova", "Ye"]
