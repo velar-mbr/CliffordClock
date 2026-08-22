@@ -421,7 +421,15 @@ def test_shipped_example_output_byte_identical_with_wp22_present(
 
     result = run_pipeline_full(config)
 
-    np.testing.assert_allclose(result.report.mean_fractional_shift, expected_shift, rtol=0, atol=0)
+    # rtol=1e-14, not 0: the same cross-jax-version XLA scheduling drift
+    # documented at test_bbr_pipeline.py's sibling snapshot test (observed
+    # ~1.24e-16 relative on the showcase example in a freshly resolved
+    # venv, about half a float64 ULP) breaks a bit-for-bit contract while
+    # leaving any real numeric regression 4+ orders of magnitude outside
+    # this bound.
+    np.testing.assert_allclose(
+        result.report.mean_fractional_shift, expected_shift, rtol=1e-14, atol=0
+    )
 
 
 @pytest.mark.slow
