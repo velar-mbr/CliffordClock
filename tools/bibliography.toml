@@ -100,6 +100,15 @@ year = [2025]
 source = "Owner-supplied PDF, title page read directly (2026-08-22 session); thesis directed by Professor Jun Ye; cited in docs/CONVENTIONS.md E37 and notebooks/12_thermal_environment.ipynb"
 
 [[paper]]
+key = "Bothwell2022thesis"
+authors = "Bothwell, Tobias"
+surnames = ["Bothwell"]
+title = "A Wannier-Stark Optical Lattice Clock With Extended Coherence Times"
+venue = "PhD thesis, University of Colorado Boulder"
+year = [2022]
+source = "Wayback Machine snapshot (2025-10-21) of jila.colorado.edu/sites/default/files/2022-05/Bothwell_thesis_2022.pdf, read directly (2026-08-22 session); thesis advised by Jun Ye; cited in notebooks/12_thermal_environment.ipynb"
+
+[[paper]]
 key = "Aeppli2024"
 authors = "Aeppli, Alexander and Kim, Kyungtae and Warfield, William and Safronova, Marianna S. and Ye, Jun"
 surnames = ["Aeppli", "Kim", "Warfield", "Safronova", "Ye"]
