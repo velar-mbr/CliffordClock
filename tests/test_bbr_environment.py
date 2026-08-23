@@ -18,12 +18,14 @@ scheme that did not reduce to PTB's own two-surface formula).
 
 from __future__ import annotations
 
+import json
 from decimal import Decimal, getcontext
 from pathlib import Path
 
 import numpy as np
 import pytest
 
+from cliffordclock.cli import main as cli_main
 from cliffordclock.ensemble.species import get_species
 from cliffordclock.integrator.omega import (
     BBR_ENVIRONMENT_WEIGHT_TOLERANCE,
@@ -39,6 +41,7 @@ from cliffordclock.pipeline import (
     PipelineConfig,
     PipelineConfigError,
     RadiationEnvironmentConfig,
+    _load_radiation_surfaces_file,
     _parse_environment,
     run_pipeline_full,
 )
@@ -740,3 +743,448 @@ def test_environment_dataclass_equality_unaffected_when_radiation_environment_ab
     """
     assert EnvironmentConfig() == EnvironmentConfig()
     assert EnvironmentConfig().radiation_environment is None
+
+
+# ---------------------------------------------------------------------------
+# 7. `surfaces_file` (WP29 Tier 1 Part 1): the surfaces-table-file loader,
+#    its mutual exclusivity with inline `surfaces`, path resolution
+#    relative to the config file, the `--radiation-surfaces` CLI flag, and
+#    a file-vs-inline equivalence proof.
+# ---------------------------------------------------------------------------
+
+
+def _write_surfaces_file(path: Path, text: str) -> Path:
+    path.write_text(text, encoding="utf-8")
+    return path
+
+
+def test_load_radiation_surfaces_file_valid_with_comments_and_placeholders(
+    tmp_path: Path,
+) -> None:
+    path = _write_surfaces_file(
+        tmp_path / "surfaces.txt",
+        """
+        # a leading comment, and a blank line above/below
+
+        shield 0.9 100.0 - 0.5   # trailing comment
+        aperture 0.1 300.0 0.01 -
+        """,
+    )
+    surfaces = _load_radiation_surfaces_file(path)
+    assert surfaces == [
+        {"name": "shield", "weight": 0.9, "temperature_K": 100.0, "emissivity": 0.5},
+        {
+            "name": "aperture",
+            "weight": 0.1,
+            "temperature_K": 300.0,
+            "temperature_uncertainty_K": 0.01,
+        },
+    ]
+
+
+def test_load_radiation_surfaces_file_minimal_three_column_rows(tmp_path: Path) -> None:
+    path = _write_surfaces_file(tmp_path / "surfaces.txt", "only_surface 1.0 300.0\n")
+    surfaces = _load_radiation_surfaces_file(path)
+    assert surfaces == [{"name": "only_surface", "weight": 1.0, "temperature_K": 300.0}]
+
+
+def test_load_radiation_surfaces_file_bad_column_count_too_few(tmp_path: Path) -> None:
+    path = _write_surfaces_file(tmp_path / "surfaces.txt", "only_two_columns 1.0\n")
+    with pytest.raises(PipelineConfigError, match=r"line 1.*expected 3 to 5 columns"):
+        _load_radiation_surfaces_file(path)
+
+
+def test_load_radiation_surfaces_file_bad_column_count_too_many(tmp_path: Path) -> None:
+    path = _write_surfaces_file(tmp_path / "surfaces.txt", "a 1.0 300.0 0.01 0.5 extra\n")
+    with pytest.raises(PipelineConfigError, match=r"line 1.*expected 3 to 5 columns"):
+        _load_radiation_surfaces_file(path)
+
+
+@pytest.mark.parametrize(
+    ("line", "column"),
+    [
+        ("a not_a_number 300.0", "weight"),
+        ("a 1.0 not_a_number", "temperature_K"),
+        ("a 1.0 300.0 not_a_number", "temperature_uncertainty_K"),
+        ("a 1.0 300.0 0.01 not_a_number", "emissivity"),
+    ],
+)
+def test_load_radiation_surfaces_file_non_numeric_column_raises(
+    tmp_path: Path, line: str, column: str
+) -> None:
+    path = _write_surfaces_file(tmp_path / "surfaces.txt", line + "\n")
+    with pytest.raises(PipelineConfigError, match=rf"line 1: non-numeric {column} value"):
+        _load_radiation_surfaces_file(path)
+
+
+def test_load_radiation_surfaces_file_blank_name_placeholder_token_rejected(
+    tmp_path: Path,
+) -> None:
+    path = _write_surfaces_file(tmp_path / "surfaces.txt", "- 1.0 300.0\n")
+    with pytest.raises(PipelineConfigError, match=r"line 1: blank surface name"):
+        _load_radiation_surfaces_file(path)
+
+
+def test_load_radiation_surfaces_file_leading_bom_stripped(tmp_path: Path) -> None:
+    """A UTF-8 byte-order mark (a plain Notepad "Save As UTF-8" file
+    carries one) must not end up glued onto the first surface's `name` --
+    read with `encoding="utf-8-sig"`, the file parses to the identical
+    result the same bytes minus the BOM would.
+    """
+    no_bom_path = _write_surfaces_file(tmp_path / "no_bom.txt", "shield 1.0 300.0\n")
+    bom_path = tmp_path / "with_bom.txt"
+    bom_path.write_bytes(b"\xef\xbb\xbf" + b"shield 1.0 300.0\n")
+
+    no_bom_surfaces = _load_radiation_surfaces_file(no_bom_path)
+    bom_surfaces = _load_radiation_surfaces_file(bom_path)
+
+    assert bom_surfaces == no_bom_surfaces
+    assert bom_surfaces[0]["name"] == "shield"
+
+
+def test_load_radiation_surfaces_file_empty_after_stripping_comments_raises(
+    tmp_path: Path,
+) -> None:
+    path = _write_surfaces_file(tmp_path / "surfaces.txt", "# only a comment\n\n")
+    with pytest.raises(PipelineConfigError, match=r"no surface rows found"):
+        _load_radiation_surfaces_file(path)
+
+
+def test_load_radiation_surfaces_file_missing_file_raises(tmp_path: Path) -> None:
+    with pytest.raises(PipelineConfigError, match=r"cannot read"):
+        _load_radiation_surfaces_file(tmp_path / "does_not_exist.txt")
+
+
+def test_radiation_environment_surfaces_and_surfaces_file_mutually_exclusive(
+    tmp_path: Path,
+) -> None:
+    path = _write_surfaces_file(tmp_path / "surfaces.txt", "a 1.0 300.0\n")
+    with pytest.raises(PipelineConfigError, match=r"mutually exclusive"):
+        _parse_environment(
+            {
+                "radiation_environment": {
+                    "surfaces": [{"name": "a", "weight": 1.0, "temperature_K": 300.0}],
+                    "surfaces_file": str(path),
+                }
+            }
+        )
+
+
+def test_radiation_environment_neither_surfaces_nor_surfaces_file_raises() -> None:
+    with pytest.raises(PipelineConfigError, match=r"must specify one of 'surfaces'"):
+        _parse_environment({"radiation_environment": {}})
+
+
+def test_radiation_environment_inline_surfaces_duplicate_name_raises() -> None:
+    """The duplicate-name check runs in `_parse_radiation_environment`'s
+    shared per-entry loop, so an inline YAML `surfaces:` list is checked
+    exactly like a `surfaces_file` (see the `surfaces_file` counterpart
+    below) -- a duplicate name is a config mistake in either syntax, and
+    the file form must not be stricter than the inline form.
+    """
+    with pytest.raises(PipelineConfigError, match=r"surfaces\[1\]\.name='dup' is a duplicate"):
+        _parse_environment(
+            {
+                "radiation_environment": {
+                    "surfaces": [
+                        {"name": "dup", "weight": 0.5, "temperature_K": 300.0},
+                        {"name": "dup", "weight": 0.5, "temperature_K": 300.0},
+                    ]
+                }
+            }
+        )
+
+
+def test_radiation_environment_surfaces_file_duplicate_name_raises(tmp_path: Path) -> None:
+    """Mirrors `test_radiation_environment_inline_surfaces_duplicate_name_raises`
+    for the `surfaces_file` form: the file loader itself no longer checks
+    for duplicates (`_load_radiation_surfaces_file`'s docstring), so this
+    proves the shared post-convergence check still catches it, naming the
+    offending surface.
+    """
+    path = _write_surfaces_file(tmp_path / "surfaces.txt", "dup 0.5 300.0\ndup 0.5 300.0\n")
+    with pytest.raises(PipelineConfigError, match=r"surfaces\[1\]\.name='dup' is a duplicate"):
+        _parse_environment({"radiation_environment": {"surfaces_file": str(path)}})
+
+
+def test_radiation_environment_surfaces_file_relative_path_resolved_against_base_dir(
+    tmp_path: Path,
+) -> None:
+    """A relative `surfaces_file` is resolved against `base_dir` (the
+    config file's own directory), not the process's current working
+    directory -- mirrors `field.comsol`'s config-relative resolution
+    idiom, threaded here via `_parse_environment`'s `base_dir` kwarg.
+    """
+    config_dir = tmp_path / "configs"
+    config_dir.mkdir()
+    _write_surfaces_file(config_dir / "surfaces.txt", "a 1.0 300.0\n")
+
+    cfg = _parse_environment(
+        {"radiation_environment": {"surfaces_file": "surfaces.txt"}}, base_dir=config_dir
+    )
+    assert cfg.radiation_environment is not None
+    assert cfg.radiation_environment.surfaces[0].name == "a"
+
+
+def test_radiation_environment_surfaces_file_absolute_path_ignores_base_dir(
+    tmp_path: Path,
+) -> None:
+    surfaces_path = _write_surfaces_file(tmp_path / "surfaces.txt", "a 1.0 300.0\n")
+    unrelated_dir = tmp_path / "unrelated"
+    unrelated_dir.mkdir()
+
+    cfg = _parse_environment(
+        {"radiation_environment": {"surfaces_file": str(surfaces_path)}}, base_dir=unrelated_dir
+    )
+    assert cfg.radiation_environment is not None
+    assert cfg.radiation_environment.surfaces[0].name == "a"
+
+
+def test_radiation_environment_surfaces_file_without_base_dir_resolves_relative_to_cwd(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """`base_dir=None` (the `PipelineConfig.from_dict` default for a caller
+    that did not go through `from_yaml`) leaves a relative `surfaces_file`
+    to resolve against the process's current working directory, same as
+    `field.csv`/`field.comsol` already behave.
+    """
+    _write_surfaces_file(tmp_path / "surfaces.txt", "a 1.0 300.0\n")
+    monkeypatch.chdir(tmp_path)
+
+    cfg = _parse_environment({"radiation_environment": {"surfaces_file": "surfaces.txt"}})
+    assert cfg.radiation_environment is not None
+    assert cfg.radiation_environment.surfaces[0].name == "a"
+
+
+def test_radiation_environment_surfaces_file_feeds_existing_weight_sum_check(
+    tmp_path: Path,
+) -> None:
+    """The file loader's output runs through the exact same weight-
+    normalization check the inline `surfaces:` list does -- not a second,
+    file-specific copy of it.
+    """
+    path = _write_surfaces_file(tmp_path / "surfaces.txt", "a 0.5 300.0\nb 0.6 300.0\n")
+    with pytest.raises(PipelineConfigError, match=r"must sum to 1"):
+        _parse_environment({"radiation_environment": {"surfaces_file": str(path)}})
+
+
+def test_radiation_environment_surfaces_file_feeds_existing_validity_window_check(
+    tmp_path: Path,
+) -> None:
+    path = _write_surfaces_file(tmp_path / "surfaces.txt", "a 1.0 500.0\n")
+    with pytest.raises(PipelineConfigError, match=r"outside the validated BBR fit range"):
+        _parse_environment({"radiation_environment": {"surfaces_file": str(path)}})
+
+
+def test_radiation_environment_surfaces_file_and_inline_yaml_produce_byte_identical_results(
+    tmp_path: Path,
+) -> None:
+    """WP29 Tier 1 Part 1's core equivalence claim: a `surfaces_file`-loaded
+    environment and the identical inline `surfaces:` list produce the same
+    `RadiationEnvironmentConfig` and, run through the full pipeline,
+    byte-identical `mean_fractional_shift` -- the file form is a different
+    way to spell the same config, not a different code path past parsing.
+    """
+    inline_data = _base_lattice_stark_dict(tmp_path / "inline")
+    inline_data["environment"] = {
+        "radiation_environment": {
+            "surfaces": [
+                {"name": "cold_half", "weight": 0.5, "temperature_K": 280.0},
+                {"name": "warm_half", "weight": 0.5, "temperature_K": 320.0},
+            ]
+        }
+    }
+    inline_config = PipelineConfig.from_dict(inline_data)
+    inline_result = run_pipeline_full(inline_config)
+
+    surfaces_path = _write_surfaces_file(
+        tmp_path / "surfaces.txt", "cold_half 0.5 280.0\nwarm_half 0.5 320.0\n"
+    )
+    file_data = _base_lattice_stark_dict(tmp_path / "file")
+    file_data["environment"] = {"radiation_environment": {"surfaces_file": str(surfaces_path)}}
+    file_config = PipelineConfig.from_dict(file_data)
+    file_result = run_pipeline_full(file_config)
+
+    assert (
+        file_config.environment.radiation_environment
+        == inline_config.environment.radiation_environment
+    )
+    assert file_result.report.mean_fractional_shift == inline_result.report.mean_fractional_shift
+
+
+def test_cli_radiation_surfaces_flag_injects_radiation_environment(
+    tmp_path: Path,
+) -> None:
+    surfaces_path = _write_surfaces_file(
+        tmp_path / "surfaces.txt", "cold_half 0.5 280.0\nwarm_half 0.5 320.0\n"
+    )
+    config_path = tmp_path / "config.yaml"
+    config_path.write_text(
+        """
+        species: Sr87
+        trap:
+          omega_xyz: [2.0e+5, 2.0e+5, 2.0e+5]
+        field:
+          synthetic:
+            kind: uniform
+            params:
+              e0: [0.0, 0.0, 100.0]
+        coupling:
+          type: stark_dc
+        ensemble:
+          regime: lattice
+          temperature_uK: 1.0
+          motional_n: [0, 0, 0]
+          n_quad: 1
+        integration:
+          time_s: 1.0
+        """,
+        encoding="utf-8",
+    )
+    out_dir = tmp_path / "out"
+    exit_code = cli_main(
+        [
+            "run",
+            str(config_path),
+            "--output-dir",
+            str(out_dir),
+            "--radiation-surfaces",
+            str(surfaces_path),
+        ]
+    )
+    assert exit_code == 0
+    report_data = json.loads((out_dir / "report.json").read_text(encoding="utf-8"))
+    assert "cold_half" in report_data["uncertainty_notes"]
+    assert "warm_half" in report_data["uncertainty_notes"]
+
+
+def test_cli_radiation_surfaces_flag_resolves_relative_to_cwd_not_config_dir(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The flag's path is resolved relative to the CURRENT WORKING
+    DIRECTORY, not the config file's own directory -- the opposite rule
+    from a YAML-supplied `surfaces_file` (`_parse_radiation_environment`'s
+    `base_dir` resolution). Here the config file lives in `configs/` but
+    the surfaces file lives at the run's cwd, and only a cwd-relative
+    lookup finds it.
+    """
+    config_dir = tmp_path / "configs"
+    config_dir.mkdir()
+    config_path = config_dir / "config.yaml"
+    config_path.write_text(
+        """
+        species: Sr87
+        trap:
+          omega_xyz: [2.0e+5, 2.0e+5, 2.0e+5]
+        field:
+          synthetic:
+            kind: uniform
+            params:
+              e0: [0.0, 0.0, 100.0]
+        coupling:
+          type: stark_dc
+        ensemble:
+          regime: lattice
+          temperature_uK: 1.0
+          motional_n: [0, 0, 0]
+          n_quad: 1
+        integration:
+          time_s: 1.0
+        """,
+        encoding="utf-8",
+    )
+    _write_surfaces_file(tmp_path / "surfaces.txt", "a 1.0 300.0\n")
+    monkeypatch.chdir(tmp_path)
+
+    out_dir = tmp_path / "out"
+    exit_code = cli_main(
+        [
+            "run",
+            str(config_path),
+            "--output-dir",
+            str(out_dir),
+            "--radiation-surfaces",
+            "surfaces.txt",
+        ]
+    )
+    assert exit_code == 0
+
+
+def test_cli_radiation_surfaces_flag_does_not_override_existing_radiation_temperature(
+    tmp_path: Path,
+) -> None:
+    """A config that already sets `radiation_temperature_K` must still
+    trip the normal E37 mutual-exclusivity error when
+    `--radiation-surfaces` is also given -- the flag does not silently
+    win over an existing setting.
+    """
+    surfaces_path = _write_surfaces_file(tmp_path / "surfaces.txt", "a 1.0 300.0\n")
+    config_path = tmp_path / "config.yaml"
+    config_path.write_text(
+        """
+        species: Sr87
+        trap:
+          omega_xyz: [2.0e+5, 2.0e+5, 2.0e+5]
+        field:
+          synthetic:
+            kind: uniform
+            params:
+              e0: [0.0, 0.0, 100.0]
+        coupling:
+          type: stark_dc
+        environment:
+          radiation_temperature_K: 300.0
+        ensemble:
+          regime: lattice
+          temperature_uK: 1.0
+          motional_n: [0, 0, 0]
+          n_quad: 1
+        integration:
+          time_s: 1.0
+        """,
+        encoding="utf-8",
+    )
+    exit_code = cli_main(["run", str(config_path), "--radiation-surfaces", str(surfaces_path)])
+    assert exit_code == 2
+
+
+def test_cli_radiation_surfaces_flag_does_not_override_existing_inline_surfaces(
+    tmp_path: Path,
+) -> None:
+    """Mirrors the `radiation_temperature_K` case above for an existing
+    INLINE `radiation_environment.surfaces` list: the flag must not
+    silently replace it, so the new `surfaces`/`surfaces_file` mutual-
+    exclusivity error fires instead.
+    """
+    surfaces_path = _write_surfaces_file(tmp_path / "surfaces.txt", "a 1.0 300.0\n")
+    config_path = tmp_path / "config.yaml"
+    config_path.write_text(
+        """
+        species: Sr87
+        trap:
+          omega_xyz: [2.0e+5, 2.0e+5, 2.0e+5]
+        field:
+          synthetic:
+            kind: uniform
+            params:
+              e0: [0.0, 0.0, 100.0]
+        coupling:
+          type: stark_dc
+        environment:
+          radiation_environment:
+            surfaces:
+              - name: existing
+                weight: 1.0
+                temperature_K: 300.0
+        ensemble:
+          regime: lattice
+          temperature_uK: 1.0
+          motional_n: [0, 0, 0]
+          n_quad: 1
+        integration:
+          time_s: 1.0
+        """,
+        encoding="utf-8",
+    )
+    exit_code = cli_main(["run", str(config_path), "--radiation-surfaces", str(surfaces_path)])
+    assert exit_code == 2
