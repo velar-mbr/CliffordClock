@@ -17,6 +17,8 @@ Every change must pass, locally and in CI, before merge:
 - `ruff format --check .` — formatting clean.
 - `mypy src/` — strict type checking on `src/`.
 - `pytest --cov --cov-fail-under=90` — all tests green; coverage gate 90%.
+  (CI splits this into a fast job and a `slow`-marked job that run in
+  parallel; `pytest -m "not slow"` runs just the fast subset locally.)
 
 ## Closed dependency rule
 

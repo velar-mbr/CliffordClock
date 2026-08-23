@@ -307,7 +307,15 @@ def test_shipped_lattice_examples_byte_identical_with_wp22_present(
     data["output"]["directory"] = str(tmp_path)
     config = PipelineConfig.from_dict(data)
     result = run_pipeline_full(config)
-    np.testing.assert_allclose(result.report.mean_fractional_shift, expected_shift, rtol=0, atol=0)
+    # rtol=1e-12, not exact: the same cross-platform XLA scheduling drift
+    # documented at test_bbr_pipeline.py's sibling snapshot test (runner
+    # linux/x86 measured 5.0e-16 relative here, 2026-08-22) breaks a
+    # bit-for-bit contract; the bound absorbs measured version and
+    # platform drift while leaving any real numeric regression 4+ orders
+    # of magnitude outside it.
+    np.testing.assert_allclose(
+        result.report.mean_fractional_shift, expected_shift, rtol=1e-12, atol=0
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -441,6 +449,7 @@ def test_site_map_local_field_varies_by_site_position() -> None:
     assert abs(shifts[1]) < abs(shifts[0]) < abs(shifts[2])
 
 
+@pytest.mark.slow
 def test_lattice_extended_fast_path_matches_worldline_with_gravity_active(tmp_path: Path) -> None:
     """E29's exact-agreement claim, extended to `lattice_extended` with
     gravity active: every node is static (v=0), so mode="worldline" must
@@ -492,6 +501,7 @@ def test_lattice_extended_fast_path_matches_worldline_with_gravity_active(tmp_pa
     )
 
 
+@pytest.mark.slow
 def test_lattice_extended_linear_mu_worldline_cross_check_runs(tmp_path: Path) -> None:
     """`coupling.type='linear_mu'` (the E14a validation coupling) also
     works with `lattice_extended` via the `worldline` rotor path, exactly

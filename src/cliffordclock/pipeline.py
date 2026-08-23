@@ -159,6 +159,24 @@ Interface note (binding on this module):
    `ION_HYPERFINE_E2_BUDGET_NOTES`) regardless of whether `quadrupole:` is
    set, per the G8 sign-off's shipping requirement. See
    :func:`_resolve_quadrupole_theta_j`/:func:`_quadrupole_pivot_from_grad`.
+8. **Multi-surface BBR thermal environment (WP29 Tier 1, CONVENTIONS.md
+   E37).** An optional ``environment.radiation_environment:`` config
+   section (:class:`RadiationEnvironmentConfig`, a list of per-surface
+   ``name``/``weight``/``temperature_K``/``temperature_uncertainty_K``/
+   ``emissivity`` entries plus a ``correlated`` flag) is mutually
+   exclusive with ``radiation_temperature_K`` (item 6 above) and is
+   parsed by :func:`_parse_radiation_environment`. It threads through the
+   exact same path item 6 describes: :func:`_resolve_bbr_pivot_perturbation`
+   resolves it to a single ``(P−1)_BBR`` scalar (via
+   :func:`~cliffordclock.integrator.omega.bbr_environment_pivot_perturbation`
+   instead of the single-temperature
+   :func:`~cliffordclock.integrator.omega.bbr_pivot_perturbation`), and
+   that scalar is composed into every ``stark_dc`` accumulator through the
+   same keyword-only ``bbr_pivot_perturbation`` parameter, with no change
+   to :func:`_make_stark_rate_fn`/:func:`_stark_rotor_ensemble` or any
+   evaluation-mode call site: BBR is spatially uniform within the atom
+   cloud in both the single-temperature and multi-surface cases, so the
+   composition into the pivot is identical either way.
 """
 
 from __future__ import annotations
@@ -234,15 +252,22 @@ from cliffordclock.fields.synthetic import (
 )
 from cliffordclock.integrator import fastpath
 from cliffordclock.integrator.omega import (
-    bbr_pivot_perturbation as _bbr_pivot_perturbation_e32,
-)
-from cliffordclock.integrator.omega import (
+    BBR_ENVIRONMENT_WEIGHT_TOLERANCE,
+    RadiationSurface,
+    bbr_environment_effective_temperatures,
+    bbr_environment_pivot_uncertainty,
     bbr_pivot_uncertainty,
     build_omega_stark,
     height_along_axis,
     pivot_perturbation_stark,
     quadrupole_three_orientation_average,
     scalar_rate_perturbation,
+)
+from cliffordclock.integrator.omega import (
+    bbr_environment_pivot_perturbation as _bbr_environment_pivot_perturbation_e37,
+)
+from cliffordclock.integrator.omega import (
+    bbr_pivot_perturbation as _bbr_pivot_perturbation_e32,
 )
 from cliffordclock.integrator.omega import (
     grav_pivot_perturbation as _grav_pivot_perturbation_e36,
@@ -275,6 +300,7 @@ __all__ = [
     "PipelineConfigError",
     "PipelineResult",
     "QuadrupoleConfig",
+    "RadiationEnvironmentConfig",
     "SiteMapEntry",
     "SyntheticFieldConfig",
     "TrapConfig",
@@ -671,14 +697,62 @@ class GravityConfig:
 
 
 @dataclass(frozen=True)
-class EnvironmentConfig:
-    """Thermal-bath / environment parameters (``environment:`` in YAML, WP20/WP22).
+class RadiationEnvironmentConfig:
+    """Multi-surface BBR thermal environment (``environment.radiation_environment:``
+    in YAML, WP29 Tier 1, CONVENTIONS.md E37).
 
-    CONVENTIONS.md E32/E33 (blackbody-radiation shift, uniform-T MVP) and
-    section 15 E36 (gravitational redshift, WP22). See the module
-    docstring's "Blackbody-radiation shift" interface note for how BBR
-    composes into every evaluation mode; WP22's module-docstring note
-    describes the gravity term's identical threading pattern.
+    Generalizes `EnvironmentConfig.radiation_temperature_k`'s single
+    radiation temperature to an enclosure of `N` surfaces, each with a
+    solid-angle weight, a temperature, an optional temperature
+    uncertainty, and an optional emissivity; see the module docstring's
+    WP29 note and :func:`_resolve_bbr_pivot_perturbation` for how this
+    resolves into the same scalar `(P-1)_BBR` that
+    `radiation_temperature_k` produces, then threads into every evaluation
+    mode identically.
+
+    Attributes
+    ----------
+    surfaces : tuple[RadiationSurface, ...]
+        The enclosure's surfaces
+        (`~cliffordclock.integrator.omega.RadiationSurface`). Parsed from
+        YAML by :func:`_parse_radiation_environment`, which enforces the
+        weight-normalization and per-surface validity-window checks at
+        parse time (:class:`PipelineConfigError`); the same checks are
+        also enforced by
+        `~cliffordclock.integrator.omega.bbr_environment_pivot_perturbation`
+        itself when this config is actually resolved against a species
+        (defense in depth for any caller constructing this dataclass
+        directly). In YAML, `surfaces` is written either inline (a list of
+        per-surface mappings) or as a `surfaces_file` path to a plain-text
+        surfaces table (WP29 Tier 1 Part 1); both forms produce the exact
+        same `surfaces` tuple here, since the file form is parsed by
+        :func:`_load_radiation_surfaces_file` into the same shape the
+        inline list already has before either reaches this class.
+    correlated : bool
+        Temperature-uncertainty combination mode across surfaces
+        (CONVENTIONS.md E37's uncertainty note):
+        `False` (default) combines each surface's temperature-uncertainty
+        contribution independently, in quadrature; `True` treats every
+        surface's temperature error as moving together (a shared
+        calibration-chain error) and sums the per-surface contributions
+        linearly before taking the magnitude. See
+        `~cliffordclock.integrator.omega.bbr_environment_pivot_uncertainty`.
+    """
+
+    surfaces: tuple[RadiationSurface, ...]
+    correlated: bool = False
+
+
+@dataclass(frozen=True)
+class EnvironmentConfig:
+    """Thermal-bath / environment parameters (``environment:`` in YAML, WP20/WP22/WP29).
+
+    CONVENTIONS.md E32/E33 (blackbody-radiation shift, uniform-T MVP),
+    E37 (multi-surface thermal environment, WP29 Tier 1), and section 15
+    E36 (gravitational redshift, WP22). See the module docstring's
+    "Blackbody-radiation shift" interface note for how BBR composes into
+    every evaluation mode; WP22's module-docstring note describes the
+    gravity term's identical threading pattern.
 
     Attributes
     ----------
@@ -696,6 +770,9 @@ class EnvironmentConfig:
         ``[BBR_VALIDITY_MIN_K, BBR_VALIDITY_MAX_K]`` = ``[50, 350]``
         kelvin (the published fit range, dossier Sec.2/Sec.7; G7 sign-off
         gate edit 5: hard rejection, not a silently-extrapolated fit).
+        Mutually exclusive with `radiation_environment`
+        (:class:`PipelineConfigError` at parse time if both are set,
+        naming both keys).
     radiation_temperature_uncertainty_k : float or None
         Optional 1-sigma uncertainty on `radiation_temperature_k`, kelvin;
         requires `radiation_temperature_k` to be set. When given,
@@ -705,6 +782,14 @@ class EnvironmentConfig:
         when omitted, the report states its BBR uncertainty is
         "conditional on exact T" instead of silently claiming exactness
         (G7 sign-off: "silent exactness is not defensible at 1e-19").
+    radiation_environment : RadiationEnvironmentConfig or None
+        Multi-surface thermal environment (WP29 Tier 1, CONVENTIONS.md
+        E37). `None` (the default, and the key's absence in YAML): off,
+        every existing example config is completely unaffected
+        (byte-identical output). When given, `coupling.type` must be
+        ``"stark_dc"`` (mirrors `radiation_temperature_k`'s cross-field
+        validation exactly) and is mutually exclusive with
+        `radiation_temperature_k`. See :class:`RadiationEnvironmentConfig`.
     gravity : GravityConfig or None
         Gravitational-redshift pivot-term parameters (WP22 Part 1,
         CONVENTIONS.md section 15 E36). `None` (the default, and the
@@ -719,6 +804,7 @@ class EnvironmentConfig:
 
     radiation_temperature_k: float | None = None
     radiation_temperature_uncertainty_k: float | None = None
+    radiation_environment: RadiationEnvironmentConfig | None = None
     gravity: GravityConfig | None = None
 
 
@@ -886,26 +972,26 @@ class PipelineConfig:
             :meth:`from_dict`).
         """
         path = Path(path)
-        try:
-            text = path.read_text(encoding="utf-8")
-        except OSError as exc:
-            raise PipelineConfigError(f"cannot read config file {path}: {exc}") from exc
-        try:
-            data = yaml.safe_load(text)
-        except yaml.YAMLError as exc:
-            raise PipelineConfigError(f"{path}: invalid YAML: {exc}") from exc
-        if not isinstance(data, dict):
-            raise PipelineConfigError(f"{path}: config must be a YAML mapping at the top level")
-        return cls.from_dict(data)
+        data = _load_yaml_config_dict(path)
+        return cls.from_dict(data, base_dir=path.parent)
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> PipelineConfig:
+    def from_dict(cls, data: dict[str, Any], *, base_dir: Path | None = None) -> PipelineConfig:
         """Build and validate a :class:`PipelineConfig` from a parsed mapping.
 
         Parameters
         ----------
         data : dict[str, Any]
             Parsed config (e.g. from ``yaml.safe_load``).
+        base_dir : pathlib.Path or None
+            Directory a relative
+            ``environment.radiation_environment.surfaces_file`` path (WP29
+            Tier 1 Part 1) is resolved against; `None` is the default, and
+            what a caller building `data` directly gets without going
+            through :meth:`from_yaml`, leaving such a path unresolved, i.e.
+            relative to the current working directory at read time, same
+            as `field.csv`/`field.comsol` already behave. :meth:`from_yaml`
+            passes the config file's own directory here.
 
         Returns
         -------
@@ -924,7 +1010,7 @@ class PipelineConfig:
         ensemble_cfg = _parse_ensemble(_require(data, "ensemble", "config"))
         integration_cfg = _parse_integration(_require(data, "integration", "config"))
         coupling_cfg = _parse_coupling(_require(data, "coupling", "config"))
-        environment_cfg = _parse_environment(data.get("environment"))
+        environment_cfg = _parse_environment(data.get("environment"), base_dir=base_dir)
         quadrupole_cfg = _parse_quadrupole(data.get("quadrupole"))
         output_cfg = _parse_output(data.get("output"))
         uncertainty_notes = str(data.get("uncertainty_notes", ""))
@@ -934,6 +1020,14 @@ class PipelineConfig:
                 f"(got coupling.type={coupling_cfg.type!r}): the BBR shift (CONVENTIONS.md "
                 "E32) is composed into the species' registry-resolved DC-Stark polarizability "
                 "data, which coupling.type='linear_mu' has no equivalent of."
+            )
+        if environment_cfg.radiation_environment is not None and coupling_cfg.type != "stark_dc":
+            raise PipelineConfigError(
+                "environment.radiation_environment requires coupling.type='stark_dc' "
+                f"(got coupling.type={coupling_cfg.type!r}): the multi-surface BBR shift "
+                "(CONVENTIONS.md E37) is composed into the species' registry-resolved "
+                "DC-Stark polarizability data, exactly like environment.radiation_temperature_K "
+                "(item 6), which coupling.type='linear_mu' has no equivalent of."
             )
         if quadrupole_cfg is not None and coupling_cfg.type != "stark_dc":
             raise PipelineConfigError(
@@ -968,6 +1062,34 @@ class PipelineConfig:
 # ---------------------------------------------------------------------------
 # Config parsing helpers.
 # ---------------------------------------------------------------------------
+
+
+def _load_yaml_config_dict(path: Path) -> dict[str, Any]:
+    """Read and YAML-parse `path` into a raw config mapping.
+
+    Factored out of :meth:`PipelineConfig.from_yaml` so
+    ``cliffordclock.cli``'s ``--radiation-surfaces`` override (WP29 Tier 1
+    Part 2) can merge into the same raw mapping :meth:`PipelineConfig.from_dict`
+    consumes, without duplicating this function's file-read/YAML-parse
+    error handling.
+
+    Raises
+    ------
+    PipelineConfigError
+        The file cannot be read, is not valid YAML, or is not a mapping
+        at the top level.
+    """
+    try:
+        text = path.read_text(encoding="utf-8")
+    except OSError as exc:
+        raise PipelineConfigError(f"cannot read config file {path}: {exc}") from exc
+    try:
+        data = yaml.safe_load(text)
+    except yaml.YAMLError as exc:
+        raise PipelineConfigError(f"{path}: invalid YAML: {exc}") from exc
+    if not isinstance(data, dict):
+        raise PipelineConfigError(f"{path}: config must be a YAML mapping at the top level")
+    return data
 
 
 def _require(data: dict[str, Any], key: str, context: str) -> Any:
@@ -1226,13 +1348,17 @@ def _parse_coupling(data: Any) -> CouplingConfig:
     )
 
 
-def _parse_environment(data: Any) -> EnvironmentConfig:
-    """Parse the optional ``environment:`` YAML section (WP20, :class:`EnvironmentConfig`).
+def _parse_environment(data: Any, *, base_dir: Path | None = None) -> EnvironmentConfig:
+    """Parse the optional ``environment:`` YAML section (WP20/WP29, :class:`EnvironmentConfig`).
 
     `data` is `None` when the key is absent from the config (the default,
     common case) -- returns `EnvironmentConfig()` (BBR off), matching
     every other optional-section parser's ``data.get(...)`` -> `None` ->
     default-value pattern in this module.
+
+    `base_dir` is forwarded to :func:`_parse_radiation_environment`, which
+    resolves a relative ``radiation_environment.surfaces_file`` path
+    against it; see :meth:`PipelineConfig.from_dict`'s docstring.
     """
     if data is None:
         return EnvironmentConfig()
@@ -1243,7 +1369,14 @@ def _parse_environment(data: Any) -> EnvironmentConfig:
     temperature_k = float(temperature_raw) if temperature_raw is not None else None
     uncertainty_raw = data.get("radiation_temperature_uncertainty_K")
     temperature_uncertainty_k = float(uncertainty_raw) if uncertainty_raw is not None else None
+    radiation_environment_raw = data.get("radiation_environment")
 
+    if temperature_k is not None and radiation_environment_raw is not None:
+        raise PipelineConfigError(
+            "environment.radiation_temperature_K and environment.radiation_environment "
+            "are mutually exclusive (CONVENTIONS.md E37): a run resolves BBR from exactly "
+            "one radiation-environment description, not both."
+        )
     if temperature_uncertainty_k is not None and temperature_k is None:
         raise PipelineConfigError(
             "environment.radiation_temperature_uncertainty_K requires "
@@ -1264,13 +1397,265 @@ def _parse_environment(data: Any) -> EnvironmentConfig:
             f"{temperature_uncertainty_k}"
         )
 
+    radiation_environment = _parse_radiation_environment(
+        radiation_environment_raw, base_dir=base_dir
+    )
     gravity = _parse_gravity(data.get("gravity"))
 
     return EnvironmentConfig(
         radiation_temperature_k=temperature_k,
         radiation_temperature_uncertainty_k=temperature_uncertainty_k,
+        radiation_environment=radiation_environment,
         gravity=gravity,
     )
+
+
+#: Reserved token marking an absent optional column in a surfaces table file
+#: (:func:`_load_radiation_surfaces_file`); also rejected as a surface
+#: `name`, since a bare `-` there would be indistinguishable from the
+#: placeholder.
+_SURFACES_FILE_ABSENT_TOKEN = "-"
+
+
+def _parse_surfaces_file_float(path: Path, lineno: int, column: str, token: str) -> float:
+    """Parse one numeric column of a surfaces table file row, or raise
+    :class:`PipelineConfigError` naming the file, line, and offending token
+    (mirrors `cliffordclock.fields.io.load_field_comsol`'s error style).
+    """
+    try:
+        return float(token)
+    except ValueError:
+        raise PipelineConfigError(
+            f"{path}: line {lineno}: non-numeric {column} value {token!r}"
+        ) from None
+
+
+def _load_radiation_surfaces_file(path: Path) -> list[dict[str, Any]]:
+    """Parse a ``environment.radiation_environment.surfaces_file`` surfaces
+    table (WP29 Tier 1 Part 1, CONVENTIONS.md E37; docs/cli.md's "Surfaces
+    table file format" section has the full grammar).
+
+    Plain text, UTF-8. `#` starts a comment, whole-line or trailing; blank
+    lines are ignored. One surface per line, whitespace-separated columns::
+
+        name weight temperature_K [temperature_uncertainty_K] [emissivity]
+
+    `name` must be a bare token (no whitespace, guaranteed by the
+    whitespace split); the two trailing optional columns may each be
+    written as `-` to mean absent, so `emissivity` can be set while
+    `temperature_uncertainty_K` is left out. Mirrors
+    :func:`cliffordclock.fields.io.load_field_comsol`'s error style: every
+    raised error names the file, the 1-based line number, and the
+    offending token. Read with ``encoding="utf-8-sig"`` so a leading UTF-8
+    byte-order mark (a plain Notepad "Save As UTF-8" file carries one) is
+    stripped transparently, instead of ending up glued onto the first
+    surface's `name`.
+
+    Duplicate surface names are NOT rejected here: that check runs once,
+    after this function returns, in :func:`_parse_radiation_environment`'s
+    shared per-entry loop, so it applies identically to a `surfaces_file`
+    and an inline YAML `surfaces:` list (a duplicate name is a config
+    mistake in either syntax, not a file-format-specific one).
+
+    Returns
+    -------
+    list[dict[str, Any]]
+        One dict per surface, carrying the same ``name``/``weight``/
+        ``temperature_K``/``temperature_uncertainty_K``/``emissivity`` keys
+        (the last two present only when given) an inline YAML `surfaces:`
+        entry already carries -- fed straight into
+        :func:`_parse_radiation_environment`'s existing per-entry parsing
+        loop, so no E37 invariant check is duplicated here.
+
+    Raises
+    ------
+    PipelineConfigError
+        The file cannot be read, is empty (no surface rows survive
+        comment/blank-line stripping), a line has fewer than 3 or more
+        than 5 columns, a numeric column is non-numeric, or `name` is the
+        reserved `-` placeholder token.
+    """
+    try:
+        text = path.read_text(encoding="utf-8-sig")
+    except OSError as exc:
+        raise PipelineConfigError(
+            f"environment.radiation_environment.surfaces_file: cannot read {path}: {exc}"
+        ) from exc
+
+    surfaces: list[dict[str, Any]] = []
+    for lineno, raw_line in enumerate(text.splitlines(), start=1):
+        line = raw_line.split("#", 1)[0].strip()
+        if not line:
+            continue
+        tokens = line.split()
+        if not (3 <= len(tokens) <= 5):
+            raise PipelineConfigError(
+                f"{path}: line {lineno}: expected 3 to 5 columns (name weight "
+                f"temperature_K [temperature_uncertainty_K] [emissivity]), got "
+                f"{len(tokens)}: {line!r}"
+            )
+
+        name = tokens[0]
+        if name == _SURFACES_FILE_ABSENT_TOKEN:
+            raise PipelineConfigError(
+                f"{path}: line {lineno}: blank surface name -- {_SURFACES_FILE_ABSENT_TOKEN!r} "
+                "is reserved for an absent optional column, not a valid name"
+            )
+
+        weight = _parse_surfaces_file_float(path, lineno, "weight", tokens[1])
+        temperature_k = _parse_surfaces_file_float(path, lineno, "temperature_K", tokens[2])
+
+        entry: dict[str, Any] = {"name": name, "weight": weight, "temperature_K": temperature_k}
+        if len(tokens) >= 4 and tokens[3] != _SURFACES_FILE_ABSENT_TOKEN:
+            entry["temperature_uncertainty_K"] = _parse_surfaces_file_float(
+                path, lineno, "temperature_uncertainty_K", tokens[3]
+            )
+        if len(tokens) >= 5 and tokens[4] != _SURFACES_FILE_ABSENT_TOKEN:
+            entry["emissivity"] = _parse_surfaces_file_float(path, lineno, "emissivity", tokens[4])
+
+        surfaces.append(entry)
+
+    if not surfaces:
+        raise PipelineConfigError(f"{path}: no surface rows found")
+
+    return surfaces
+
+
+def _parse_radiation_environment(
+    data: Any, *, base_dir: Path | None = None
+) -> RadiationEnvironmentConfig | None:
+    """Parse the optional ``environment.radiation_environment:`` YAML section
+    (WP29 Tier 1, :class:`RadiationEnvironmentConfig`, CONVENTIONS.md E37).
+
+    `data` is `None` when the key is absent (the default, common case) --
+    returns `None` (multi-surface BBR off), matching `_parse_environment`'s
+    own ``data.get(...)`` -> `None` -> off pattern for `environment:`
+    itself. The weight-normalization check runs here at parse time (before
+    a species is even known), the per-surface validity-window check runs
+    here too against the module-level `BBR_VALIDITY_MIN_K`/
+    `BBR_VALIDITY_MAX_K` (identical to how `_parse_environment` checks the
+    single-temperature case; both registered species share this window
+    today, so the module-level constants are the correct parse-time bound
+    even though the species-specific check
+    `~cliffordclock.integrator.omega.bbr_environment_pivot_perturbation`
+    performs later, against `species.resolve_bbr_coefficients()`'s own
+    `validity_min_k`/`validity_max_k`, is the authoritative one).
+
+    The surfaces are given either inline (``surfaces:``, a YAML list) or
+    as a table file (``surfaces_file:``, a path parsed by
+    :func:`_load_radiation_surfaces_file`); the two forms are mutually
+    exclusive and exactly one is required. The file form is resolved
+    against `base_dir` (see :meth:`PipelineConfig.from_dict`) when it
+    gives a relative path, mirroring how a relative
+    ``environment.radiation_environment.surfaces_file`` is meant to be
+    read next to the config file that names it. Once resolved, the file
+    loader produces the same list-of-mappings shape the inline `surfaces:`
+    list already is, so both forms converge into the single per-entry
+    parsing loop below and every E37 invariant (unique surface names,
+    weight normalization, the validity window, the emissivity topology
+    rule) is checked exactly once, in the existing place, identically for
+    both input forms.
+    """
+    if data is None:
+        return None
+    if not isinstance(data, dict):
+        raise PipelineConfigError(
+            f"environment.radiation_environment: must be a mapping, got {type(data).__name__}"
+        )
+
+    surfaces_raw = data.get("surfaces")
+    surfaces_file_raw = data.get("surfaces_file")
+    if surfaces_raw is not None and surfaces_file_raw is not None:
+        raise PipelineConfigError(
+            "environment.radiation_environment.surfaces and "
+            "environment.radiation_environment.surfaces_file are mutually exclusive: "
+            "a run's multi-surface environment comes from exactly one of an inline "
+            "surfaces list or a surfaces table file, not both."
+        )
+    if surfaces_raw is None and surfaces_file_raw is None:
+        raise PipelineConfigError(
+            "environment.radiation_environment: must specify one of 'surfaces' (an "
+            "inline list) or 'surfaces_file' (a path to a surfaces table file, "
+            "docs/cli.md's 'Surfaces table file format' section)"
+        )
+
+    if surfaces_file_raw is not None:
+        surfaces_path = Path(str(surfaces_file_raw))
+        if base_dir is not None and not surfaces_path.is_absolute():
+            surfaces_path = base_dir / surfaces_path
+        surfaces_raw = _load_radiation_surfaces_file(surfaces_path)
+
+    if not isinstance(surfaces_raw, list) or not surfaces_raw:
+        raise PipelineConfigError(
+            "environment.radiation_environment.surfaces must be a non-empty list"
+        )
+
+    surfaces = []
+    seen_names: set[str] = set()
+    for index, entry in enumerate(surfaces_raw):
+        context = f"environment.radiation_environment.surfaces[{index}]"
+        name = str(_require(entry, "name", context))
+        if name in seen_names:
+            raise PipelineConfigError(
+                f"{context}.name={name!r} is a duplicate: every surface in "
+                "environment.radiation_environment.surfaces must have a distinct name "
+                "(CONVENTIONS.md E37), whether the list is given inline or via "
+                "surfaces_file."
+            )
+        seen_names.add(name)
+        weight = float(_require(entry, "weight", context))
+        temperature_k = float(_require(entry, "temperature_K", context))
+        uncertainty_raw = entry.get("temperature_uncertainty_K", 0.0)
+        temperature_uncertainty_k = float(uncertainty_raw) if uncertainty_raw is not None else 0.0
+        emissivity_raw = entry.get("emissivity")
+        emissivity = float(emissivity_raw) if emissivity_raw is not None else None
+
+        if not (BBR_VALIDITY_MIN_K <= temperature_k <= BBR_VALIDITY_MAX_K):
+            raise PipelineConfigError(
+                f"{context}.temperature_K={temperature_k!r} K is outside the validated "
+                f"BBR fit range [{BBR_VALIDITY_MIN_K}, {BBR_VALIDITY_MAX_K}] K "
+                "(CONVENTIONS.md E32/E37): hard rejection, not a silently-extrapolated "
+                "fit past its published support."
+            )
+        if temperature_uncertainty_k < 0:
+            raise PipelineConfigError(
+                f"{context}.temperature_uncertainty_K must be >= 0, got {temperature_uncertainty_k}"
+            )
+        if emissivity is not None and not (0.0 < emissivity <= 1.0):
+            raise PipelineConfigError(f"{context}.emissivity={emissivity!r} must lie in (0, 1]")
+
+        surfaces.append(
+            RadiationSurface(
+                name=name,
+                weight=weight,
+                temperature_k=temperature_k,
+                temperature_uncertainty_k=temperature_uncertainty_k,
+                emissivity=emissivity,
+            )
+        )
+
+    total_weight = math.fsum(surface.weight for surface in surfaces)
+    if abs(total_weight - 1.0) > BBR_ENVIRONMENT_WEIGHT_TOLERANCE:
+        raise PipelineConfigError(
+            "environment.radiation_environment.surfaces weights must sum to 1 (tolerance "
+            f"{BBR_ENVIRONMENT_WEIGHT_TOLERANCE:g}); got sum={total_weight!r} across "
+            f"{len(surfaces)} surface(s): {[surface.name for surface in surfaces]!r} "
+            "(CONVENTIONS.md E37)."
+        )
+
+    enclosure_names = [surface.name for surface in surfaces if surface.emissivity is not None]
+    if len(enclosure_names) > 1:
+        raise PipelineConfigError(
+            "environment.radiation_environment.surfaces: at most one surface may carry an "
+            "emissivity (CONVENTIONS.md E37's enclosure-and-apertures topology: one "
+            f"reflective enclosure plus direct-view apertures); got {len(enclosure_names)} "
+            f"surfaces with emissivity set: {enclosure_names!r}. Multi-reflector radiosity "
+            "(more than one partially-reflective enclosure surface) is out of scope for "
+            "this tier, future work."
+        )
+
+    correlated = bool(data.get("correlated", False))
+    return RadiationEnvironmentConfig(surfaces=tuple(surfaces), correlated=correlated)
 
 
 def _parse_gravity(data: Any) -> GravityConfig | None:
@@ -1899,11 +2284,13 @@ _FAST_PATH_DOPPLER_EXCLUSION_NOTE = (
 )
 
 # ---------------------------------------------------------------------------
-# WP20: blackbody-radiation shift (CONVENTIONS.md E32/E33). See the module
-# docstring's "Blackbody-radiation shift" interface note for the composition
-# this feeds; :func:`_resolve_bbr_pivot_perturbation` is the single call site
-# `run_pipeline_full` uses to compute the (P-1)_BBR scalar (once per run) and
-# its report note.
+# WP20/WP29 Tier 1: blackbody-radiation shift (CONVENTIONS.md E32/E33/E37).
+# See the module docstring's "Blackbody-radiation shift" interface note (item
+# 6) and its WP29 addendum (item 8) for the composition this feeds;
+# :func:`_resolve_bbr_pivot_perturbation` is the single call site
+# `run_pipeline_full` uses to compute the (P-1)_BBR scalar (once per run,
+# from either a single `radiation_temperature_k` or a multi-surface
+# `radiation_environment`) and its report note.
 # ---------------------------------------------------------------------------
 
 #: Short literature citations for the report's BBR provenance note. Mirrors
@@ -1943,15 +2330,18 @@ _BBR_M1_E2_BUDGET_NOTE = (
 def _resolve_bbr_pivot_perturbation(
     environment: EnvironmentConfig, species: Species
 ) -> tuple[float, str | None]:
-    """``(P−1)_BBR`` (E32) plus its report note, or ``(0.0, None)`` if BBR is off.
+    """``(P−1)_BBR`` (E32/E37) plus its report note, or ``(0.0, None)`` if BBR is off.
 
-    Single call site `run_pipeline_full` uses to compute the WP20 BBR
-    scalar once per run (:func:`cliffordclock.integrator.omega.bbr_pivot_perturbation`)
-    and assemble its report-note text: T/coefficients/citations (G7 sign-off
-    gate edit 6), the coefficient-uncertainty propagation labeled
-    "arithmetic-reproduction fidelity" (never "BBR accuracy", gate edit 4c),
-    the M1/E2 budget line (gate edit 3), and the 300-350 K
-    beyond-cross-verified-range note when applicable (gate edit 5 / B4).
+    Single call site `run_pipeline_full` uses to compute the BBR scalar
+    once per run and assemble its report-note text, for either of
+    `environment`'s two mutually exclusive BBR sources (enforced at parse
+    time, `PipelineConfig.from_dict`/`_parse_environment`): a single
+    `radiation_temperature_k` (WP20, E32, this function's own body below)
+    or a multi-surface `radiation_environment` (WP29 Tier 1, E37, delegated
+    to :func:`_resolve_bbr_environment_pivot_perturbation`). Whichever
+    source is active, the returned scalar threads into every evaluation
+    mode identically (module docstring items 6/8): BBR is spatially
+    uniform within the atom cloud either way.
 
     Parameters
     ----------
@@ -1966,8 +2356,9 @@ def _resolve_bbr_pivot_perturbation(
     Returns
     -------
     tuple[float, str | None]
-        ``(bbr_pivot_perturbation, note)``. `note` is `None` iff
-        `environment.radiation_temperature_k` is `None` (BBR off).
+        ``(bbr_pivot_perturbation, note)``. `note` is `None` iff BBR is
+        off (both `environment.radiation_temperature_k` and
+        `environment.radiation_environment` are `None`).
 
     Raises
     ------
@@ -1975,6 +2366,11 @@ def _resolve_bbr_pivot_perturbation(
         `species` has no resolvable `BbrCoefficients` (e.g. `Al27+`);
         wraps the underlying `ValueError`.
     """
+    if environment.radiation_environment is not None:
+        return _resolve_bbr_environment_pivot_perturbation(
+            environment.radiation_environment, species
+        )
+
     temperature_k = environment.radiation_temperature_k
     if temperature_k is None:
         return 0.0, None
@@ -2015,6 +2411,104 @@ def _resolve_bbr_pivot_perturbation(
             f"T={temperature_k!r}K is in-fit-range but beyond the PTB<->JILA 1e-19-class "
             f"cross-verification band (T<={coeffs.cross_verified_max_k:.0f}K, G7 sign-off B4) "
             "-- treat the BBR uncertainty above as less certain in this band."
+        )
+    return bbr_value, " ".join(parts)
+
+
+def _resolve_bbr_environment_pivot_perturbation(
+    radiation_environment: RadiationEnvironmentConfig, species: Species
+) -> tuple[float, str]:
+    """``(P−1)_BBR`` (E37) for a multi-surface thermal environment, plus its report note.
+
+    `_resolve_bbr_pivot_perturbation`'s WP29 Tier 1 branch. Mirrors that
+    function's single-temperature note structure (T/coefficients/
+    citations, the coefficient-uncertainty "arithmetic-reproduction
+    fidelity" label, the M1/E2 budget line, the beyond-cross-verified-
+    range note), extended with the per-surface weight/temperature list,
+    the per-moment effective temperatures `T_eff,n` (CONVENTIONS.md E37's
+    reporting requirement), and the uncertainty combination mode.
+
+    Parameters
+    ----------
+    radiation_environment : RadiationEnvironmentConfig
+    species : Species
+        Resolved run species; see `_resolve_bbr_pivot_perturbation`.
+
+    Returns
+    -------
+    tuple[float, str]
+        ``(bbr_pivot_perturbation, note)``. Unlike
+        `_resolve_bbr_pivot_perturbation`'s return type, `note` is never
+        `None` here: this function is only called once
+        `environment.radiation_environment is not None` has already been
+        checked (BBR is definitely on).
+
+    Raises
+    ------
+    PipelineConfigError
+        `species` has no resolvable `BbrCoefficients`, or `surfaces`
+        violates E37's weight/window/shape invariants; wraps the
+        underlying `ValueError` (`_bbr_validate_environment`).
+    """
+    surfaces = radiation_environment.surfaces
+    try:
+        bbr_value = _bbr_environment_pivot_perturbation_e37(surfaces, species)
+        sigma_frac, temperature_uncertainty_included = bbr_environment_pivot_uncertainty(
+            surfaces, species, correlated=radiation_environment.correlated
+        )
+        effective_temperatures = bbr_environment_effective_temperatures(surfaces, species)
+        coeffs = species.resolve_bbr_coefficients()
+    except ValueError as exc:
+        raise PipelineConfigError(str(exc)) from exc
+
+    dyn_terms = ", ".join(f"n={n}:{coeff!r}Hz" for n, coeff in sorted(coeffs.dyn_coeffs_hz.items()))
+    citation = _BBR_SPECIES_CITATIONS.get(species.name, "see docs/coupling.md")
+    t0 = BBR_REFERENCE_TEMPERATURE_K
+    combination_mode = "correlated" if radiation_environment.correlated else "independent"
+
+    surface_list = ", ".join(
+        f"{surface.name!r}(w={surface.weight!r}, T={surface.temperature_k!r}K"
+        + (
+            f", sigma_T={surface.temperature_uncertainty_k!r}K"
+            if surface.temperature_uncertainty_k > 0.0
+            else ""
+        )
+        + (f", eps={surface.emissivity!r}" if surface.emissivity is not None else "")
+        + ")"
+        for surface in surfaces
+    )
+    teff_list = ", ".join(
+        f"T_eff,{n}={value!r}K" for n, value in sorted(effective_temperatures.items())
+    )
+    parts = [
+        f"BBR multi-surface environment (CONVENTIONS.md E37): N={len(surfaces)} surfaces "
+        f"[{surface_list}], (P-1)_BBR={bbr_value!r} "
+        f"(nu_stat({t0:.0f}K)={coeffs.nu_stat_300k_hz!r}Hz, dynamic coeffs [{dyn_terms}]; "
+        f"{citation}), per-moment effective temperatures [{teff_list}], uncertainty "
+        f"combination mode: {combination_mode}",
+        (
+            "BBR coefficient+temperature uncertainty (arithmetic-reproduction fidelity, NOT "
+            f"an independent BBR-accuracy claim, mirrors G7 sign-off A4#2c): {sigma_frac:.2e} "
+            "fractional, 1-sigma"
+            + (
+                f" (includes per-surface temperature_uncertainty_K propagation, "
+                f"{combination_mode} combination mode, CONVENTIONS.md E37)"
+                if temperature_uncertainty_included
+                else " (conditional on exact per-surface T: no surface carries a nonzero "
+                "temperature_uncertainty_K, mirrors G7 sign-off A4#3; set at least one to "
+                "also propagate sigma_T)"
+            )
+        ),
+        _BBR_M1_E2_BUDGET_NOTE,
+    ]
+    exceeding_names = [
+        surface.name for surface in surfaces if surface.temperature_k > coeffs.cross_verified_max_k
+    ]
+    if exceeding_names:
+        parts.append(
+            f"surface(s) {exceeding_names!r} are in-fit-range but beyond the PTB<->JILA "
+            f"1e-19-class cross-verification band (T<={coeffs.cross_verified_max_k:.0f}K, "
+            "G7 sign-off B4): treat the BBR uncertainty above as less certain."
         )
     return bbr_value, " ".join(parts)
 

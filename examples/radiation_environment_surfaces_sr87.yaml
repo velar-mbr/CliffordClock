@@ -1,0 +1,64 @@
+# CliffordClock example: environment.radiation_environment.surfaces_file
+# (WP29 Tier 1 Part 1, CONVENTIONS.md E37) -- the file-table alternative to
+# writing radiation_environment.surfaces inline, on top of the same
+# synthetic uniform stray field / Sr-87 optical-lattice / PHYSICAL
+# DC-Stark coupling setup as examples/lattice_sr87_stark.yaml. See
+# docs/cli.md's "Multi-surface thermal environment" and "Surfaces table
+# file format" sections for the full schema.
+#
+# The two-surface enclosure-and-aperture environment lives in
+# examples/radiation_environment_surfaces.txt (PTB's own topology,
+# Nosske et al. arXiv:2507.14030): a 100 K reflective shield
+# (weight 0.9, emissivity 0.5) with a 300 K aperture leak (weight 0.1).
+# `tests/test_bbr_environment.py::test_surfaces_file_and_inline_yaml_produce_byte_identical_pipeline_results`
+# proves this file-loaded environment reproduces the identical inline
+# `surfaces:` list bit for bit.
+
+species: Sr87
+
+trap:
+  omega_xyz: [2.0e+5, 2.0e+5, 2.0e+5]  # rad/s, typical lattice-site scale
+  center: [0.0, 0.0, 0.0]              # m
+
+field:
+  synthetic:
+    kind: uniform
+    params:
+      e0: [0.0, 0.0, 100.0]  # V/m -- a lab-typical stray DC field
+
+coupling:
+  type: stark_dc  # E14b; no override fields given -> resolved from the
+                  # Sr87 species-registry entry's cited Delta_alpha.
+
+environment:
+  radiation_environment:
+    surfaces_file: radiation_environment_surfaces.txt  # resolved relative to THIS config
+                                                          # file's own directory (docs/cli.md),
+                                                          # not the current working directory
+    correlated: false  # per-surface temperature-uncertainty combination mode (E37)
+
+ensemble:
+  regime: lattice
+  temperature_uK: 1.0
+  motional_n: [0, 0, 0]
+  n_quad: 1  # single static node: a uniform field gives every node an
+             # identical shift (Var=0), see lattice_sr87_stark.yaml's own
+             # comment for why a wider quadrature is not used here.
+
+integration:
+  time_s: 1.0  # genuine 1-second interrogation (E29 fast path, no time
+               # stepping -- integration.mode defaults to "fast_path" for
+               # ensemble.regime: lattice).
+
+output:
+  directory: .
+  report_filename: report.json
+  line_profile_filename: line_profile.csv
+  n_time_samples: 512
+
+uncertainty_notes: >-
+  WP29 Tier 1 Part 1 example: multi-surface BBR thermal environment loaded
+  from a surfaces_file table (CONVENTIONS.md E37), physical E14b DC-Stark
+  coupling, Sr87 registry Delta_alpha; no experimental-dataset comparison,
+  no systematic-uncertainty budget beyond what coupling/fast_path/BBR
+  provenance notes state.

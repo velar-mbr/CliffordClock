@@ -100,11 +100,33 @@ already tolerates). See ``cliffordclock.pipeline``'s WP20 module-docstring
 note for how the pipeline resolves ``bbr_pivot_perturbation`` once per
 run and threads it to every evaluation-mode accumulator (fast_path,
 secular, classical direct batched/streaming, rotor worldline).
+
+WP29 Tier 1 scope note (CONVENTIONS.md E37, multi-surface thermal
+environment): :func:`bbr_environment_pivot_perturbation` generalizes
+:func:`bbr_pivot_perturbation` from a single radiation temperature to `N`
+surfaces, each with a solid-angle weight, a temperature, and an optional
+temperature uncertainty; at most one surface may also carry an
+emissivity, representing PTB's reflective-enclosure-plus-apertures
+topology (:func:`_bbr_effective_weights`, exact for PTB's own one-
+aperture case). E32's static and dynamic terms are evaluated against the
+environment's per-moment weighted sums (:func:`_bbr_weighted_moments`)
+instead of a single `T`.
+The resolved scalar composes into the pivot through the exact same
+keyword-only ``bbr_pivot_perturbation`` parameter as the uniform-T case
+(the composition point does not change; only how the pipeline resolves the
+scalar upstream of it does), so it is still spatially uniform within the
+atom cloud (every atom sees the same enclosure, no per-atom solid-angle
+map in this tier) and its spin-connection contribution is exactly zero for
+the same reason WP20's is. See ``cliffordclock.pipeline``'s WP29
+module-docstring note for
+``environment.radiation_environment``/:class:`RadiationEnvironmentConfig`.
 """
 
 from __future__ import annotations
 
 import math
+from collections.abc import Sequence
+from dataclasses import dataclass
 
 import jax.numpy as jnp
 
@@ -113,6 +135,7 @@ from cliffordclock.constants import ELECTRON_MASS, LAMBDA_BAR_COMPTON, PLANCK_H,
 from cliffordclock.ensemble.species import (
     BBR_REFERENCE_TEMPERATURE_K,
     EA0_SQUARED_SI,
+    BbrCoefficients,
     Species,
     StarkCoefficients,
 )
@@ -835,14 +858,435 @@ def build_omega_stark(
 
 
 # ---------------------------------------------------------------------------
-# WP20: blackbody-radiation shift pivot term (CONVENTIONS.md E32/E33). Pure
-# Python float arithmetic (not jax-batched): the BBR term is a per-run
-# config-level scalar (one radiation temperature, one species), not a
-# per-atom/per-node batched quantity -- mirrors the plain-float style of
-# `Species.resolve_stark_coefficient_hz_per_v2_m2`/
+# WP20/WP29 Tier 1: blackbody-radiation shift pivot term (CONVENTIONS.md
+# E32/E33/E37). Pure Python float arithmetic (not jax-batched): the BBR term
+# is a per-run config-level scalar (one resolved environment, one species),
+# not a per-atom/per-node batched quantity, mirroring the plain-float style
+# of `Species.resolve_stark_coefficient_hz_per_v2_m2`/
 # `cliffordclock.pipeline._stark_coupling_provenance_note`'s `k_s`, not the
 # jax.Array style of the batched pivot functions above.
+#
+# WP29 Tier 1 scope note (CONVENTIONS.md E37, multi-surface thermal
+# environment): the single-temperature functions below
+# (`bbr_pivot_perturbation`/`bbr_pivot_uncertainty`, E32) are implemented as
+# the single-surface case of the general multi-surface functions further
+# down this section (`bbr_environment_pivot_perturbation`/
+# `bbr_environment_pivot_uncertainty`, E37): both call the same private
+# per-moment coefficient evaluation (`_bbr_weighted_moments`), so a uniform
+# environment reduces to the E32 scalar path bit for bit, an exact match,
+# not just close numerical agreement (`tests/test_bbr_environment.py`'s
+# reduction test).
 # ---------------------------------------------------------------------------
+
+#: Absolute tolerance for `RadiationSurface.weight` sums (CONVENTIONS.md
+#: E37): the input solid-angle fractions must sum to 1 within this margin,
+#: enforced both by `cliffordclock.pipeline._parse_radiation_environment`
+#: (parse time, before a species is even resolved) and by
+#: `_bbr_validate_environment` below (evaluation time, for direct callers of
+#: `bbr_environment_pivot_perturbation`/`bbr_environment_pivot_uncertainty`
+#: that bypass the pipeline entirely).
+BBR_ENVIRONMENT_WEIGHT_TOLERANCE = 1e-9
+
+
+@dataclass(frozen=True)
+class RadiationSurface:
+    """One surface of a multi-surface BBR thermal environment (CONVENTIONS.md E37).
+
+    Attributes
+    ----------
+    name : str
+        Label for this surface, used only in error messages and pipeline
+        report notes (not a registry key).
+    weight : float
+        Effective solid-angle fraction `w_i = Omega_i/(4*pi)` this surface
+        subtends at the atoms, before any emissivity correction. The full
+        set of `weight` values across an environment's surfaces must sum to
+        1 within `BBR_ENVIRONMENT_WEIGHT_TOLERANCE`; this is an input the
+        lab supplies (from geometry, an FEA model, or a ray-traced exchange-
+        factor calculation), not a value this tier computes from CAD.
+    temperature_k : float
+        This surface's radiation temperature, kelvin. Must lie in the
+        species' `BbrCoefficients.validity_min_k`/`validity_max_k` window
+        (50-350 K for the registry's current entries), exactly like E32's
+        single `temperature_k`.
+    temperature_uncertainty_k : float
+        1-sigma uncertainty on `temperature_k`, kelvin. Default `0.0` (no
+        uncertainty on this surface's temperature); must be `>= 0`.
+    emissivity : float or None
+        Interior emissivity `epsilon`, in `(0, 1]`, of the reflective
+        enclosure this surface represents (CONVENTIONS.md E37's PTB
+        enclosure-and-apertures topology, `_bbr_effective_weights`).
+        `None` (the default, and the ordinary case for every other
+        surface in an environment): this surface is a direct-view
+        aperture/window, its `weight` used as given with no correction.
+        At most one surface across an entire environment may set
+        `emissivity`; that surface is the enclosure whose reflections
+        amplify every other (aperture) surface's effective weight, and
+        `_bbr_validate_environment` rejects more than one.
+    """
+
+    name: str
+    weight: float
+    temperature_k: float
+    temperature_uncertainty_k: float = 0.0
+    emissivity: float | None = None
+
+
+def _bbr_validate_environment(
+    surfaces: Sequence[RadiationSurface], coeffs: BbrCoefficients
+) -> None:
+    """Raise `ValueError` if `surfaces` violates E37's weight/window/shape invariants.
+
+    Called by every public entry point below
+    (`bbr_environment_pivot_perturbation`, `bbr_environment_pivot_uncertainty`,
+    `bbr_environment_effective_temperatures`) so a direct caller (bypassing
+    `cliffordclock.pipeline`'s own parse-time checks entirely) still gets a
+    clear rejection instead of a silently wrong shift.
+    """
+    if not surfaces:
+        raise ValueError("radiation environment must have at least one RadiationSurface")
+
+    total_weight = math.fsum(surface.weight for surface in surfaces)
+    if abs(total_weight - 1.0) > BBR_ENVIRONMENT_WEIGHT_TOLERANCE:
+        raise ValueError(
+            "radiation environment surface weights must sum to 1 (tolerance "
+            f"{BBR_ENVIRONMENT_WEIGHT_TOLERANCE:g}); got sum={total_weight!r} across "
+            f"{len(surfaces)} surface(s): {[surface.name for surface in surfaces]!r}"
+        )
+
+    enclosure_names = [surface.name for surface in surfaces if surface.emissivity is not None]
+    if len(enclosure_names) > 1:
+        raise ValueError(
+            "radiation environment: at most one surface may carry an emissivity "
+            "(CONVENTIONS.md E37's enclosure-and-apertures topology: one reflective "
+            f"enclosure plus direct-view apertures); got {len(enclosure_names)} surfaces "
+            f"with emissivity set: {enclosure_names!r}. Multi-reflector radiosity (more "
+            "than one partially-reflective enclosure surface) is out of scope for this "
+            "tier, future work."
+        )
+
+    for surface in surfaces:
+        if not (coeffs.validity_min_k <= surface.temperature_k <= coeffs.validity_max_k):
+            raise ValueError(
+                f"radiation environment surface {surface.name!r}: temperature_k="
+                f"{surface.temperature_k!r} K is outside the validated BBR fit range "
+                f"[{coeffs.validity_min_k}, {coeffs.validity_max_k}] K (CONVENTIONS.md "
+                "E32/E37): hard rejection, not a silently-extrapolated fit past its "
+                "published support."
+            )
+        if surface.temperature_uncertainty_k < 0.0:
+            raise ValueError(
+                f"radiation environment surface {surface.name!r}: "
+                f"temperature_uncertainty_k={surface.temperature_uncertainty_k!r} must be >= 0"
+            )
+        if surface.emissivity is not None and not (0.0 < surface.emissivity <= 1.0):
+            raise ValueError(
+                f"radiation environment surface {surface.name!r}: emissivity="
+                f"{surface.emissivity!r} must lie in (0, 1] (CONVENTIONS.md E37's PTB "
+                "aperture form)"
+            )
+
+
+def _bbr_effective_weights(surfaces: Sequence[RadiationSurface]) -> list[float]:
+    """Per-surface effective solid-angle fraction (CONVENTIONS.md E37's PTB
+    enclosure-and-apertures topology).
+
+    Nosske et al. (arXiv:2507.14030, PTB's transportable-clock paper) model
+    the atoms as sitting inside a single reflective enclosure of interior
+    emissivity `epsilon`, pierced by one or more apertures that leak in a
+    different temperature: the enclosure's own reflections give the leaked-
+    in radiation more chances to reach the atoms than its raw geometric
+    solid angle alone would suggest. Their published closed form, for one
+    aperture of raw fraction `w = Omega/4pi`, is `Omega_eff/4pi = 1 /
+    [1 + (4pi/Omega - 1) * epsilon]`, equivalently `w_eff = w / (w +
+    (1 - w) * epsilon)`.
+
+    `_bbr_validate_environment` guarantees at most one `RadiationSurface`
+    carries an `emissivity`; that surface is the enclosure, every other
+    surface is a direct-view aperture. Writing `W = sum` of the apertures'
+    raw `weight` (their combined raw fraction, jointly forming the single
+    lumped aperture PTB's formula treats), each aperture's effective
+    weight is `w_i_eff = w_i / (W + (1 - W) * epsilon)`: PTB's own
+    single-aperture formula with `w` replaced by the combined `W`, then
+    split across the individual apertures in proportion to their own raw-
+    weight share of `W`. Summing every `w_i_eff` over the apertures
+    reproduces PTB's combined effective fraction exactly, `sum_i w_i_eff =
+    W / (W + (1 - W) * epsilon)`; for a single aperture (`W = w_1`) this is
+    PTB's own formula unchanged, character for character. The enclosure
+    then gets whatever effective weight is left, `1 - sum_i w_i_eff`,
+    never a value derived from its own raw `weight`: PTB's derivation is a
+    two-temperature mixture (the enclosure and the leaked-in aperture
+    temperature), so the two effective weights are complementary by
+    construction, not independently renormalized shares of every surface's
+    weight (an earlier, incorrect implementation of this function did
+    exactly that renormalization, which does not reduce to PTB's formula;
+    see `tests/test_bbr_environment.py`'s dedicated kill-test).
+
+    An environment with no `emissivity` set on any surface returns every
+    raw `weight` unchanged: for a uniform single-surface environment
+    (`weight=1.0`, no emissivity) this returns `[1.0]` exactly.
+
+    Multi-reflector radiosity (more than one partially-reflective
+    enclosure surface, each contributing its own reflected share) is out
+    of scope for this tier; `_bbr_validate_environment` rejects more than
+    one `emissivity`-carrying surface.
+    """
+    enclosure_indices = [
+        index for index, surface in enumerate(surfaces) if surface.emissivity is not None
+    ]
+    if not enclosure_indices:
+        return [surface.weight for surface in surfaces]
+
+    # `_bbr_validate_environment` guarantees exactly one such index.
+    enclosure_index = enclosure_indices[0]
+    epsilon = surfaces[enclosure_index].emissivity
+    assert epsilon is not None  # narrows the type for mypy; guaranteed by the list above
+
+    aperture_weight_total = math.fsum(
+        surface.weight for index, surface in enumerate(surfaces) if index != enclosure_index
+    )
+    denominator = aperture_weight_total + (1.0 - aperture_weight_total) * epsilon
+
+    weights_eff = [0.0] * len(surfaces)
+    for index, surface in enumerate(surfaces):
+        if index != enclosure_index:
+            weights_eff[index] = surface.weight / denominator
+    aperture_weight_eff_total = math.fsum(
+        weight for index, weight in enumerate(weights_eff) if index != enclosure_index
+    )
+    weights_eff[enclosure_index] = 1.0 - aperture_weight_eff_total
+    return weights_eff
+
+
+def _bbr_moment_powers(coeffs: BbrCoefficients) -> list[int]:
+    """The `(T/T0)` powers E37's per-moment sums need: `4` and `6` always
+    (the static term and the dynamic-anchor uncertainty's leading power,
+    CONVENTIONS.md section 13's uncertainty note), plus every power
+    `coeffs.dyn_coeffs_hz` actually carries (`{6, 8, 10}` for Sr-87,
+    `{6, 8}` for Yb-171).
+    """
+    return sorted({4, 6} | set(coeffs.dyn_coeffs_hz.keys()))
+
+
+def _bbr_weighted_moments(
+    surfaces: Sequence[RadiationSurface], coeffs: BbrCoefficients
+) -> dict[int, float]:
+    """`M_n = sum_i w_eff_i * (T_i/T0)^n` for every power E37/E32 need (CONVENTIONS.md E37).
+
+    A single surface with `weight=1.0` (and no emissivity, so
+    `_bbr_effective_weights` returns `[1.0]` exactly) gives `M_n =
+    (T_1/T0)^n` bit for bit: `math.fsum` of a single term returns that term
+    unchanged, so this equals E32's `t_ratio**n` exactly, an identical
+    value, not an approximation of it. This bit-exactness is what makes
+    `bbr_pivot_perturbation`'s
+    single-surface reduction (module docstring's WP29 Tier 1 scope note)
+    a structural guarantee, not a numerical coincidence.
+    """
+    weights_eff = _bbr_effective_weights(surfaces)
+    t0 = BBR_REFERENCE_TEMPERATURE_K
+    return {
+        n: math.fsum(
+            weight * (surface.temperature_k / t0) ** n
+            for weight, surface in zip(weights_eff, surfaces, strict=True)
+        )
+        for n in _bbr_moment_powers(coeffs)
+    }
+
+
+def _bbr_coefficient_uncertainty_frac(
+    coeffs: BbrCoefficients, moments: dict[int, float], nu_0_hz: float
+) -> float:
+    """Registry coefficient-uncertainty contribution (CONVENTIONS.md section
+    13's uncertainty note / G7 sign-off A4#2), generalized from E32's single
+    `(T/T0)^n` powers to E37's per-moment sums `M_n`. Shared by
+    `bbr_pivot_uncertainty` (single surface, `temperature_uncertainty_k is
+    None` branch) and `bbr_environment_pivot_uncertainty`, so both compute
+    this term identically.
+    """
+    sigma_stat_hz = coeffs.nu_stat_300k_uncertainty_hz * moments[4]
+    sigma_dyn_hz = coeffs.dyn_anchor_uncertainty_hz * moments[6]
+    return math.sqrt(sigma_stat_hz**2 + sigma_dyn_hz**2) / nu_0_hz
+
+
+def bbr_environment_pivot_perturbation(
+    surfaces: Sequence[RadiationSurface], species: Species
+) -> float:
+    """``(P−1)_BBR`` for a multi-surface thermal environment (CONVENTIONS.md E37).
+
+    Generalizes E32's single-temperature formula by replacing each
+    `(T/T0)^n` power with the environment's weighted moment `M_n = sum_i
+    w_eff_i * (T_i/T0)^n` (`_bbr_weighted_moments`, `w_eff_i` the
+    emissivity-corrected fraction from `_bbr_effective_weights`):
+
+        (P-1)_BBR = [Delta_nu_stat * M_4 + sum_n c_n * M_n] / nu_0
+
+    with `c_n` the same per-species `dyn_coeffs_hz` registry entries E32
+    uses. A uniform environment (one `RadiationSurface` with `weight=1.0`)
+    reduces to E32's `bbr_pivot_perturbation` bit for bit, not just
+    numerically (`_bbr_weighted_moments`'s docstring; the single-surface
+    reduction test in `tests/test_bbr_environment.py` pins this).
+
+    Parameters
+    ----------
+    surfaces : Sequence[RadiationSurface]
+        The enclosure's surfaces. Weights must sum to 1 within
+        `BBR_ENVIRONMENT_WEIGHT_TOLERANCE`; every `temperature_k` must lie
+        in `species`' resolved BBR validity window.
+    species : Species
+        Species with a resolvable `BbrCoefficients` entry.
+
+    Returns
+    -------
+    float
+        ``(P−1)_BBR``, dimensionless.
+
+    Raises
+    ------
+    ValueError
+        If `species` has no resolvable BBR coefficients, `surfaces` is
+        empty, its weights do not sum to 1 within tolerance, or any
+        surface's temperature/emissivity/uncertainty is out of range
+        (`_bbr_validate_environment`).
+    """
+    coeffs = species.resolve_bbr_coefficients()
+    _bbr_validate_environment(surfaces, coeffs)
+    moments = _bbr_weighted_moments(surfaces, coeffs)
+    dyn_hz = sum(coeff * moments[n] for n, coeff in coeffs.dyn_coeffs_hz.items())
+    delta_nu_hz = coeffs.nu_stat_300k_hz * moments[4] + dyn_hz
+    return delta_nu_hz / species.clock_frequency_hz
+
+
+def bbr_environment_effective_temperatures(
+    surfaces: Sequence[RadiationSurface], species: Species
+) -> dict[int, float]:
+    """Per-moment effective temperatures `T_eff,n = T0 * M_n^(1/n)` (CONVENTIONS.md E37).
+
+    `T_eff,4` is the temperature a single uniform bath would need to match
+    this environment's static (`T^4`) moment; `T_eff,6`/`T_eff,8`/`T_eff,10`
+    are the equivalent matches for the dynamic term's powers. For a uniform
+    environment every `T_eff,n` equals the single shared temperature; for a
+    non-uniform one they generally differ; that divergence is exactly the
+    mismatch the project's internal BBR thermal-environment dossier
+    quantifies against the registry coefficients (crossing `1e-18` at an
+    11 K spread, `1e-17` by 35 K, for a 50/50 two-surface split).
+
+    Parameters
+    ----------
+    surfaces : Sequence[RadiationSurface]
+    species : Species
+        Species with a resolvable `BbrCoefficients` entry.
+
+    Returns
+    -------
+    dict[int, float]
+        `{n: T_eff,n}` for every power `_bbr_moment_powers` resolves for
+        `species` (always includes `4` and `6`, plus every power the
+        species' `dyn_coeffs_hz` carries).
+
+    Raises
+    ------
+    ValueError
+        Same conditions as `bbr_environment_pivot_perturbation`.
+    """
+    coeffs = species.resolve_bbr_coefficients()
+    _bbr_validate_environment(surfaces, coeffs)
+    moments = _bbr_weighted_moments(surfaces, coeffs)
+    t0 = BBR_REFERENCE_TEMPERATURE_K
+    return {n: t0 * moment ** (1.0 / n) for n, moment in moments.items()}
+
+
+def bbr_environment_pivot_uncertainty(
+    surfaces: Sequence[RadiationSurface],
+    species: Species,
+    *,
+    correlated: bool = False,
+) -> tuple[float, bool]:
+    """Propagated fractional uncertainty on `bbr_environment_pivot_perturbation`
+    (CONVENTIONS.md E37).
+
+    **Coefficient uncertainty**, always included: identical to E32's
+    `bbr_pivot_uncertainty` (`_bbr_coefficient_uncertainty_frac`), with the
+    single `(T/T0)^n` powers generalized to the environment's weighted
+    moments `M_4`/`M_6`.
+
+    **Per-surface temperature uncertainty.** Writing `a_i = w_eff_i *
+    d(Delta_nu_hz)/dT` evaluated at surface `i`'s own `temperature_k` (the
+    same polynomial derivative E32's uncertainty note uses, scaled by that
+    surface's effective weight), two combination modes are available:
+
+    - `correlated=False` (the default): the surfaces' temperature errors
+      are treated as independent and combined in quadrature,
+      `sigma_T = sqrt(sum_i (a_i * sigma_{T_i})^2)`.
+    - `correlated=True`: the surfaces' temperature errors are treated as
+      moving together (a shared calibration-chain error affecting every
+      sensor coherently, the linear-pooling motivation Aeppli's 2025 JILA
+      thesis gives for its own four correlated temperature estimates, per
+      the project's internal BBR thermal-environment dossier part A), so
+      the per-surface terms are summed before taking the magnitude,
+      `sigma_T = abs(sum_i (a_i * sigma_{T_i}))`. For same-sign partials
+      (the ordinary case here: every registry coefficient is negative, so
+      every `a_i` is negative) this is an L1 norm against `independent`'s
+      L2 norm, so `correlated >= independent` always, strictly greater
+      whenever more than one surface carries a nonzero
+      `temperature_uncertainty_k`.
+
+    The two contributions combine in quadrature, exactly as E32's
+    coefficient/temperature terms do.
+
+    Parameters
+    ----------
+    surfaces : Sequence[RadiationSurface]
+    species : Species
+        Species with a resolvable `BbrCoefficients` entry.
+    correlated : bool
+        Temperature-uncertainty combination mode across surfaces; see
+        above. Default `False` (independent, quadrature).
+
+    Returns
+    -------
+    tuple[float, bool]
+        ``(sigma_fractional, temperature_uncertainty_included)``, the
+        second element `True` iff at least one surface carries a nonzero
+        `temperature_uncertainty_k` (mirrors `bbr_pivot_uncertainty`'s
+        `temperature_uncertainty_k is None` -> `False` semantics: an
+        environment where every surface has the default `0.0` uncertainty
+        propagates no temperature-uncertainty contribution, the same
+        "conditional on exact T" case E32 already reports).
+
+    Raises
+    ------
+    ValueError
+        Same conditions as `bbr_environment_pivot_perturbation`.
+    """
+    coeffs = species.resolve_bbr_coefficients()
+    _bbr_validate_environment(surfaces, coeffs)
+    nu_0 = species.clock_frequency_hz
+    moments = _bbr_weighted_moments(surfaces, coeffs)
+    weights_eff = _bbr_effective_weights(surfaces)
+    sigma_coeff_frac = _bbr_coefficient_uncertainty_frac(coeffs, moments, nu_0)
+
+    t0 = BBR_REFERENCE_TEMPERATURE_K
+    per_surface_terms_hz = []
+    for weight, surface in zip(weights_eff, surfaces, strict=True):
+        t_ratio = surface.temperature_k / t0
+        d_delta_nu_dt_hz_per_k = coeffs.nu_stat_300k_hz * 4.0 * t_ratio**3 / t0 + sum(
+            coeff * n * t_ratio ** (n - 1) / t0 for n, coeff in coeffs.dyn_coeffs_hz.items()
+        )
+        per_surface_terms_hz.append(
+            weight * d_delta_nu_dt_hz_per_k * surface.temperature_uncertainty_k
+        )
+
+    temperature_uncertainty_included = any(
+        surface.temperature_uncertainty_k > 0.0 for surface in surfaces
+    )
+    sigma_t_hz = (
+        abs(math.fsum(per_surface_terms_hz))
+        if correlated
+        else math.sqrt(math.fsum(term**2 for term in per_surface_terms_hz))
+    )
+    sigma_t_frac = sigma_t_hz / nu_0
+    combined_frac = math.sqrt(sigma_coeff_frac**2 + sigma_t_frac**2)
+    return combined_frac, temperature_uncertainty_included
 
 
 def bbr_pivot_perturbation(temperature_k: float, species: Species) -> float:
@@ -852,23 +1296,20 @@ def bbr_pivot_perturbation(temperature_k: float, species: Species) -> float:
     BBR_REFERENCE_TEMPERATURE_K = 300 K``, with ``Δν_dyn(T) =
     Σ_n dyn_coeffs_hz[n]·(T/T₀)ⁿ`` the registry's per-species dynamic-term
     polynomial (a fit to the exact Planck-weighted integral, Lisdat et al.
-    PR Research 3, L042036 (2021) Eq. 6-7 -- NOT a Taylor series; see
+    PR Research 3, L042036 (2021) Eq. 6-7, NOT a Taylor series; see
     `cliffordclock.ensemble.species.BbrCoefficients`'s docstring). **No
     leading minus**: the sign lives inside `Δν_stat < 0`, exactly as E14b
-    carries it (``P−1 = Δν/ν₀``) -- the G7 theory sign-off's mandatory
+    carries it (``P−1 = Δν/ν₀``), the G7 theory sign-off's mandatory
     correction (the project's theory sign-off record (G7), A1) to an earlier
     double-negated draft. Mandatory regression:
     ``bbr_pivot_perturbation(300.0, get_species("Sr87")) < 0`` and
     ``≈ −5.3e-15`` (`tests/test_bbr_pivot.py`).
 
-    The polynomial evaluation (`dyn_coeffs_hz` has 2-3 fixed terms) is a
-    plain Python `sum`, not an E10-disciplined accumulation: E10's
-    "never accumulate an absolute quantity when only a tiny perturbation
-    is needed" concern targets accumulating *many* per-atom samples into
-    a near-unity total (`pivot`/`1 + x`); this is a single, fixed-length
-    (2-3 term) polynomial evaluated once per pipeline run, each term
-    already the same tiny (~1e-16-1e-18 fractional) order of magnitude, so
-    no catastrophic cancellation or precision floor is at stake.
+    WP29 Tier 1 note (CONVENTIONS.md E37): implemented as the single-surface
+    case of `bbr_environment_pivot_perturbation`, `weight=1.0` and no
+    emissivity, so this function's result is bit-for-bit identical to
+    calling that function with one `RadiationSurface` (module section
+    docstring; `tests/test_bbr_environment.py`'s reduction test).
 
     Parameters
     ----------
@@ -887,13 +1328,17 @@ def bbr_pivot_perturbation(temperature_k: float, species: Species) -> float:
     ------
     ValueError
         If `species` has no resolvable BBR coefficients (propagated from
-        `Species.resolve_bbr_coefficients`).
+        `Species.resolve_bbr_coefficients`), or `temperature_k` is outside
+        `species`' resolved BBR validity window (CONVENTIONS.md E32/E37;
+        this was previously enforced only at
+        `cliffordclock.pipeline`'s config-parse boundary, now also enforced
+        here as a structural consequence of sharing
+        `bbr_environment_pivot_perturbation`'s validation).
     """
-    coeffs = species.resolve_bbr_coefficients()
-    t_ratio = temperature_k / BBR_REFERENCE_TEMPERATURE_K
-    dyn_hz = sum(coeff * t_ratio**n for n, coeff in coeffs.dyn_coeffs_hz.items())
-    delta_nu_hz = coeffs.nu_stat_300k_hz * t_ratio**4 + dyn_hz
-    return delta_nu_hz / species.clock_frequency_hz
+    return bbr_environment_pivot_perturbation(
+        (RadiationSurface(name="uniform", weight=1.0, temperature_k=temperature_k),),
+        species,
+    )
 
 
 def bbr_pivot_uncertainty(
@@ -906,9 +1351,9 @@ def bbr_pivot_uncertainty(
     **Coefficient uncertainty (A4#2, always included).** The registry's
     static and dynamic-anchor uncertainties are propagated through the
     same `(T/T₀)` powers as their central values (`nu_stat_300k_hz` scales
-    with `Δν_stat`'s ``(T/T₀)⁴``; `dyn_anchor_uncertainty_hz` -- the
+    with `Δν_stat`'s ``(T/T₀)⁴``; `dyn_anchor_uncertainty_hz`, the
     dominant, anchor-level uncertainty on the *summed* dynamic term, not a
-    per-coefficient covariance, see `BbrCoefficients`'s docstring -- is
+    per-coefficient covariance, see `BbrCoefficients`'s docstring, is
     scaled by the leading dynamic power ``(T/T₀)⁶``) and combined in
     quadrature (independent error sources: the static term is Middelmann's
     directly-measured Δα-based value, the dynamic term is a separately
@@ -918,7 +1363,7 @@ def bbr_pivot_uncertainty(
     brief's original mis-reading of Middelmann's "(6)" as ±6 mHz instead
     of the last-digit ±0.00006 Hz, G7 sign-off A4#2). One deliberate
     simplification for Yb171: `dyn_anchor_uncertainty_hz` is ν_dyn,6's
-    ±0.34 mHz alone, not its quadrature sum with ν_dyn,8's ±0.020 mHz --
+    ±0.34 mHz alone, not its quadrature sum with ν_dyn,8's ±0.020 mHz,
     the difference is 0.17% of the anchor (~1.2e-21 fractional on the
     clock), far below the 1e-19 floor (WP20 review nit, accepted).
 
@@ -934,10 +1379,22 @@ def bbr_pivot_uncertainty(
     Σ_n dyn_coeffs_hz[n]·n·(T/T₀)^(n−1)/T₀`` (not just the leading
     ``4Δν/T`` approximation the sign-off used for its order-of-magnitude
     estimate) and combined in quadrature with the coefficient uncertainty.
-    When omitted, the second return value is `False` -- callers must then
+    When omitted, the second return value is `False`, callers must then
     emit an explicit "conditional on exact T" note (G7 sign-off A4#3:
     "silent exactness is not defensible at 1e-19" once σ_T exceeds the
     floor, which it does even for JILA-class 4 mK in-vacuum thermometry).
+
+    WP29 Tier 1 note (CONVENTIONS.md E37): the `temperature_uncertainty_k`
+    is-not-`None` branch delegates to `bbr_environment_pivot_uncertainty`
+    with one `RadiationSurface`, `weight=1.0`, `correlated` unused (a single
+    surface has no other surface to correlate with, both modes coincide),
+    bit-for-bit identical to this function's own historical formula (the
+    single-surface `d(Delta_nu_hz)/dT` derivative equals E32's `d_delta_nu_dt_hz_per_k`
+    exactly, and `sqrt(x**2) == abs(x)` for every finite `x` in IEEE 754
+    double precision). The `is None` branch is kept as a direct calculation
+    (not a delegated call) so it returns `sigma_coeff_frac` itself rather
+    than `sqrt(sigma_coeff_frac**2 + 0.0**2)`, an identical value but
+    without a redundant round trip through `sqrt`.
 
     Parameters
     ----------
@@ -959,27 +1416,28 @@ def bbr_pivot_uncertainty(
     ValueError
         If `species` has no resolvable BBR coefficients.
     """
-    coeffs = species.resolve_bbr_coefficients()
-    nu_0 = species.clock_frequency_hz
-    t_ratio = temperature_k / BBR_REFERENCE_TEMPERATURE_K
-
-    sigma_stat_hz = coeffs.nu_stat_300k_uncertainty_hz * t_ratio**4
-    sigma_dyn_hz = coeffs.dyn_anchor_uncertainty_hz * t_ratio**6
-    sigma_coeff_frac = math.sqrt(sigma_stat_hz**2 + sigma_dyn_hz**2) / nu_0
-
     if temperature_uncertainty_k is None:
+        coeffs = species.resolve_bbr_coefficients()
+        surfaces = (RadiationSurface(name="uniform", weight=1.0, temperature_k=temperature_k),)
+        _bbr_validate_environment(surfaces, coeffs)
+        moments = _bbr_weighted_moments(surfaces, coeffs)
+        sigma_coeff_frac = _bbr_coefficient_uncertainty_frac(
+            coeffs, moments, species.clock_frequency_hz
+        )
         return sigma_coeff_frac, False
 
-    d_delta_nu_dt_hz_per_k = (
-        coeffs.nu_stat_300k_hz * 4.0 * t_ratio** 3 / BBR_REFERENCE_TEMPERATURE_K
-        + sum(
-            coeff * n * t_ratio ** (n - 1) / BBR_REFERENCE_TEMPERATURE_K
-            for n, coeff in coeffs.dyn_coeffs_hz.items()
-        )
+    sigma_frac, _ = bbr_environment_pivot_uncertainty(
+        (
+            RadiationSurface(
+                name="uniform",
+                weight=1.0,
+                temperature_k=temperature_k,
+                temperature_uncertainty_k=temperature_uncertainty_k,
+            ),
+        ),
+        species,
     )
-    sigma_t_frac = abs(d_delta_nu_dt_hz_per_k) * temperature_uncertainty_k / nu_0
-    combined_frac = math.sqrt(sigma_coeff_frac**2 + sigma_t_frac**2)
-    return combined_frac, True
+    return sigma_frac, True
 
 
 # ---------------------------------------------------------------------------

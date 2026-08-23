@@ -1,0 +1,18 @@
+# CliffordClock example: environment.radiation_environment.surfaces_file
+# (WP29 Tier 1 Part 1, CONVENTIONS.md E37). See docs/cli.md's "Surfaces
+# table file format" section for the full grammar, and
+# examples/radiation_environment_surfaces_sr87.yaml for the config that
+# loads this file.
+#
+# One surface per line: name weight temperature_K [temperature_uncertainty_K] [emissivity]
+# `-` means "absent" for either optional trailing column.
+#
+# Two-surface enclosure-and-aperture topology (PTB's own, Nosske et al.
+# arXiv:2507.14030): `shield` is the reflective enclosure (it carries the
+# only `emissivity` in this file); `aperture` is the direct-view leak into
+# a warmer surrounding, with its own temperature uncertainty. Weights sum
+# to 1 exactly, as CONVENTIONS.md E37 requires.
+
+# name      weight  temperature_K  temperature_uncertainty_K  emissivity
+shield       0.9     100.0          -                          0.5
+aperture     0.1     300.0          0.01                       -

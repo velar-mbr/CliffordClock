@@ -67,7 +67,7 @@ venue = "IEEE Trans. Ultrason. Ferroelectr. Freq. Control 59, 411"
 year = [2012]
 arxiv = "1108.4320"
 doi = "10.1109/TUFFC.2012.2209"
-source = "paper/refs.bib; README.md"
+source = "paper/refs.bib; README.md quickstart (the documented stray-charge event examples/realistic_lattice_sr87.yaml brackets). Byline from Crossref publisher metadata (DOI 10.1109/TUFFC.2012.2209, fetched 2026-08-12); matches the arXiv:1108.4320 listing this project verified in a prior session."
 
 [[paper]]
 key = "Beloy2018"
@@ -89,6 +89,24 @@ venue = "J. Appl. Phys. 69, 7126"
 year = [1991]
 doi = "10.1063/1.347610"
 source = "paper/refs.bib"
+
+[[paper]]
+key = "Aeppli2025thesis"
+authors = "Aeppli, Alexander Gerald"
+surnames = ["Aeppli"]
+title = "Clock with 8 x 10^-19 systematic uncertainty"
+venue = "PhD thesis, University of Colorado Boulder, Department of Physics"
+year = [2025]
+source = "Owner-supplied PDF, title page read directly (2026-08-22 session); thesis directed by Professor Jun Ye; cited in docs/CONVENTIONS.md E37 and notebooks/12_thermal_environment.ipynb"
+
+[[paper]]
+key = "Bothwell2022thesis"
+authors = "Bothwell, Tobias"
+surnames = ["Bothwell"]
+title = "A Wannier-Stark Optical Lattice Clock With Extended Coherence Times"
+venue = "PhD thesis, University of Colorado Boulder"
+year = [2022]
+source = "Wayback Machine snapshot (2025-10-21) of jila.colorado.edu/sites/default/files/2022-05/Bothwell_thesis_2022.pdf, read directly (2026-08-22 session); thesis advised by Jun Ye; cited in notebooks/12_thermal_environment.ipynb"
 
 [[paper]]
 key = "Aeppli2024"
@@ -227,16 +245,6 @@ title = "Electric Quadrupole Shift Cancellation in Single-Ion Optical Frequency 
 venue = "Phys. Rev. Lett. 95, 033001"
 year = [2005]
 source = "docs/CONVENTIONS.md section 14; paper/figures/roos_values.py; paper/refs.bib. Byline from Crossref publisher metadata (DOI 10.1103/PhysRevLett.95.033001, fetched 2026-08-12); surname set cross-checked against the owner-supplied primary text extraction (2026-08-11 session)."
-
-[[paper]]
-key = "Lodewyck2012"
-authors = "Lodewyck, J. and Zawada, M. and Lorini, L. and Gurov, M. and Lemonde, P."
-surnames = ["Lodewyck", "Zawada", "Lorini", "Gurov", "Lemonde"]
-title = "Observation and cancellation of a perturbing dc Stark shift in strontium optical lattice clocks"
-venue = "IEEE Trans. Ultrason. Ferroelectr. Freq. Control 59, 411"
-year = [2012]
-arxiv = "1108.4320"
-source = "README.md quickstart (the documented stray-charge event examples/realistic_lattice_sr87.yaml brackets); paper/refs.bib. Byline from Crossref publisher metadata (DOI 10.1109/TUFFC.2012.2209, fetched 2026-08-12); matches the arXiv:1108.4320 listing this project verified in a prior session."
 
 [[paper]]
 key = "vanWestrum2019"

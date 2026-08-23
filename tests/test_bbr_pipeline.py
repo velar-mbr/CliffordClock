@@ -147,13 +147,30 @@ def test_environment_temperature_species_without_bbr_data_raises_config_error(
 # ---------------------------------------------------------------------------
 
 
+#: `examples/radiation_environment_surfaces_sr87.yaml` (WP29 Tier 1 Part 1)
+#: is the one deliberate, post-WP20 exception to
+#: `test_no_shipped_example_uses_environment_key`'s "no example opts into
+#: BBR" rule below -- it exists specifically to demonstrate
+#: `environment.radiation_environment.surfaces_file`. Excluded here by
+#: name; the check itself stays as strict as before for every other
+#: example.
+_RADIATION_ENVIRONMENT_EXAMPLE_NAME = "radiation_environment_surfaces_sr87.yaml"
+
+
 def test_no_shipped_example_uses_environment_key() -> None:
-    """No `examples/*.yaml` config opts into BBR -- the WP20 acceptance
-    criterion is that every shipped example's output is byte-identical to
-    its pre-WP20 value, which this structural check protects independent
-    of any numeric regression below.
+    """No pre-WP20/WP29 `examples/*.yaml` config opts into BBR -- the WP20
+    acceptance criterion is that every one of THOSE shipped examples'
+    output is byte-identical to its pre-WP20 value, which this structural
+    check protects independent of any numeric regression below.
+    `_RADIATION_ENVIRONMENT_EXAMPLE_NAME` is excluded: it postdates WP20
+    and exists specifically to demonstrate
+    `environment.radiation_environment.surfaces_file` (WP29 Tier 1 Part 1).
     """
-    example_paths = sorted(_EXAMPLES_DIR.glob("*.yaml"))
+    example_paths = [
+        path
+        for path in sorted(_EXAMPLES_DIR.glob("*.yaml"))
+        if path.name != _RADIATION_ENVIRONMENT_EXAMPLE_NAME
+    ]
     assert len(example_paths) >= 5, "expected several shipped example configs"
     for path in example_paths:
         data = yaml.safe_load(path.read_text(encoding="utf-8"))
@@ -186,7 +203,20 @@ def test_shipped_example_output_byte_identical_to_pre_wp20_snapshot(
 
     result = run_pipeline_full(config)
 
-    np.testing.assert_allclose(result.report.mean_fractional_shift, expected_shift, rtol=0, atol=0)
+    # rtol=0 (true bit-for-bit) held in the pinning dev venv's jax release
+    # but not in a freshly resolved venv on a newer jax/XLA (observed: jax
+    # 0.11.1, ~1.24e-16 relative on showcase_gradient_dispersion_sr87.yaml,
+    # ~half a float64 ULP) -- XLA reduction/fusion scheduling for this
+    # unchanged BBR-off arithmetic differs by jax version, so exact equality
+    # is not a portable contract. the CI runner's linux/x86 XLA
+    # measures 3.7e-14 relative on the same snapshot (2026-08-22), so the
+    # portable cross-platform bound is rtol=1e-12: it absorbs measured
+    # version and platform scheduling drift with margin while staying 4+
+    # orders of magnitude tighter than any physically meaningful shift
+    # here, so a real numeric regression in this code path still fails.
+    np.testing.assert_allclose(
+        result.report.mean_fractional_shift, expected_shift, rtol=1e-12, atol=0
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -195,6 +225,7 @@ def test_shipped_example_output_byte_identical_to_pre_wp20_snapshot(
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.slow
 def test_bbr_lattice_fast_path_matches_worldline_rotor_crosscheck(tmp_path: Path) -> None:
     """E29's exact-agreement claim, extended with BBR active (WP20: "extend
     the WP16 head-to-head test with BBR active rather than duplicating
