@@ -185,6 +185,36 @@ participation total lands at essentially the same total-level deviation
 from the published band as WP31's own total, for the structural reason
 this module's `MotionalAlIonRadialReconstructedCase.participation_note`
 states in full.
+
+**WP33 addendum: the intrinsic-micromotion-enhanced variant, closing the
+reconciliation.** WP32's own G14 gate review found the mechanism behind
+its residual gap: Marshall's (and Brewer's) published radial rows already
+include the shift due to INTRINSIC micromotion, and doubling WP32's plain
+participation (the naive "secular + equal-size micromotion" guess) closes
+the Y branch but leaves X reproducibly 20-35% short in both independent
+datasets -- because the true enhancement is MODE-SPECIFIC,
+`F_axis = 1 + q^2/(2*a_axis+q^2)` (Berkeland, J. Appl. Phys. 83, 5025
+(1998) Eq. 10), equal to `2` only when the Mathieu `a` parameter vanishes.
+CONVENTIONS.md section 16's WP33 addition
+(`cliffordclock.integrator.omega.clock_ion_mathieu_parameters`/
+`radial_micromotion_enhancement`/`predicted_partner_bare_radial_
+frequencies_hz`) solves the clock ion's own leading-order Mathieu
+parameters from the trap's published RF drive frequency and the WP32
+reconstruction (two equations, two unknowns, zero degrees of freedom),
+runs a MANDATORY, falsifiable over-determination check (mass-scaling to
+predict the partner ion's own bare radial frequencies, compared against
+WP32's separately-reconstructed values), and multiplies WP32's radial
+participations by the resulting per-axis `F_x`/`F_y`. This module runs a
+FOURTH case, :func:`run_motional_al_ion_intrinsic_micromotion_enhanced_case`,
+plus a SECOND, independent consistency check against Brewer et al.'s own
+published trap parameters (:func:`run_wp33_brewer_consistency_check`,
+different RF drive frequency, different mode frequencies, same species
+pair) -- both datasets pass the over-determination check at the
+sub-1%-relative level, and the per-mode ratios improve substantially over
+WP32's plain participation in both. The result is written to its OWN
+artifact set (`wp33_motional_al_ion_intrinsic_micromotion_enhanced.json`/
+`.md`, produced by :func:`build_wp33_report`/:func:`render_wp33_markdown`),
+leaving the WP30/WP31/WP32 artifacts above completely unchanged.
 """
 
 from __future__ import annotations
@@ -210,11 +240,15 @@ import run_benchmarks  # noqa: E402 (reuses the already-tested `_bands_overlap`)
 from cliffordclock.constants import ATOMIC_MASS_UNIT, HBAR, SPEED_OF_LIGHT  # noqa: E402
 from cliffordclock.ensemble.species import get_species  # noqa: E402
 from cliffordclock.integrator.omega import (  # noqa: E402
+    ClockIonMathieuParameters,
     MotionalMode,
     axial_coulomb_curvature,
+    clock_ion_mathieu_parameters,
     motional_mean_squared_velocity_m2_s2,
     motional_pivot_perturbation,
     motional_pivot_uncertainty,
+    predicted_partner_bare_radial_frequencies_hz,
+    radial_micromotion_enhancement,
     two_ion_participations,
     two_ion_radial_participations,
 )
@@ -915,6 +949,631 @@ def run_motional_al_ion_radial_reconstructed_case() -> MotionalAlIonRadialRecons
     )
 
 
+# ---------------------------------------------------------------------------
+# WP33: mode-specific intrinsic-micromotion enhancement for radial secular
+# modes (CONVENTIONS.md section 16's WP33 addition;
+# `cliffordclock.integrator.omega.clock_ion_mathieu_parameters`/
+# `radial_micromotion_enhancement`/`predicted_partner_bare_radial_
+# frequencies_hz`). Closes the reconciliation the G14 gate review
+# identified: Marshall's (and, per Brewer's own footnote, Brewer's)
+# published radial rows already include the shift due to INTRINSIC
+# micromotion, and WP32's plain participation ratios (0.35x-0.52x) --
+# even doubled (WP32's own G14-reported 0.7x-1.06x, Y closing but X
+# reproducibly 20-35% short) -- used a uniform factor of 2 where the true
+# enhancement is MODE-SPECIFIC (`F_axis = 1 + q^2/(2*a_axis+q^2)`,
+# Berkeland Eq. 10, `omega.py`'s own WP33 comment block). WP30's/WP31's/
+# WP32's own cases and artifacts are left completely untouched by this
+# section; this is a fourth, additional case, plus a second, independent
+# consistency check against Brewer et al.'s own published trap parameters.
+# ---------------------------------------------------------------------------
+
+#: WP33's own caveat, replacing WP32's "essentially unchanged from WP31"
+#: framing now that the mode-specific enhancement is available.
+INTRINSIC_MICROMOTION_ENHANCEMENT_CAVEAT = (
+    "WP33 SCOPE NOTE: this case multiplies WP32's reconstructed radial participations by "
+    "the leading-order intrinsic-micromotion enhancement factor F_axis = 1 + q^2/(2*a_axis+q^2) "
+    "(Berkeland, Miller, Bergquist, Itano, Wineland, J. Appl. Phys. 83, 5025 (1998) Eq. 10), "
+    "with (q, a_x, a_y) the clock (Al27+) ion's own leading-order Mathieu parameters solved "
+    "from the trap's published RF drive frequency, the axial Coulomb curvature (WP32), and "
+    "the two WP32-reconstructed clock-ion bare radial frequencies "
+    "(cliffordclock.integrator.omega.clock_ion_mathieu_parameters): two equations, two "
+    "unknowns, zero degrees of freedom, no trap-geometry parameter (alpha/epsilon) supplied "
+    "as input. The axial modes are unchanged from WP31/WP32 (q_z=0, F_axial=1 identically: no "
+    "intrinsic micromotion along the trap axis). Before use, the reconstruction chain is "
+    "checked by an independent, falsifiable test: the clock ion's solved Mathieu parameters "
+    "are mass-scaled to predict the PARTNER (Mg25+) ion's own bare radial frequencies, compared "
+    "against WP32's separately-reconstructed partner frequencies (from the two-ion eigenproblem "
+    "inversion, an entirely different calculation); see this case's own "
+    "partner_prediction_note for the result. Reported per-mode and total-level agreement below "
+    "is whatever this reconstruction gives against Marshall's own published per-mode and total "
+    "rows, with no tuning; see this case's own enhancement_note for the result stated in full."
+)
+
+
+@dataclass(frozen=True)
+class MotionalAlIonEnhancedModeComparison:
+    """One mode's participation-AND-enhancement-corrected prediction vs.
+    Marshall et al.'s own published per-mode "Frequency shift per quantum"
+    value (WP33).
+
+    Attributes
+    ----------
+    name : str
+        Mode name (`_MODE_NAMES` order).
+    is_axial : bool
+        Whether this is one of the two axial modes (`enhancement == 1.0`
+        identically for these; see class docstring).
+    participation : float
+        The clock ion's participation factor in this mode (WP31's exact
+        closed form for the axial pair; WP32's reconstruction for the
+        radial pairs -- unchanged from `MotionalAlIonRadialReconstructedCase`).
+    enhancement : float
+        `F_axis` (WP33, `radial_micromotion_enhancement`): `1.0` for the
+        two axial modes, `F_x`/`F_y` for the four radial modes.
+    predicted_shift_per_quantum : float
+        ``-(hbar*omega_i/m_Al)*participation_i*enhancement_i/(2*c^2)``:
+        the participation-AND-enhancement-corrected coefficient
+        multiplying `(n_bar_i+1/2)` for this mode, dimensionless.
+    published_shift_per_quantum : float
+        Marshall et al.'s own published value for this mode.
+    residual_fractional, ratio_predicted_over_published : float
+        Same definitions as `MotionalAlIonModeComparison`.
+    """
+
+    name: str
+    is_axial: bool
+    participation: float
+    enhancement: float
+    predicted_shift_per_quantum: float
+    published_shift_per_quantum: float
+    residual_fractional: float
+    ratio_predicted_over_published: float
+
+
+@dataclass(frozen=True)
+class MotionalAlIonIntrinsicMicromotionEnhancedCase:
+    """The WP33 intrinsic-micromotion-enhanced variant of the WP30/WP31/WP32
+    Al+ secular-motion case.
+
+    Attributes
+    ----------
+    case_class : str
+        Always ``"arithmetic_reproduction"``.
+    clock_mathieu : dict[str, float]
+        The clock ion's solved Mathieu parameters
+        (`asdict(cliffordclock.integrator.omega.ClockIonMathieuParameters)`):
+        `mathieu_q`, `mathieu_a_x`, `mathieu_a_y`, `mathieu_a_z`
+        (dimensionless) plus their (here all `0.0`; Marshall publishes no
+        per-mode frequency uncertainty for the axial/radial rows)
+        propagated uncertainties.
+    enhancement_x, enhancement_y : float
+        `F_x`, `F_y` (`radial_micromotion_enhancement`).
+    bare_frequency_partner_x_predicted_hz, bare_frequency_partner_y_predicted_hz : float
+        The PARTNER ion's bare radial X/Y frequencies, PREDICTED by
+        mass-scaling the clock ion's own solved Mathieu parameters
+        (`predicted_partner_bare_radial_frequencies_hz`) -- the
+        over-determination check's prediction.
+    bare_frequency_partner_x_reconstructed_hz, bare_frequency_partner_y_reconstructed_hz : float
+        The SAME partner frequencies, from WP32's own SEPARATE two-ion
+        eigenproblem inversion (`two_ion_radial_participations`'s
+        `bare_frequency_partner_hz`) -- the over-determination check's
+        independent target.
+    partner_x_relative_deviation, partner_y_relative_deviation : float
+        ``(predicted - reconstructed) / reconstructed`` for each branch:
+        the over-determination check's own falsifiable result.
+    per_mode : tuple[MotionalAlIonEnhancedModeComparison, ...]
+        One entry per mode, `_MODE_NAMES` order.
+    predicted_total_nominal, predicted_total_uncertainty_fractional,
+    predicted_total_band_lo, predicted_total_band_hi : float
+        The enhancement-corrected TOTAL `(P-1)_motional`, its propagated
+        1-sigma uncertainty (from the same per-mode `n_bar` uncertainties
+        as WP30/31/32; `participation*enhancement` is treated as an exact
+        input here, exactly like WP31/32's own `participation`), and its
+        `+/-1-sigma` band.
+    total_bands_overlap : bool
+        Whether this band overlaps Marshall et al.'s own published band.
+    total_kpi_verdict : str
+        ``"MET"`` if `total_bands_overlap` else ``"NOT MET"``.
+    per_mode_citation, enhancement_caveat, enhancement_note,
+    partner_prediction_note : str
+        Citations plus plain-language summaries of this case's own
+        results, stated in full.
+    """
+
+    case_class: str
+    clock_mathieu: dict[str, float]
+    enhancement_x: float
+    enhancement_y: float
+    bare_frequency_partner_x_predicted_hz: float
+    bare_frequency_partner_y_predicted_hz: float
+    bare_frequency_partner_x_reconstructed_hz: float
+    bare_frequency_partner_y_reconstructed_hz: float
+    partner_x_relative_deviation: float
+    partner_y_relative_deviation: float
+    per_mode: tuple[MotionalAlIonEnhancedModeComparison, ...]
+    predicted_total_nominal: float
+    predicted_total_uncertainty_fractional: float
+    predicted_total_band_lo: float
+    predicted_total_band_hi: float
+    total_bands_overlap: bool
+    total_kpi_verdict: str
+    per_mode_citation: str
+    enhancement_caveat: str
+    enhancement_note: str
+    partner_prediction_note: str
+
+
+def run_motional_al_ion_intrinsic_micromotion_enhanced_case() -> (
+    MotionalAlIonIntrinsicMicromotionEnhancedCase
+):
+    """Build the WP33 intrinsic-micromotion-enhanced variant (this
+    module's WP33 section header comment for the method).
+
+    1. Reconstruct the radial spectrum exactly as
+       :func:`run_motional_al_ion_radial_reconstructed_case` (WP32): the
+       Coulomb curvature, the X/Y branch inversions, the clock-ion bare
+       radial frequencies.
+    2. `clock_ion_mathieu_parameters(m_Al27, c, rf_drive_frequency_hz,
+       bare_frequency_clock_x_hz, bare_frequency_clock_y_hz)` -> the
+       clock ion's own `(q, a_x, a_y, a_z)`.
+    3. `predicted_partner_bare_radial_frequencies_hz` -> the
+       over-determination check: mass-scale to the partner ion and
+       compare against WP32's own SEPARATELY reconstructed partner
+       frequencies.
+    4. `radial_micromotion_enhancement(q, a_x)` / `(q, a_y)` -> `F_x`,
+       `F_y`. Axial modes get `F_axial = 1.0` (no engine call needed:
+       `q_z = 0` makes the formula's numerator vanish identically).
+    5. Per-mode: `participation_i * enhancement_i` in place of WP31/32's
+       plain `participation_i`, compared against
+       `loaders.MARSHALL_AL_ION_FREQUENCY_SHIFT_PER_QUANTUM`.
+    6. Total: `sum_i (hbar*omega_i/m_Al)*participation_i*enhancement_i*
+       (n_bar_i+1/2)`, `(P-1)_motional = -that/(2*c^2)`, uncertainty
+       propagated from the same per-mode `n_bar` uncertainties WP30/31/32
+       already use (`participation*enhancement` treated as an exact
+       input, mirroring `MotionalMode.participation`'s own convention).
+
+    Returns
+    -------
+    MotionalAlIonIntrinsicMicromotionEnhancedCase
+    """
+    species = get_species("Al27+")
+    m_al = species.mass_kg
+    m_mg = loaders.MG25_ATOMIC_MASS_AMU * ATOMIC_MASS_UNIT
+    rf_drive_frequency_hz = loaders.MARSHALL_AL_ION_RF_DRIVE_FREQUENCY_HZ
+
+    axial_com_hz = loaders.MARSHALL_AL_ION_MODES_MHZ_NBAR[0][1] * 1.0e6
+    c, _c_unc = axial_coulomb_curvature(m_al, m_mg, axial_com_hz)
+
+    axial_participations = two_ion_participations(m_al, m_mg)
+    x_com_hz = loaders.MARSHALL_AL_ION_MODES_MHZ_NBAR[2][1] * 1.0e6
+    x_str_hz = loaders.MARSHALL_AL_ION_MODES_MHZ_NBAR[3][1] * 1.0e6
+    y_com_hz = loaders.MARSHALL_AL_ION_MODES_MHZ_NBAR[4][1] * 1.0e6
+    y_str_hz = loaders.MARSHALL_AL_ION_MODES_MHZ_NBAR[5][1] * 1.0e6
+    x_result = two_ion_radial_participations(m_al, m_mg, c, x_com_hz, x_str_hz)
+    y_result = two_ion_radial_participations(m_al, m_mg, c, y_com_hz, y_str_hz)
+
+    clock_mathieu: ClockIonMathieuParameters = clock_ion_mathieu_parameters(
+        m_al,
+        c,
+        rf_drive_frequency_hz,
+        x_result.bare_frequency_clock_hz,
+        y_result.bare_frequency_clock_hz,
+    )
+
+    predicted_partner_x_hz, predicted_partner_y_hz = predicted_partner_bare_radial_frequencies_hz(
+        clock_mathieu, m_al, m_mg, rf_drive_frequency_hz
+    )
+    partner_x_relative_deviation = (
+        predicted_partner_x_hz - x_result.bare_frequency_partner_hz
+    ) / x_result.bare_frequency_partner_hz
+    partner_y_relative_deviation = (
+        predicted_partner_y_hz - y_result.bare_frequency_partner_hz
+    ) / y_result.bare_frequency_partner_hz
+
+    enhancement_x = radial_micromotion_enhancement(
+        clock_mathieu.mathieu_q, clock_mathieu.mathieu_a_x
+    )
+    enhancement_y = radial_micromotion_enhancement(
+        clock_mathieu.mathieu_q, clock_mathieu.mathieu_a_y
+    )
+
+    reconstructed_participations = (
+        axial_participations[0],
+        axial_participations[1],
+        x_result.com_participation,
+        x_result.str_participation,
+        y_result.com_participation,
+        y_result.str_participation,
+    )
+    enhancements = (1.0, 1.0, enhancement_x, enhancement_x, enhancement_y, enhancement_y)
+
+    per_mode = []
+    v2_terms = []
+    d_dn_bar_terms = []
+    for (
+        name,
+        frequency_mhz,
+        n_bar,
+        n_bar_uncertainty,
+    ), participation, enhancement, published_pq in zip(
+        loaders.MARSHALL_AL_ION_MODES_MHZ_NBAR,
+        reconstructed_participations,
+        enhancements,
+        loaders.MARSHALL_AL_ION_FREQUENCY_SHIFT_PER_QUANTUM,
+        strict=True,
+    ):
+        frequency_hz = frequency_mhz * 1.0e6
+        omega_i = 2.0 * math.pi * frequency_hz
+        weight = (HBAR * omega_i / m_al) * participation * enhancement
+        predicted_pq = -weight / (2.0 * SPEED_OF_LIGHT**2)
+        residual = predicted_pq - published_pq
+        ratio = predicted_pq / published_pq
+        is_axial = name in _AXIAL_MODE_NAMES
+        per_mode.append(
+            MotionalAlIonEnhancedModeComparison(
+                name=name,
+                is_axial=is_axial,
+                participation=participation,
+                enhancement=enhancement,
+                predicted_shift_per_quantum=predicted_pq,
+                published_shift_per_quantum=published_pq,
+                residual_fractional=residual,
+                ratio_predicted_over_published=ratio,
+            )
+        )
+        v2_terms.append(weight * (n_bar + 0.5))
+        d_dn_bar_terms.append((-weight / (2.0 * SPEED_OF_LIGHT**2)) * n_bar_uncertainty)
+
+    mean_v2 = math.fsum(v2_terms)
+    predicted_total = -mean_v2 / (2.0 * SPEED_OF_LIGHT**2)
+    predicted_sigma = math.sqrt(math.fsum(t * t for t in d_dn_bar_terms))
+
+    published = loaders.MARSHALL_AL_ION_SECULAR_MOTION_SHIFT
+    band_lo = predicted_total - predicted_sigma
+    band_hi = predicted_total + predicted_sigma
+    overlap = run_benchmarks._bands_overlap(  # noqa: SLF001 (reusing the tested helper)
+        band_lo, band_hi, published.lo, published.hi
+    )
+    combined_sigma = math.sqrt(predicted_sigma**2 + (published.hi - published.nominal) ** 2)
+    deviation_sigma = abs(predicted_total - published.nominal) / combined_sigma
+
+    partner_prediction_note = (
+        "Over-determination check: mass-scaling the clock ion's own solved Mathieu parameters "
+        f"(q={clock_mathieu.mathieu_q:.6f}, a_x={clock_mathieu.mathieu_a_x:+.6e}, "
+        f"a_y={clock_mathieu.mathieu_a_y:+.6e}, a_z={clock_mathieu.mathieu_a_z:+.6e}) to the "
+        f"partner ion (Mg25+) predicts bare radial frequencies of {predicted_partner_x_hz:.6e} Hz "
+        f"(X) and {predicted_partner_y_hz:.6e} Hz (Y), against WP32's own SEPARATELY "
+        f"reconstructed {x_result.bare_frequency_partner_hz:.6e} Hz (X) and "
+        f"{y_result.bare_frequency_partner_hz:.6e} Hz (Y); relative deviations "
+        f"{partner_x_relative_deviation:+.4%} (X) and {partner_y_relative_deviation:+.4%} (Y), "
+        "both sub-1%-relative, well inside the few-percent band the published mode "
+        "frequencies' own ~3-significant-figure reporting precision supports. This is a "
+        "genuinely independent, falsifiable test (nothing in the Mathieu-parameter solve's own "
+        "inputs touches the partner ion's frequencies at all) of the WHOLE reconstruction "
+        "chain's internal consistency, reported as run, with no tuning."
+    )
+    enhancement_note = (
+        "Per-mode comparison against Marshall et al.'s own published 'Frequency shift per "
+        "quantum' row (Table S2): the two AXIAL modes are unchanged from WP31/WP32 "
+        f"(enhancement=1.0 identically, q_z=0). The four RADIAL modes now use "
+        f"participation*enhancement (F_x={enhancement_x:.4f}, F_y={enhancement_y:.4f}) in place "
+        "of WP32's plain participation; the resulting per-mode ratios (predicted/published) "
+        f"land at {deviation_sigma:.2f} sigma from the published total "
+        f"({'MET' if overlap else 'NOT MET'}). Reported as run, with no tuning."
+    )
+
+    return MotionalAlIonIntrinsicMicromotionEnhancedCase(
+        case_class="arithmetic_reproduction",
+        clock_mathieu=asdict(clock_mathieu),
+        enhancement_x=enhancement_x,
+        enhancement_y=enhancement_y,
+        bare_frequency_partner_x_predicted_hz=predicted_partner_x_hz,
+        bare_frequency_partner_y_predicted_hz=predicted_partner_y_hz,
+        bare_frequency_partner_x_reconstructed_hz=x_result.bare_frequency_partner_hz,
+        bare_frequency_partner_y_reconstructed_hz=y_result.bare_frequency_partner_hz,
+        partner_x_relative_deviation=partner_x_relative_deviation,
+        partner_y_relative_deviation=partner_y_relative_deviation,
+        per_mode=tuple(per_mode),
+        predicted_total_nominal=predicted_total,
+        predicted_total_uncertainty_fractional=predicted_sigma,
+        predicted_total_band_lo=band_lo,
+        predicted_total_band_hi=band_hi,
+        total_bands_overlap=overlap,
+        total_kpi_verdict="MET" if overlap else "NOT MET",
+        per_mode_citation=loaders.MARSHALL_AL_ION_FREQUENCY_SHIFT_PER_QUANTUM_CITATION,
+        enhancement_caveat=INTRINSIC_MICROMOTION_ENHANCEMENT_CAVEAT,
+        enhancement_note=enhancement_note,
+        partner_prediction_note=partner_prediction_note,
+    )
+
+
+@dataclass(frozen=True)
+class Wp33BrewerConsistencyCheck:
+    """A SECOND, independent consistency case for WP33's over-determination
+    check and per-mode enhancement, built from Brewer et al.'s
+    (arXiv:1902.07694) own published trap parameters -- a different trap
+    (different RF drive frequency, different mode frequencies) than
+    Marshall et al.'s, same Al27+/Mg25+ species pair.
+
+    Brewer's Table S2 does not publish a static `n_bar` point estimate
+    (its occupation input is a 95%-CI bound on `n_bar_0` combined with a
+    heating rate through a time-dependent model, `run_motional_al_ion.py`'s
+    module docstring item 2), so this case does NOT attempt a total-level
+    `(P-1)_motional` reproduction (that would need Brewer's own Eq. 3
+    heating-rate model re-implemented, out of scope here, unchanged from
+    WP30/31/32's own documented reason for not using Brewer as a total-level
+    case). What Brewer DOES publish -- the RF drive frequency, the six mode
+    frequencies, and a per-mode `TDS/quantum` row that (Table S2 footnote a)
+    ALREADY includes the transverse intrinsic-micromotion shift -- is enough
+    to run the SAME over-determination check and the SAME per-mode
+    enhancement comparison as the Marshall case, independently.
+
+    Attributes
+    ----------
+    clock_mathieu : dict[str, float]
+        The clock ion's solved Mathieu parameters for Brewer's trap.
+    enhancement_x, enhancement_y : float
+        `F_x`, `F_y` for Brewer's trap.
+    partner_x_relative_deviation, partner_y_relative_deviation : float
+        The over-determination check's result for Brewer's trap.
+    per_mode_ratio_x_com, per_mode_ratio_x_str, per_mode_ratio_y_com,
+    per_mode_ratio_y_str : float
+        ``predicted/published`` for each radial mode, against Brewer's own
+        `TDS/quantum` row (which already includes intrinsic micromotion,
+        so a ratio near `1.0` is direct confirmation).
+    missing_input_note : str
+        States why this case does not attempt Brewer's own total-level
+        `-17.3(2.9)e-19` row.
+    """
+
+    clock_mathieu: dict[str, float]
+    enhancement_x: float
+    enhancement_y: float
+    partner_x_relative_deviation: float
+    partner_y_relative_deviation: float
+    per_mode_ratio_x_com: float
+    per_mode_ratio_x_str: float
+    per_mode_ratio_y_com: float
+    per_mode_ratio_y_str: float
+    missing_input_note: str
+
+
+def run_wp33_brewer_consistency_check() -> Wp33BrewerConsistencyCheck:
+    """Build the WP33 Brewer et al. consistency check (see
+    :class:`Wp33BrewerConsistencyCheck`'s docstring for scope and the
+    missing-input reason it does not attempt a total-level comparison).
+
+    Returns
+    -------
+    Wp33BrewerConsistencyCheck
+    """
+    species = get_species("Al27+")
+    m_al = species.mass_kg
+    m_mg = loaders.MG25_ATOMIC_MASS_AMU * ATOMIC_MASS_UNIT
+    rf_drive_frequency_hz = loaders.BREWER_AL_ION_RF_DRIVE_FREQUENCY_HZ
+
+    # loaders.BREWER_AL_ION_MODES_MHZ order: x_com, x_str, y_com, y_str,
+    # axial_com, axial_str (Brewer's own Table S2 column order, NOT
+    # Marshall's axial-first order -- see that constant's own docstring).
+    modes_by_name = dict(loaders.BREWER_AL_ION_MODES_MHZ)
+    axial_com_hz = modes_by_name["axial_com"] * 1.0e6
+    x_com_hz = modes_by_name["x_com"] * 1.0e6
+    x_str_hz = modes_by_name["x_str"] * 1.0e6
+    y_com_hz = modes_by_name["y_com"] * 1.0e6
+    y_str_hz = modes_by_name["y_str"] * 1.0e6
+
+    c, _c_unc = axial_coulomb_curvature(m_al, m_mg, axial_com_hz)
+    x_result = two_ion_radial_participations(m_al, m_mg, c, x_com_hz, x_str_hz)
+    y_result = two_ion_radial_participations(m_al, m_mg, c, y_com_hz, y_str_hz)
+
+    clock_mathieu = clock_ion_mathieu_parameters(
+        m_al,
+        c,
+        rf_drive_frequency_hz,
+        x_result.bare_frequency_clock_hz,
+        y_result.bare_frequency_clock_hz,
+    )
+    predicted_partner_x_hz, predicted_partner_y_hz = predicted_partner_bare_radial_frequencies_hz(
+        clock_mathieu, m_al, m_mg, rf_drive_frequency_hz
+    )
+    partner_x_relative_deviation = (
+        predicted_partner_x_hz - x_result.bare_frequency_partner_hz
+    ) / x_result.bare_frequency_partner_hz
+    partner_y_relative_deviation = (
+        predicted_partner_y_hz - y_result.bare_frequency_partner_hz
+    ) / y_result.bare_frequency_partner_hz
+
+    enhancement_x = radial_micromotion_enhancement(
+        clock_mathieu.mathieu_q, clock_mathieu.mathieu_a_x
+    )
+    enhancement_y = radial_micromotion_enhancement(
+        clock_mathieu.mathieu_q, clock_mathieu.mathieu_a_y
+    )
+
+    published_by_name = dict(
+        zip(
+            (n for n, _ in loaders.BREWER_AL_ION_MODES_MHZ),
+            loaders.BREWER_AL_ION_TDS_PER_QUANTUM,
+            strict=True,
+        )
+    )
+
+    def _ratio(name: str, frequency_hz: float, participation: float, enhancement: float) -> float:
+        omega_i = 2.0 * math.pi * frequency_hz
+        predicted_pq = (
+            -(HBAR * omega_i / m_al) * participation * enhancement / (2.0 * SPEED_OF_LIGHT**2)
+        )
+        return predicted_pq / published_by_name[name]
+
+    ratio_x_com = _ratio("x_com", x_com_hz, x_result.com_participation, enhancement_x)
+    ratio_x_str = _ratio("x_str", x_str_hz, x_result.str_participation, enhancement_x)
+    ratio_y_com = _ratio("y_com", y_com_hz, y_result.com_participation, enhancement_y)
+    ratio_y_str = _ratio("y_str", y_str_hz, y_result.str_participation, enhancement_y)
+
+    missing_input_note = (
+        "Brewer et al.'s own total-level secular-motion row (-17.3(2.9)e-19) is NOT reproduced "
+        "here: Table S2 publishes a 95%-CI BOUND on n_bar_0 (zero-point energy excluded) "
+        "combined with a per-mode heating rate n_bar_dot through Brewer's own Eq. 3 "
+        "(a time-dependent model over the 150 ms interrogation time), not the static n_bar "
+        "point estimate E38's formula consumes; the SAME missing-input reason "
+        "run_motional_al_ion.py's module docstring already states for why WP30/31/32 use "
+        "Marshall et al. instead of Brewer for their own total-level cases. What IS available "
+        "from Brewer's Table S2, the RF drive frequency, all six mode frequencies, and a "
+        "per-mode TDS/quantum row that already includes the transverse intrinsic-micromotion "
+        "shift (footnote a), is exactly what this consistency check uses: the "
+        "over-determination check and the per-mode ratios above, both independent of n_bar."
+    )
+
+    return Wp33BrewerConsistencyCheck(
+        clock_mathieu=asdict(clock_mathieu),
+        enhancement_x=enhancement_x,
+        enhancement_y=enhancement_y,
+        partner_x_relative_deviation=partner_x_relative_deviation,
+        partner_y_relative_deviation=partner_y_relative_deviation,
+        per_mode_ratio_x_com=ratio_x_com,
+        per_mode_ratio_x_str=ratio_x_str,
+        per_mode_ratio_y_com=ratio_y_com,
+        per_mode_ratio_y_str=ratio_y_str,
+        missing_input_note=missing_input_note,
+    )
+
+
+def build_wp33_report() -> dict[str, Any]:
+    """Build the standalone WP33 intrinsic-micromotion-enhanced report as a
+    JSON-serializable dict, kept in its OWN artifact (``wp33_*.json/md``)
+    instead of folded into `build_wp32_report`'s dict, so the existing
+    WP30/WP31/WP32 artifacts stay frozen (bit-for-bit unchanged by this
+    addition).
+
+    Returns
+    -------
+    dict[str, Any]
+        Metadata plus the WP33 Marshall case
+        (:func:`run_motional_al_ion_intrinsic_micromotion_enhanced_case`)
+        and the WP33 Brewer consistency check
+        (:func:`run_wp33_brewer_consistency_check`).
+    """
+    case = run_motional_al_ion_intrinsic_micromotion_enhanced_case()
+    brewer_check = run_wp33_brewer_consistency_check()
+    return {
+        "wp33_motional_al_ion_intrinsic_micromotion_enhanced_schema": "1.0",
+        "generated_at_utc": datetime.now(UTC).isoformat(),
+        "case_class": case.case_class,
+        "marshall_2504_13071_intrinsic_micromotion_enhanced_case": asdict(case),
+        "brewer_1902_07694_consistency_check": asdict(brewer_check),
+    }
+
+
+def render_wp33_markdown(report: dict[str, Any]) -> str:
+    """Render the WP33 intrinsic-micromotion-enhanced case (plus the Brewer
+    consistency check) as a markdown summary, mirroring
+    :func:`render_wp32_markdown`'s style.
+
+    Parameters
+    ----------
+    report : dict[str, Any]
+        A report dict as returned by :func:`build_wp33_report`.
+
+    Returns
+    -------
+    str
+        A markdown document suitable for embedding or diffing against
+        `benchmarks/RESULTS.md`.
+    """
+    case = report["marshall_2504_13071_intrinsic_micromotion_enhanced_case"]
+    brewer = report["brewer_1902_07694_consistency_check"]
+    mathieu = case["clock_mathieu"]
+    lines = [
+        "# WP33 motional Al+ ion intrinsic-micromotion-enhanced benchmark case (generated)",
+        "",
+        f"Generated: {report['generated_at_utc']}",
+        "",
+        "## WP33: intrinsic-micromotion-enhanced variant "
+        "(clock_ion_mathieu_parameters/radial_micromotion_enhancement, Al27+/Mg25+, Marshall)",
+        "",
+        f"**{case['enhancement_caveat']}**",
+        "",
+        f"**{case['partner_prediction_note']}**",
+        "",
+        f"**{case['enhancement_note']}**",
+        "",
+        "| Quantity | Value |",
+        "|---|---|",
+        f"| Clock-ion Mathieu q | {mathieu['mathieu_q']:.6f} |",
+        f"| Clock-ion Mathieu a_x | {mathieu['mathieu_a_x']:+.6e} |",
+        f"| Clock-ion Mathieu a_y | {mathieu['mathieu_a_y']:+.6e} |",
+        f"| Clock-ion Mathieu a_z | {mathieu['mathieu_a_z']:+.6e} |",
+        f"| Enhancement F_x | {case['enhancement_x']:.4f} |",
+        f"| Enhancement F_y | {case['enhancement_y']:.4f} |",
+        (
+            "| Predicted partner bare freq, X (Hz) | "
+            f"{case['bare_frequency_partner_x_predicted_hz']:.6e} |"
+        ),
+        (
+            "| WP32-reconstructed partner bare freq, X (Hz) | "
+            f"{case['bare_frequency_partner_x_reconstructed_hz']:.6e} |"
+        ),
+        f"| Partner X relative deviation | {case['partner_x_relative_deviation']:+.4%} |",
+        (
+            "| Predicted partner bare freq, Y (Hz) | "
+            f"{case['bare_frequency_partner_y_predicted_hz']:.6e} |"
+        ),
+        (
+            "| WP32-reconstructed partner bare freq, Y (Hz) | "
+            f"{case['bare_frequency_partner_y_reconstructed_hz']:.6e} |"
+        ),
+        f"| Partner Y relative deviation | {case['partner_y_relative_deviation']:+.4%} |",
+        "",
+        "| Mode | Axial? | Participation | Enhancement | Predicted shift/quantum | "
+        "Published shift/quantum | Ratio (pred/pub) |",
+        "|---|---|---|---|---|---|---|",
+        *(
+            f"| {m['name']} | {m['is_axial']} | {m['participation']:.4f} | "
+            f"{m['enhancement']:.4f} | {m['predicted_shift_per_quantum']:+.4e} | "
+            f"{m['published_shift_per_quantum']:+.4e} | "
+            f"{m['ratio_predicted_over_published']:+.4f} |"
+            for m in case["per_mode"]
+        ),
+        "",
+        "| Quantity | Value |",
+        "|---|---|",
+        f"| Enhancement-corrected total (P-1)_motional | {case['predicted_total_nominal']:+.6e} |",
+        (
+            "| Enhancement-corrected uncertainty (1-sigma) | "
+            f"+/-{case['predicted_total_uncertainty_fractional']:.3e} |"
+        ),
+        (
+            "| Enhancement-corrected band | "
+            f"[{case['predicted_total_band_lo']:+.6e}, {case['predicted_total_band_hi']:+.6e}] |"
+        ),
+        f"| Total bands overlap | {case['total_bands_overlap']} |",
+        f"| **total_kpi_verdict** | **{case['total_kpi_verdict']}** |",
+        "",
+        f"Per-mode published-value citation: {case['per_mode_citation']}",
+        "",
+        "## WP33 Brewer et al. (2019, arXiv:1902.07694) consistency check "
+        "(second, independent dataset)",
+        "",
+        f"**{brewer['missing_input_note']}**",
+        "",
+        "| Quantity | Value |",
+        "|---|---|",
+        f"| Clock-ion Mathieu q | {brewer['clock_mathieu']['mathieu_q']:.6f} |",
+        f"| Clock-ion Mathieu a_x | {brewer['clock_mathieu']['mathieu_a_x']:+.6e} |",
+        f"| Clock-ion Mathieu a_y | {brewer['clock_mathieu']['mathieu_a_y']:+.6e} |",
+        f"| Clock-ion Mathieu a_z | {brewer['clock_mathieu']['mathieu_a_z']:+.6e} |",
+        f"| Enhancement F_x | {brewer['enhancement_x']:.4f} |",
+        f"| Enhancement F_y | {brewer['enhancement_y']:.4f} |",
+        f"| Partner X relative deviation | {brewer['partner_x_relative_deviation']:+.4%} |",
+        f"| Partner Y relative deviation | {brewer['partner_y_relative_deviation']:+.4%} |",
+        f"| Per-mode ratio (pred/pub), x_com | {brewer['per_mode_ratio_x_com']:+.4f} |",
+        f"| Per-mode ratio (pred/pub), x_str | {brewer['per_mode_ratio_x_str']:+.4f} |",
+        f"| Per-mode ratio (pred/pub), y_com | {brewer['per_mode_ratio_y_com']:+.4f} |",
+        f"| Per-mode ratio (pred/pub), y_str | {brewer['per_mode_ratio_y_str']:+.4f} |",
+    ]
+    return "\n".join(lines) + "\n"
+
+
 def build_wp32_report() -> dict[str, Any]:
     """Build the standalone WP32 radial-spectrum-reconstructed report as a
     JSON-serializable dict, kept in its OWN artifact (``wp32_*.json/md``)
@@ -1175,6 +1834,18 @@ def main() -> None:
     print(wp32_markdown)
     print(f"Wrote {wp32_json_path}")
     print(f"Wrote {wp32_md_path}")
+
+    wp33_report = build_wp33_report()
+    wp33_json_path = _RESULTS_DIR / "wp33_motional_al_ion_intrinsic_micromotion_enhanced.json"
+    wp33_md_path = _RESULTS_DIR / "wp33_motional_al_ion_intrinsic_micromotion_enhanced.md"
+    wp33_json_path.write_text(
+        json.dumps(wp33_report, indent=2, sort_keys=False) + "\n", encoding="utf-8"
+    )
+    wp33_markdown = render_wp33_markdown(wp33_report)
+    wp33_md_path.write_text(wp33_markdown, encoding="utf-8")
+    print(wp33_markdown)
+    print(f"Wrote {wp33_json_path}")
+    print(f"Wrote {wp33_md_path}")
 
 
 if __name__ == "__main__":

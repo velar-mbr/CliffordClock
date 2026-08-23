@@ -1,6 +1,6 @@
 # Physics & Numerical Conventions: CliffordClock
 
-**Version:** 1.8.0 · **Status: reviewed and approved** (2026-08-11, per
+**Version:** 1.9.0 · **Status: reviewed and approved** (2026-08-11, per
 the project's G9 theory sign-off record, following
 the owner's trigger after reviewing the Fortier/Luiten/Margolis survey
 (Optica 13, 143 (2026)): mm-scale extended samples and their gravitational
@@ -19,7 +19,14 @@ addition (2026-08-23, WP32)**, replacing the axial-form-as-radial
 approximation with a genuine two-ion radial eigenproblem inversion for a
 caller who supplies the lab's own measured radial mode frequencies,
 specified directly by the project owner, likewise not carrying its own
-separate formalism sign-off record. §15 (E36) was approved 2026-08-11
+separate formalism sign-off record, **plus §16's mode-specific intrinsic-
+micromotion enhancement addition (2026-08-23, WP33)**, closing the
+reconciliation the G14 gate review identified (WP32's radial rows already
+include a published intrinsic-micromotion shift whose correct enhancement
+factor is mode-specific, not a uniform factor of two), specified directly
+by the project owner,
+likewise not carrying its own separate formalism sign-off record. §15
+(E36) was approved 2026-08-11
 conditional on the A1 computed-magnitude regression and the A4 extended-mode
 dispersion-labeling edit; see §15's sign-off note for the itemized record.
 §1–§11 (E1–E28) were reviewed and
@@ -1387,14 +1394,118 @@ and getting the split right need not by itself close a total-level gap
 this size. This is reported as an open empirical finding, not resolved
 here.
 
+**Mode-specific intrinsic-micromotion enhancement (v1.9.0, WP33), closing
+the reconciliation.** The project's G14 gate review, independently
+re-deriving WP32's physics from first principles and verifying every
+cited equation against the primary sources page by page, identified the
+mechanism behind WP32's open gap: Marshall et al.'s (and, per Brewer et
+al., arXiv:1902.07694, Table S2 footnote (a), same species pair)
+published radial rows already include the shift due to INTRINSIC
+micromotion, the unavoidable micromotion that accompanies secular
+motion itself (an ion carried through the RF field's spatially-varying
+amplitude by its own secular oscillation), distinct from EXCESS
+micromotion (the EMM paragraph below, a stray-DC-field effect this
+project's `v_rms_emm_m_s` channel already accepts as a lab-supplied
+input). Testing the candidate quantitatively: participation times a
+UNIFORM factor of two closes the Y branch in both independent datasets
+(Marshall 1.03/1.00, Brewer 0.92/0.97) while leaving X reproducibly
+20-35% short in both. The residual has an identified mechanism, since
+the leading-order intrinsic-micromotion enhancement is MODE-SPECIFIC,
+
+    F_axis = 1 + q^2 / (2*a_axis + q^2)
+
+(Berkeland, Miller, Bergquist, Itano, Wineland, J. Appl. Phys. 83, 5025
+(1998) Eq. 10, the same paper this document's EMM paragraph below
+already cites as canonical), equal to `2` only when the trap's Mathieu
+`a` parameter vanishes for that axis; the trap's DC asymmetry splits
+`a_x` from `a_y`, so a single factor of `2` cannot be exactly right for
+both radial branches at once. WP33 solves for the CLOCK ion's own
+leading-order Mathieu parameters directly from published/WP32-
+reconstructed inputs alone: the trap's published RF drive frequency
+`Omega` (Marshall: `Omega/2pi = 70.86 MHz`), the clock ion's own bare
+axial frequency (`omega_z,clock = sqrt(2*c/m_clock)`, reusing
+`axial_coulomb_curvature`'s own Coulomb curvature `c`, not re-deriving
+Wubbena Eq. 12's inversion), and the two WP32-reconstructed clock-ion
+bare radial frequencies, via the leading-order relation
+`omega_i = (Omega/2)*sqrt(a_i + q_i^2/2)` (Berkeland Eq. 9, `q_z=0` for
+the axial direction, Berkeland Eq. 6) together with the Laplace
+constraint `a_x + a_y = -a_z` (the general statement for any static
+quadrupole DC potential; Berkeland Eq. 5's `a_x=a_y=-a_z/2` is the
+special radially-symmetric case). This is two equations (the two
+WP32-reconstructed radial frequencies) in two unknowns (`a_x`, `q`, with
+`a_y` and `a_z` following from the Laplace constraint and the axial
+frequency respectively), zero degrees of freedom, no trap-geometry
+parameter (`alpha`/`epsilon`) supplied as input.
+`cliffordclock.integrator.omega.clock_ion_mathieu_parameters` implements
+this closed form (`ClockIonMathieuParameters`, with finite-difference
+uncertainty propagation mirroring `two_ion_radial_participations`'s own
+style); `radial_micromotion_enhancement` implements `F_axis` directly,
+literally Berkeland's own Eq. 10 bracket, not independently re-derived.
+
+**MANDATORY over-determination check.** Because `a_i` and `q_i` are each
+LINEAR in `1/mass` at fixed trap drive voltage/geometry/charge (Berkeland
+Eqs. 5-6, the same charge for both singly-charged ions), the clock ion's
+solved Mathieu parameters mass-scale directly to predict the PARTNER
+ion's own bare radial frequencies
+(`cliffordclock.integrator.omega.predicted_partner_bare_radial_
+frequencies_hz`), a genuinely independent, falsifiable test, since
+nothing in the Mathieu-parameter solve's own inputs (`Omega`, the clock
+ion's own axial/radial frequencies) ever touches the partner ion's
+frequencies. Both datasets pass this check at the sub-1%-relative level
+(Marshall: `-0.57%`/`-0.53%` on X/Y; Brewer: `-0.95%`/`-0.79%`), well
+inside the few-percent band the published mode frequencies' own
+~3-significant-figure reporting precision supports; reported whatever
+it said, not tuned toward agreement, and it passed.
+
+**Result.** Multiplying WP32's radial participations by `F_x`/`F_y`
+(Marshall: `F_x=2.474`, `F_y=1.888`) moves the four radial per-mode
+ratios (predicted/published) from WP32's `0.42/0.35/0.52/0.50` to
+`1.04/0.86/0.98/0.94`, landing near `1.0` on every mode, an improvement
+on every individual mode, not just on average; the corrected TOTAL moves
+from WP32's `-5.72e-18` (~14.0 sigma from Marshall's published
+`-114.6(3.8)e-19`) to `-1.064e-17` (~1.6 sigma), still technically
+`NOT MET` (the predicted and published bands do not quite overlap) but a
+near-complete closure of the gap the G14 gate review identified, not a
+marginal shift. The SAME enhancement, applied to Brewer et al.'s
+independently published trap (`Omega/2pi=40.72 MHz`, different mode
+frequencies, same species pair), moves the four radial per-mode ratios
+against Brewer's own published `TDS/quantum` row (which Table S2's
+footnote (a) already states includes the transverse intrinsic-
+micromotion shift) from a plain-participation `0.38/0.38/0.46/0.49` to
+`0.90/0.88/0.88/0.93`, the same qualitative improvement in a second,
+independent dataset, not a coincidence of the first.
+`benchmarks/run_motional_al_ion.py`'s WP33 case
+(`run_motional_al_ion_intrinsic_micromotion_enhanced_case`) and its
+Brewer consistency check (`run_wp33_brewer_consistency_check`) report
+both results in full, with no tuning; Brewer's own total-level
+`-17.3(2.9)e-19` row is NOT reproduced (its `n_bar` input is a 95%-CI
+bound combined with a heating rate through Brewer's own time-dependent
+Eq. 3, not the static point estimate this project's E38 formula
+consumes; the same missing-input reason WP30-32 already use Marshall
+instead of Brewer for their own total-level cases).
+
+**Regime of validity.** Both Berkeland's `omega_i` formula (step above)
+and its `F_axis` result are FIRST ORDER in the Mathieu parameters
+(Berkeland's own "`|q_i|<<1` and `|a_i|<<1`" caveat, citing Landau &
+Lifshitz's perturbative Mathieu solution); this project's own solved
+`q ~ 0.19-0.25`, `|a_i| ~ 0.003-0.008` sit inside that regime (smaller
+than Berkeland's own worked `q~0.28` example). No published input in
+either dataset used here supports evaluating the exact Mathieu
+characteristic-value relation instead, so the leading-order form is used
+as is, with its regime stated explicitly instead of silently assumed.
+
 **Remaining scope boundary.** With the two-ion partition now consumed for
-both the axial pair (exact, WP31) and, where a lab supplies its own
-measured radial spectrum, the radial pairs too (WP32), what remains open
-is (i) `N > 2`-ion crystals, which need a numeric normal-mode eigensolver
-(no closed form in general), (ii) the RF/micromotion dynamics package
-(unrelated to participation: see the EMM paragraph below), and (iii) the
-open total-level gap WP32's own Al27+/Mg25+ case reports, whose mechanism
-is not yet identified.
+both the axial pair (exact, WP31), the radial pairs from a lab-supplied
+measured spectrum (WP32), and the radial intrinsic-micromotion
+enhancement from that same spectrum plus the trap's published RF drive
+frequency (WP33), what remains open is (i) `N > 2`-ion crystals, which
+need a numeric normal-mode eigensolver (no closed form in general), (ii)
+the exact (not leading-order) Mathieu treatment, should a future dataset
+need it outside `|a_i|,|q_i| << 1`, (iii) the excess-micromotion RF
+dynamics package (unrelated to intrinsic micromotion: see the EMM
+paragraph below), and (iv) the residual sub-2-sigma gap WP33's own
+Marshall case still reports, materially narrowed from WP32's ~14 sigma
+but not fully closed.
 
 **Optional second input channel: excess micromotion (EMM).** Ion-trap
 clocks additionally accumulate a time-dilation shift from excess
@@ -1501,6 +1612,26 @@ verbatim (`cliffordclock.pipeline._resolve_motional_pivot_perturbation`).
 
 ---
 *Changelog:*
+*1.9.0 (2026-08-23): WP33, specified directly by the project owner (no
+separate formalism sign-off ceremony recorded for this entry): §16
+extended with the mode-specific intrinsic-micromotion enhancement
+addition, closing the reconciliation the G14 gate review identified for
+WP32: the clock ion's leading-order Mathieu parameters (`q`, `a_x`,
+`a_y`, `a_z`) solved from the trap's published RF drive frequency plus
+WP32's own reconstruction (Berkeland J. Appl. Phys. 83, 5025 (1998)
+Eqs. 4-6/9-10, cross-checked against Wubbena's alpha/epsilon convention
+already used by WP32), the mandatory partner-ion over-determination
+check (mass-scaling to a genuinely independent, falsifiable prediction),
+and the per-axis enhancement factor `F_axis = 1 + q^2/(2*a_axis+q^2)`
+(Berkeland's own Eq. 10, not independently re-derived) replacing WP32's
+uniform factor-of-two candidate. Result: the Al27+/Mg25+ benchmark case's
+radial per-mode ratios move from WP32's `0.42/0.35/0.52/0.50` to
+`1.04/0.86/0.98/0.94`, and the total moves from ~14.0 sigma to ~1.6 sigma
+from Marshall et al.'s published band (still `NOT MET`, materially
+narrowed not fully closed); a second, independent dataset (Brewer et
+al., arXiv:1902.07694, a different trap) shows the same qualitative
+improvement and passes the same over-determination check at the
+sub-1%-relative level.*
 *1.8.0 (2026-08-23): WP32, specified directly by the project owner (no
 separate formalism sign-off ceremony recorded for this entry): §16
 extended with the radial-spectrum-reconstruction addition, the two-ion

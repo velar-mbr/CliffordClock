@@ -703,3 +703,89 @@ MARSHALL_AL_ION_FREQUENCY_SHIFT_PER_QUANTUM_CITATION = (
 #: correction, ~2e-5 relative, is not applied at either mass, consistent
 #: treatment).
 MG25_ATOMIC_MASS_AMU = 24.985837
+
+# ---------------------------------------------------------------------------
+# WP33 addendum: Marshall et al.'s published RF trap-drive frequency, and
+# the full Brewer et al. (arXiv:1902.07694) secular-motion dataset (Table
+# S2), needed for the radial intrinsic-micromotion enhancement's Mathieu-
+# parameter solve (CONVENTIONS.md section 16's WP33 addition;
+# `cliffordclock.integrator.omega.clock_ion_mathieu_parameters`/
+# `radial_micromotion_enhancement`/`predicted_partner_bare_radial_
+# frequencies_hz`). Consumed by `benchmarks/run_motional_al_ion.py`'s WP33
+# case and its Brewer consistency check.
+# ---------------------------------------------------------------------------
+
+#: Marshall et al.'s published RF trap-drive ORDINARY frequency
+#: (arXiv:2504.13071v2, main text: "close to the trap RF drive at
+#: Ω/2π = 70.86 MHz"), hertz.
+MARSHALL_AL_ION_RF_DRIVE_FREQUENCY_HZ = 70.86e6
+
+#: Citation for `MARSHALL_AL_ION_RF_DRIVE_FREQUENCY_HZ`.
+MARSHALL_AL_ION_RF_DRIVE_FREQUENCY_CITATION = (
+    'Marshall et al., arXiv:2504.13071v2 (2025), main text: "close to the trap '
+    'RF drive at Ω/2π = 70.86 MHz."'
+)
+
+#: Brewer et al.'s six secular-motion normal modes for the co-trapped
+#: 25Mg+-27Al+ two-ion crystal (arXiv:1902.07694, Supplemental Material
+#: Table S2, "Parameters of secular motion of a 25Mg+-27Al+ two-ion pair
+#: during the clock operation"). Each entry is ``(name, frequency_MHz)``,
+#: transcribed directly from the table's "Frequency [MHz]" row, IN THE
+#: TABLE'S OWN COLUMN ORDER (x-COM, x-STR, y-COM, y-STR, z-COM, z-STR --
+#: note this is NOT the same mode order as
+#: `MARSHALL_AL_ION_MODES_MHZ_NBAR`, which lists axial first).
+BREWER_AL_ION_MODES_MHZ: tuple[tuple[str, float], ...] = (
+    ("x_com", 3.31),
+    ("x_str", 2.83),
+    ("y_com", 3.97),
+    ("y_str", 3.54),
+    ("axial_com", 1.47),
+    ("axial_str", 2.55),
+)
+
+#: Citation for `BREWER_AL_ION_MODES_MHZ`/`BREWER_AL_ION_TDS_PER_QUANTUM`/
+#: `BREWER_AL_ION_RF_DRIVE_FREQUENCY_HZ`.
+BREWER_AL_ION_MODES_CITATION = (
+    "Brewer, Chen, Hankin, Clements, Chou, Wineland, Hume, Leibrandt, "
+    '"27Al+ Quantum-Logic Clock with a Systematic Uncertainty below 10^-18," '
+    "Phys. Rev. Lett. 123, 033201 (2019), arXiv:1902.07694, Supplemental Material "
+    'Table S2 ("Parameters of secular motion of a 25Mg+-27Al+ two-ion pair during '
+    'the clock operation"): six mode frequencies (MHz, row "Frequency [MHz]"), in '
+    "the table's own column order x-COM/x-STR/y-COM/y-STR/z-COM/z-STR. Main text: "
+    '"the trap RF drive at ΩRF/2π = 40.72 MHz" (`BREWER_AL_ION_RF_DRIVE_FREQUENCY_HZ`).'
+)
+
+#: Brewer et al.'s published RF trap-drive ORDINARY frequency
+#: (arXiv:1902.07694, main text: "the trap RF drive at ΩRF/2π = 40.72 MHz"),
+#: hertz.
+BREWER_AL_ION_RF_DRIVE_FREQUENCY_HZ = 40.72e6
+
+#: Brewer et al.'s per-mode "TDS/quantum" row (Table S2, units 1e-18,
+#: already applied below -- fractional-frequency time-dilation shift per
+#: quantum of motion), same mode order as `BREWER_AL_ION_MODES_MHZ`. Per
+#: the table's own footnote (a): "including the shift due to the intrinsic
+#: micromotion in the transverse directions" -- i.e. the x/y (radial)
+#: entries here ALREADY include the intrinsic-micromotion enhancement
+#: WP33 computes; the z (axial) entries do not need it (no RF component
+#: along the trap axis). This is the direct textual confirmation, from an
+#: independent dataset, of the physics WP33's reconciliation identifies.
+BREWER_AL_ION_TDS_PER_QUANTUM: tuple[float, ...] = (
+    -0.114e-18,  # x_com
+    -0.518e-18,  # x_str
+    -0.092e-18,  # y_com
+    -0.521e-18,  # y_str
+    -0.066e-18,  # axial_com
+    -0.098e-18,  # axial_str
+)
+
+#: Citation for `BREWER_AL_ION_TDS_PER_QUANTUM`'s footnote (a).
+BREWER_AL_ION_TDS_PER_QUANTUM_CITATION = (
+    'Brewer et al., arXiv:1902.07694, Table S2, "TDS/quantum [10^-18]" row: '
+    "-0.114, -0.518, -0.092, -0.521, -0.066, -0.098 for x-COM, x-STR, y-COM, "
+    "y-STR, z-COM, z-STR respectively (same order as BREWER_AL_ION_MODES_MHZ). "
+    'Table footnote (a): "including the shift due to the intrinsic micromotion '
+    'in the transverse directions" -- confirms the transverse (x/y) rows already '
+    "include the intrinsic-micromotion contribution WP33 computes from first "
+    "principles; the z (axial) rows do not carry this footnote, consistent with "
+    "q_z=0 (no axial intrinsic micromotion, WP33's own F_axial=1 result)."
+)

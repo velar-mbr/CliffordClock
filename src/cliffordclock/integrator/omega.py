@@ -2776,3 +2776,544 @@ def two_ion_radial_participations(
         bare_frequency_clock_uncertainty_hz=wr_clock_uncertainty,
         bare_frequency_partner_uncertainty_hz=wr_partner_uncertainty,
     )
+
+
+# ---------------------------------------------------------------------------
+# WP33: mode-specific intrinsic-micromotion enhancement for radial secular
+# modes (CONVENTIONS.md section 16, WP33 addition), closing the
+# reconciliation the G14 gate review identified. Marshall et al.'s (and,
+# per Brewer et al., arXiv:1902.07694, Table S2 footnote (a), same species
+# pair) published per-mode radial secular-motion rows already include the
+# shift due to INTRINSIC micromotion -- a genuine second contribution to
+# <v^2> beyond the pure secular motion WP30-32 compute. This is NOT excess
+# micromotion (E38's already-modeled, lab-characterized EMM channel,
+# driven by a stray DC field displacing the ion from the RF null);
+# intrinsic micromotion is the UNAVOIDABLE micromotion that accompanies
+# secular motion itself, because that motion carries the ion through the
+# RF field's spatially-varying amplitude even when it is perfectly
+# centered on time average (Berkeland, Miller, Bergquist, Itano, Wineland,
+# J. Appl. Phys. 83, 5025 (1998) -- the same paper this document's EMM
+# paragraph already cites as canonical -- Sec. II calls this component
+# simply "micromotion," distinct from their own "excess micromotion").
+#
+# Derivation (worked directly from the standard Mathieu-equation treatment;
+# every equation below is Berkeland's own, verified against the primary PDF
+# this session, cross-checked against Wubbena's alpha/epsilon convention
+# WP32's own derivation already uses):
+#
+# 1. Leading-order secular frequency (Berkeland Eq. 9, citing Landau &
+#    Lifshitz, "Mechanics," pp. 93-95, for the underlying first-order
+#    Mathieu-equation solution, valid for |a_i| << 1 and |q_i| << 1 -- the
+#    SAME regime this project's own reconstructed q ~ 0.19-0.25 and
+#    |a_i| ~ 0.003-0.008 sit comfortably inside, both smaller than
+#    Berkeland's own worked example, q~0.28):
+#
+#        omega_i = (Omega/2) * sqrt(a_i + q_i^2/2)
+#
+#    with `Omega = 2*pi*rf_drive_frequency_hz` the trap's RF DRIVE angular
+#    frequency (Marshall's stated `Omega/2pi = 70.86 MHz`) and `a_i`/`q_i`
+#    the Mathieu DC/RF parameters for axis `i` (Berkeland Eq. 4's Mathieu
+#    equation, `a_i`/`q_i` given explicitly in terms of trap voltages and
+#    mass by Berkeland Eqs. 5-6). For AXIAL motion in a linear trap,
+#    `q_z = 0` (no RF field component along the trap axis, Berkeland
+#    Eq. 6), so `omega_z = (Omega/2)*sqrt(a_z)` exactly -- no intrinsic
+#    micromotion along the trap axis at all, by construction.
+#
+# 2. Laplace constraint splits the DC parameter across the two radial
+#    axes. Berkeland Eq. 5 gives `a_x = a_y = -(1/2)*a_z` for their OWN
+#    (radially symmetric) trap geometry; the GENERAL statement, from
+#    Laplace's equation applied to any static-quadrupole DC potential
+#    (Wubbena's own `z^2 - alpha*x^2 - (1-alpha)*y^2` convention, already
+#    used by WP32's derivation, satisfies Laplace's equation for ANY real
+#    `alpha`, not only `alpha=1/2`), is only
+#
+#        a_x + a_y = -a_z,
+#
+#    with the SPLIT between `a_x` and `a_y` set by the trap's own DC-endcap
+#    asymmetry (Wubbena's `alpha`), not fixed at exactly half. This
+#    function does not need `alpha` itself: `a_x - a_y` follows directly
+#    from the two WP32-reconstructed bare radial frequencies (step 3).
+#
+# 3. The clock-ion system: two equations, two unknowns, zero degrees of
+#    freedom. Using ONLY published or WP32-reconstructed inputs for the
+#    CLOCK ion -- `Omega` (published), the clock ion's own bare axial
+#    frequency (recovered from `axial_coulomb_curvature`'s own
+#    `c = m_clock*omega_z,clock^2/2`, i.e. `omega_z,clock =
+#    sqrt(2*c/m_clock)`, reusing that function's already-performed Wubbena
+#    Eq. 12 inversion, with no second derivation), and the two
+#    WP32-reconstructed bare radial frequencies `omega_x,clock`,
+#    `omega_y,clock` -- step 2's constraint gives `a_z =
+#    4*omega_z,clock^2/Omega^2` directly (step 1, `q_z=0`), so
+#    `a_x + a_y = -a_z` is a KNOWN number, and step 1's two radial
+#    equations become two equations in the two remaining unknowns
+#    (`a_x`, `q`) once `a_y = -a_z - a_x` is substituted:
+#
+#        a_x - a_y = 4*(omega_x,clock^2 - omega_y,clock^2)/Omega^2   (known)
+#        a_x = [(-a_z) + (a_x-a_y)] / 2,   a_y = [(-a_z) - (a_x-a_y)] / 2
+#        q^2 = 4*(omega_x,clock^2 + omega_y,clock^2)/Omega^2 + a_z
+#
+#    :func:`clock_ion_mathieu_parameters` implements this closed form.
+#    `q^2` is UNCONDITIONALLY `>= 0` given this function's own
+#    guarded-positive inputs (`a_z >= 0` by construction -- it is `4` times
+#    a squared frequency ratio -- and `omega_x,clock^2`, `omega_y,clock^2
+#    >= 0`), so, unlike WP32's radial inversion (whose feasibility guard
+#    exists because the two measured mode frequencies CAN be too close
+#    together for the computed Coulomb coupling), this closed-form solve
+#    has no analogous failure mode and carries no feasibility guard of its
+#    own -- an algebraic guarantee, not an unchecked assumption.
+#
+# 4. MANDATORY OVER-DETERMINATION CHECK (falsifiable, not assumed).
+#    Berkeland Eqs. 5-6 show `a_i` and `q_i` are each LINEAR in `1/mass` at
+#    fixed trap drive voltage/geometry/charge (`a_i ~
+#    Q*kappa*U0/(m*Z0^2*Omega^2)`, `q_i ~ Q*V0/(m*R'^2*Omega^2)`, the SAME
+#    charge `Q` for both singly-charged ions):
+#
+#        a_x,partner = a_x,clock * (m_clock/m_partner)
+#        a_y,partner = a_y,clock * (m_clock/m_partner)
+#        q_partner   = q_clock   * (m_clock/m_partner)
+#
+#    :func:`predicted_partner_bare_radial_frequencies_hz` mass-scales the
+#    CLOCK ion's own solved `(q, a_x, a_y)` to the partner ion and predicts
+#    its bare radial X/Y frequencies via step 1's same formula -- a
+#    genuinely independent check against WP32's own reconstructed partner
+#    frequencies (from the SEPARATE two-ion eigenproblem inversion,
+#    :func:`two_ion_radial_participations`), since nothing in THIS
+#    derivation's inputs (`Omega`, the clock ion's own axial/radial
+#    frequencies) ever touches the partner's bare frequencies. Both the
+#    Marshall et al. (arXiv:2504.13071v2) and Brewer et al.
+#    (arXiv:1902.07694) datasets pass this check at the sub-1%-relative
+#    level (well inside the few-percent band the ~3-significant-figure
+#    published mode-frequency precision supports) -- see
+#    `benchmarks/run_motional_al_ion.py`'s WP33 case and its own Brewer
+#    consistency check for the numbers -- an internal-consistency
+#    confirmation of the FULL reconstruction chain (WP32's radial
+#    inversion, this module's Mathieu-parameter solve, and the shared-`Q`
+#    mass-scaling assumption), reported whatever it says, not tuned toward
+#    agreement.
+#
+# 5. Radial intrinsic-micromotion enhancement (Berkeland Eq. 10's kinetic
+#    energy result, `E_Ki = (1/4)*m*u1i^2*omega_i^2*(1 +
+#    q_i^2/(2*a_i+q_i^2))`, the SAME first-order Mathieu solution as
+#    step 1; the bracketed term is the ratio of TOTAL
+#    (secular+micromotion) to secular-alone kinetic energy along axis `i`):
+#
+#        F_axis = 1 + q_clock^2 / (2*a_axis + q_clock^2)
+#
+#    :func:`radial_micromotion_enhancement` implements this directly --
+#    not independently re-derived, it is literally Berkeland's own
+#    bracket. `F_axis = 2` exactly at `a_axis = 0` (equal secular and
+#    micromotion energy); `F_axis > 2` for `a_axis < 0` (RF-dominated
+#    confinement, DC softening the radial direction further); `F_axis < 2`
+#    for `a_axis > 0` (DC assisting radial confinement). The axial
+#    direction has `q_z = 0` (step 1), so `F_axial = 1` identically --
+#    axial secular motion carries NO intrinsic micromotion, consistent
+#    with the G14 gate's own observation that the axial per-mode ratios
+#    (~1.00-1.01) needed no correction at all. Regime of validity: first
+#    order in `a_i`, `q_i` (Berkeland's own "typical case where `|q_i|<<1`
+#    and `|a_i|<<1`" caveat on Eqs. 8-10, the same regime step 1's
+#    `omega_i` formula already assumes) -- this project's own
+#    `q ~ 0.19-0.25`, `|a_i| ~ 0.003-0.008` sit inside it, smaller than
+#    Berkeland's own worked `q~0.28` example. No published input in either
+#    dataset used here supports evaluating the EXACT Mathieu
+#    characteristic-value relation instead, so the leading-order form is
+#    used as is, with its regime of validity stated explicitly.
+#
+# 5. Why the per-ion factor composes with the participation share
+#    (G15 review, made explicit here): intrinsic micromotion is a per-ion
+#    kinematic response. Berkeland Eq. 8's RF position modulation
+#    `[1 + (q_i/2) cos(Omega t)]` arises from the ion's own RF coupling
+#    term in its own equation of motion and depends only on that ion's
+#    own mass-dependent `(a_i, q_i)`; the Coulomb coupling between the
+#    two ions enters only the RF-cycle-averaged SECULAR dynamics, the
+#    same fast/slow separation the WP32 secular 2x2 eigenproblem already
+#    relies on. Whatever slow amplitude the clock ion carries along an
+#    axis, including its participation-weighted share of a coupled
+#    normal mode, is therefore multiplied by the same per-ion factor,
+#    which is why `(q, a)` here derive from the clock ion's BARE
+#    (uncoupled) frequencies and never from the coupled mode
+#    frequencies. Two independent datasets landing near unity per mode
+#    corroborate the composition empirically.
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class ClockIonMathieuParameters:
+    """Result of :func:`clock_ion_mathieu_parameters` (WP33): the clock
+    ion's own leading-order Mathieu DC (`a`) and RF (`q`) parameters,
+    solved from the RF drive frequency, the axial Coulomb curvature, and
+    the two WP32-reconstructed bare radial frequencies.
+
+    Attributes
+    ----------
+    mathieu_q : float
+        The clock ion's radial Mathieu RF parameter (`q_x = -q_y` in
+        Berkeland's own sign convention; only `q^2` is physical here, so
+        this is reported as the non-negative magnitude), dimensionless.
+    mathieu_a_x, mathieu_a_y : float
+        The clock ion's radial Mathieu DC parameters along the X and Y
+        transverse directions, dimensionless. `mathieu_a_x +
+        mathieu_a_y == -mathieu_a_z` exactly (the Laplace constraint this
+        module's WP33 derivation step 2 imposes).
+    mathieu_a_z : float
+        The clock ion's axial Mathieu DC parameter, dimensionless,
+        `>= 0` (recovered from `axial_coulomb_curvature`'s own Coulomb
+        curvature via `omega_z,clock = sqrt(2*c/m_clock)`).
+    mathieu_q_uncertainty, mathieu_a_x_uncertainty, mathieu_a_y_uncertainty,
+    mathieu_a_z_uncertainty : float
+        Propagated 1-sigma uncertainty on each parameter, from the
+        supplied curvature/frequency uncertainties (finite-difference
+        partials, mirroring :func:`two_ion_radial_participations`'s own
+        uncertainty-propagation style). `0.0` when every input uncertainty
+        is `0.0` (the case for both the Marshall and Brewer datasets used
+        in this project's WP33 benchmark case: neither publishes a
+        per-mode frequency uncertainty for its radial/axial rows).
+    """
+
+    mathieu_q: float
+    mathieu_a_x: float
+    mathieu_a_y: float
+    mathieu_a_z: float
+    mathieu_q_uncertainty: float
+    mathieu_a_x_uncertainty: float
+    mathieu_a_y_uncertainty: float
+    mathieu_a_z_uncertainty: float
+
+
+def _clock_ion_mathieu_parameters_raw(
+    m_clock_kg: float,
+    coulomb_curvature_n_per_m: float,
+    rf_drive_frequency_hz: float,
+    radial_bare_frequency_clock_x_hz: float,
+    radial_bare_frequency_clock_y_hz: float,
+) -> tuple[float, float, float, float]:
+    """Nominal (no uncertainty) WP33 clock-ion Mathieu-parameter solve
+    (this module's WP33 comment block, steps 1-3), shared by
+    :func:`clock_ion_mathieu_parameters`'s nominal evaluation and its
+    finite-difference uncertainty samples (mirroring
+    `_radial_participations_raw`'s role for WP32's own inversion).
+
+    Returns
+    -------
+    tuple[float, float, float, float]
+        ``(q, a_x, a_y, a_z)``.
+    """
+    omega_z_clock = math.sqrt(2.0 * coulomb_curvature_n_per_m / m_clock_kg)
+    omega_rf = 2.0 * math.pi * rf_drive_frequency_hz
+    a_z = 4.0 * omega_z_clock * omega_z_clock / (omega_rf * omega_rf)
+
+    omega_x_clock = 2.0 * math.pi * radial_bare_frequency_clock_x_hz
+    omega_y_clock = 2.0 * math.pi * radial_bare_frequency_clock_y_hz
+    s = -a_z  # a_x + a_y, the Laplace constraint (step 2)
+    d = (
+        4.0
+        * (omega_x_clock * omega_x_clock - omega_y_clock * omega_y_clock)
+        / (omega_rf * omega_rf)
+    )
+    a_x = (s + d) / 2.0
+    a_y = (s - d) / 2.0
+    q_sq = (
+        4.0
+        * (omega_x_clock * omega_x_clock + omega_y_clock * omega_y_clock)
+        / (omega_rf * omega_rf)
+        - s
+    )
+    # Unconditionally >= 0 given this function's own guarded-positive
+    # inputs (WP33 comment block step 3): defensive check, not a reachable
+    # failure mode through the public API's own guards.
+    if q_sq < 0.0:
+        raise ValueError(
+            f"infeasible clock-ion Mathieu solve: q^2={q_sq!r} < 0 for "
+            f"m_clock_kg={m_clock_kg!r}, coulomb_curvature_n_per_m="
+            f"{coulomb_curvature_n_per_m!r}, rf_drive_frequency_hz="
+            f"{rf_drive_frequency_hz!r}, radial_bare_frequency_clock_x_hz="
+            f"{radial_bare_frequency_clock_x_hz!r}, "
+            "radial_bare_frequency_clock_y_hz="
+            f"{radial_bare_frequency_clock_y_hz!r}"
+        )
+    q = math.sqrt(q_sq)
+    return q, a_x, a_y, a_z
+
+
+def clock_ion_mathieu_parameters(
+    m_clock_kg: float,
+    coulomb_curvature_n_per_m: float,
+    rf_drive_frequency_hz: float,
+    radial_bare_frequency_clock_x_hz: float,
+    radial_bare_frequency_clock_y_hz: float,
+    *,
+    coulomb_curvature_uncertainty_n_per_m: float = 0.0,
+    rf_drive_frequency_uncertainty_hz: float = 0.0,
+    radial_bare_frequency_clock_x_uncertainty_hz: float = 0.0,
+    radial_bare_frequency_clock_y_uncertainty_hz: float = 0.0,
+) -> ClockIonMathieuParameters:
+    """Solve the clock ion's own leading-order Mathieu `(a_x, a_y, a_z, q)`
+    parameters (WP33; see this module's WP33 comment block, steps 1-3, for
+    the full derivation and its Berkeland Eq. 4-6/9 citations).
+
+    Two equations (the two WP32-reconstructed bare radial frequencies),
+    two unknowns (`a_x`, `q`, with `a_y` and `a_z` following from the
+    Laplace constraint and the axial Coulomb curvature respectively) --
+    zero degrees of freedom, no fit, no trap-geometry parameter
+    (`alpha`/`epsilon`) required as input.
+
+    Parameters
+    ----------
+    m_clock_kg : float
+        The clock ion's mass, kilograms. Must be `> 0`.
+    coulomb_curvature_n_per_m : float
+        `c` (N/m), typically :func:`axial_coulomb_curvature`'s first
+        return value. Must be `> 0`.
+    rf_drive_frequency_hz : float
+        The trap's RF drive ORDINARY frequency `Omega/(2*pi)`, hertz (e.g.
+        Marshall et al.'s stated `Omega/2pi = 70.86 MHz`). Must be `> 0`.
+    radial_bare_frequency_clock_x_hz, radial_bare_frequency_clock_y_hz : float
+        The clock ion's own bare (single-ion) radial ORDINARY frequencies
+        for the X and Y transverse directions, hertz, typically
+        :func:`two_ion_radial_participations`'s `bare_frequency_clock_hz`
+        for each branch. Must each be `> 0`.
+    coulomb_curvature_uncertainty_n_per_m : float, default 0.0
+        1-sigma uncertainty on `coulomb_curvature_n_per_m`, N/m. Must be
+        `>= 0`.
+    rf_drive_frequency_uncertainty_hz : float, default 0.0
+        1-sigma uncertainty on `rf_drive_frequency_hz`, hertz. Must be
+        `>= 0`.
+    radial_bare_frequency_clock_x_uncertainty_hz,
+    radial_bare_frequency_clock_y_uncertainty_hz : float, default 0.0
+        1-sigma uncertainty on each bare radial frequency, hertz. Must
+        each be `>= 0`.
+
+    Returns
+    -------
+    ClockIonMathieuParameters
+
+    Raises
+    ------
+    ValueError
+        Non-positive mass/curvature/drive-frequency/radial-frequency, or
+        negative uncertainty.
+    """
+    if m_clock_kg <= 0.0:
+        raise ValueError(f"m_clock_kg={m_clock_kg!r} must be > 0")
+    if coulomb_curvature_n_per_m <= 0.0:
+        raise ValueError(f"coulomb_curvature_n_per_m={coulomb_curvature_n_per_m!r} must be > 0")
+    if rf_drive_frequency_hz <= 0.0:
+        raise ValueError(f"rf_drive_frequency_hz={rf_drive_frequency_hz!r} must be > 0")
+    if radial_bare_frequency_clock_x_hz <= 0.0:
+        raise ValueError(
+            f"radial_bare_frequency_clock_x_hz={radial_bare_frequency_clock_x_hz!r} must be > 0"
+        )
+    if radial_bare_frequency_clock_y_hz <= 0.0:
+        raise ValueError(
+            f"radial_bare_frequency_clock_y_hz={radial_bare_frequency_clock_y_hz!r} must be > 0"
+        )
+    if coulomb_curvature_uncertainty_n_per_m < 0.0:
+        raise ValueError(
+            "coulomb_curvature_uncertainty_n_per_m="
+            f"{coulomb_curvature_uncertainty_n_per_m!r} must be >= 0"
+        )
+    if rf_drive_frequency_uncertainty_hz < 0.0:
+        raise ValueError(
+            f"rf_drive_frequency_uncertainty_hz={rf_drive_frequency_uncertainty_hz!r} must be >= 0"
+        )
+    if radial_bare_frequency_clock_x_uncertainty_hz < 0.0:
+        raise ValueError(
+            "radial_bare_frequency_clock_x_uncertainty_hz="
+            f"{radial_bare_frequency_clock_x_uncertainty_hz!r} must be >= 0"
+        )
+    if radial_bare_frequency_clock_y_uncertainty_hz < 0.0:
+        raise ValueError(
+            "radial_bare_frequency_clock_y_uncertainty_hz="
+            f"{radial_bare_frequency_clock_y_uncertainty_hz!r} must be >= 0"
+        )
+
+    q, a_x, a_y, a_z = _clock_ion_mathieu_parameters_raw(
+        m_clock_kg,
+        coulomb_curvature_n_per_m,
+        rf_drive_frequency_hz,
+        radial_bare_frequency_clock_x_hz,
+        radial_bare_frequency_clock_y_hz,
+    )
+
+    # Finite-difference uncertainty propagation (same style as
+    # `two_ion_radial_participations`, WP32): each uncertain input's
+    # response to a full +/-1-sigma step, halved, is that input's own
+    # contribution to the linearized 1-sigma output uncertainty.
+    perturbations = (
+        ("coulomb_curvature_n_per_m", coulomb_curvature_uncertainty_n_per_m),
+        ("rf_drive_frequency_hz", rf_drive_frequency_uncertainty_hz),
+        ("radial_bare_frequency_clock_x_hz", radial_bare_frequency_clock_x_uncertainty_hz),
+        ("radial_bare_frequency_clock_y_hz", radial_bare_frequency_clock_y_uncertainty_hz),
+    )
+    base_kwargs = {
+        "m_clock_kg": m_clock_kg,
+        "coulomb_curvature_n_per_m": coulomb_curvature_n_per_m,
+        "rf_drive_frequency_hz": rf_drive_frequency_hz,
+        "radial_bare_frequency_clock_x_hz": radial_bare_frequency_clock_x_hz,
+        "radial_bare_frequency_clock_y_hz": radial_bare_frequency_clock_y_hz,
+    }
+    q_terms = []
+    a_x_terms = []
+    a_y_terms = []
+    a_z_terms = []
+    for public_name, sigma in perturbations:
+        if sigma == 0.0:
+            continue
+        plus_kwargs = dict(base_kwargs)
+        plus_kwargs[public_name] = base_kwargs[public_name] + sigma
+        minus_kwargs = dict(base_kwargs)
+        minus_kwargs[public_name] = base_kwargs[public_name] - sigma
+        q_plus, a_x_plus, a_y_plus, a_z_plus = _clock_ion_mathieu_parameters_raw(**plus_kwargs)
+        q_minus, a_x_minus, a_y_minus, a_z_minus = _clock_ion_mathieu_parameters_raw(**minus_kwargs)
+        q_terms.append(((q_plus - q_minus) / 2.0) ** 2)
+        a_x_terms.append(((a_x_plus - a_x_minus) / 2.0) ** 2)
+        a_y_terms.append(((a_y_plus - a_y_minus) / 2.0) ** 2)
+        a_z_terms.append(((a_z_plus - a_z_minus) / 2.0) ** 2)
+
+    q_uncertainty = math.sqrt(math.fsum(q_terms)) if q_terms else 0.0
+    a_x_uncertainty = math.sqrt(math.fsum(a_x_terms)) if a_x_terms else 0.0
+    a_y_uncertainty = math.sqrt(math.fsum(a_y_terms)) if a_y_terms else 0.0
+    a_z_uncertainty = math.sqrt(math.fsum(a_z_terms)) if a_z_terms else 0.0
+
+    return ClockIonMathieuParameters(
+        mathieu_q=q,
+        mathieu_a_x=a_x,
+        mathieu_a_y=a_y,
+        mathieu_a_z=a_z,
+        mathieu_q_uncertainty=q_uncertainty,
+        mathieu_a_x_uncertainty=a_x_uncertainty,
+        mathieu_a_y_uncertainty=a_y_uncertainty,
+        mathieu_a_z_uncertainty=a_z_uncertainty,
+    )
+
+
+def radial_micromotion_enhancement(mathieu_q: float, mathieu_a_axis: float) -> float:
+    """Leading-order intrinsic-micromotion enhancement factor for one
+    radial axis (WP33; Berkeland Eq. 10, this module's WP33 comment block
+    step 5).
+
+    ``F_axis = 1 + mathieu_q^2 / (2*mathieu_a_axis + mathieu_q^2)``, the
+    ratio of total (secular + intrinsic micromotion) to secular-alone
+    kinetic energy -- and hence of `<v^2>` -- along that axis, at leading
+    order in the Mathieu parameters. `F_axis == 2.0` exactly at
+    `mathieu_a_axis == 0.0`; `F_axis > 2.0` for `mathieu_a_axis < 0.0`;
+    `F_axis < 2.0` for `mathieu_a_axis > 0.0`. Passing `mathieu_q=0.0`
+    (e.g. the axial direction, which has no RF component) returns exactly
+    `1.0` for any `mathieu_a_axis != 0.0` -- no intrinsic micromotion
+    without an RF Mathieu parameter to drive it.
+
+    Parameters
+    ----------
+    mathieu_q : float
+        The Mathieu RF parameter along this axis (only `q^2` is physical;
+        this is the non-negative magnitude, e.g.
+        :attr:`ClockIonMathieuParameters.mathieu_q`). Must be `>= 0`.
+    mathieu_a_axis : float
+        The Mathieu DC parameter along this SAME axis (e.g.
+        :attr:`ClockIonMathieuParameters.mathieu_a_x`/`mathieu_a_y`). May
+        be negative (the ordinary case for RF-dominated radial
+        confinement, WP33 comment block step 3's worked examples).
+
+    Returns
+    -------
+    float
+        `F_axis`, dimensionless, `>= 1.0`.
+
+    Raises
+    ------
+    ValueError
+        `mathieu_q < 0`, or `2*mathieu_a_axis + mathieu_q^2 <= 0` (the
+        radial-confinement condition `mathieu_a_axis + mathieu_q^2/2 > 0`,
+        WP33 comment block step 1's own `omega_i` formula, is violated --
+        the supplied `(q, a_axis)` pair does not correspond to a
+        physically confined radial mode along this axis).
+    """
+    if mathieu_q < 0.0:
+        raise ValueError(f"mathieu_q={mathieu_q!r} must be >= 0")
+    q_sq = mathieu_q * mathieu_q
+    denominator = 2.0 * mathieu_a_axis + q_sq
+    if denominator <= 0.0:
+        raise ValueError(
+            f"unphysical radial confinement: 2*mathieu_a_axis+mathieu_q^2={denominator!r} "
+            f"<= 0 for mathieu_q={mathieu_q!r}, mathieu_a_axis={mathieu_a_axis!r} -- this "
+            "(q, a_axis) pair does not correspond to a confined radial secular mode"
+        )
+    return 1.0 + q_sq / denominator
+
+
+def predicted_partner_bare_radial_frequencies_hz(
+    clock_mathieu: ClockIonMathieuParameters,
+    m_clock_kg: float,
+    m_partner_kg: float,
+    rf_drive_frequency_hz: float,
+) -> tuple[float, float]:
+    """Predict the PARTNER ion's bare radial X/Y ORDINARY frequencies by
+    mass-scaling the clock ion's own solved Mathieu parameters (WP33's
+    MANDATORY OVER-DETERMINATION CHECK; this module's WP33 comment block
+    step 4, Berkeland Eq. 5-6 citations).
+
+    A genuinely independent, falsifiable consistency check: nothing in
+    :func:`clock_ion_mathieu_parameters`'s own inputs (the RF drive
+    frequency and the CLOCK ion's own axial/radial frequencies) ever
+    touches the partner ion's bare frequencies, so comparing this
+    function's prediction against :func:`two_ion_radial_participations`'s
+    SEPARATELY reconstructed partner bare frequencies (from the two-ion
+    eigenproblem inversion, an entirely different calculation) tests the
+    whole reconstruction chain's internal consistency, not a tautology.
+
+    Parameters
+    ----------
+    clock_mathieu : ClockIonMathieuParameters
+        The clock ion's own solved Mathieu parameters
+        (:func:`clock_ion_mathieu_parameters`).
+    m_clock_kg : float
+        The clock ion's mass, kilograms. Must be `> 0`.
+    m_partner_kg : float
+        The partner ion's mass, kilograms. Must be `> 0`.
+    rf_drive_frequency_hz : float
+        The trap's RF drive ORDINARY frequency, hertz (the SAME value
+        passed to :func:`clock_ion_mathieu_parameters`). Must be `> 0`.
+
+    Returns
+    -------
+    tuple[float, float]
+        ``(bare_frequency_partner_x_hz, bare_frequency_partner_y_hz)``.
+
+    Raises
+    ------
+    ValueError
+        `m_clock_kg`/`m_partner_kg`/`rf_drive_frequency_hz` not `> 0`, or
+        the mass-scaled partner `(a_axis, q)` pair predicts an unconfined
+        (imaginary-frequency) radial mode along either axis -- naming
+        which axis and the offending numbers.
+    """
+    if m_clock_kg <= 0.0:
+        raise ValueError(f"m_clock_kg={m_clock_kg!r} must be > 0")
+    if m_partner_kg <= 0.0:
+        raise ValueError(f"m_partner_kg={m_partner_kg!r} must be > 0")
+    if rf_drive_frequency_hz <= 0.0:
+        raise ValueError(f"rf_drive_frequency_hz={rf_drive_frequency_hz!r} must be > 0")
+
+    mass_ratio = m_clock_kg / m_partner_kg  # a_i, q_i ~ 1/mass (Berkeland Eq. 5-6)
+    q_sq_partner = (clock_mathieu.mathieu_q * mass_ratio) ** 2
+    a_x_partner = clock_mathieu.mathieu_a_x * mass_ratio
+    a_y_partner = clock_mathieu.mathieu_a_y * mass_ratio
+
+    x_term = a_x_partner + q_sq_partner / 2.0
+    y_term = a_y_partner + q_sq_partner / 2.0
+    if x_term <= 0.0:
+        raise ValueError(
+            f"predicted partner X radial mode unconfined: a_x_partner+q_partner^2/2="
+            f"{x_term!r} <= 0 for m_clock_kg={m_clock_kg!r}, m_partner_kg={m_partner_kg!r}, "
+            f"clock_mathieu={clock_mathieu!r}"
+        )
+    if y_term <= 0.0:
+        raise ValueError(
+            f"predicted partner Y radial mode unconfined: a_y_partner+q_partner^2/2="
+            f"{y_term!r} <= 0 for m_clock_kg={m_clock_kg!r}, m_partner_kg={m_partner_kg!r}, "
+            f"clock_mathieu={clock_mathieu!r}"
+        )
+
+    omega_rf = 2.0 * math.pi * rf_drive_frequency_hz
+    omega_x_partner = (omega_rf / 2.0) * math.sqrt(x_term)
+    omega_y_partner = (omega_rf / 2.0) * math.sqrt(y_term)
+    return omega_x_partner / (2.0 * math.pi), omega_y_partner / (2.0 * math.pi)
