@@ -722,7 +722,12 @@ class RadiationEnvironmentConfig:
         `~cliffordclock.integrator.omega.bbr_environment_pivot_perturbation`
         itself when this config is actually resolved against a species
         (defense in depth for any caller constructing this dataclass
-        directly).
+        directly). In YAML, `surfaces` is written either inline (a list of
+        per-surface mappings) or as a `surfaces_file` path to a plain-text
+        surfaces table (WP29 Tier 1 Part 1); both forms produce the exact
+        same `surfaces` tuple here, since the file form is parsed by
+        :func:`_load_radiation_surfaces_file` into the same shape the
+        inline list already has before either reaches this class.
     correlated : bool
         Temperature-uncertainty combination mode across surfaces
         (CONVENTIONS.md E37's uncertainty note):
@@ -967,26 +972,26 @@ class PipelineConfig:
             :meth:`from_dict`).
         """
         path = Path(path)
-        try:
-            text = path.read_text(encoding="utf-8")
-        except OSError as exc:
-            raise PipelineConfigError(f"cannot read config file {path}: {exc}") from exc
-        try:
-            data = yaml.safe_load(text)
-        except yaml.YAMLError as exc:
-            raise PipelineConfigError(f"{path}: invalid YAML: {exc}") from exc
-        if not isinstance(data, dict):
-            raise PipelineConfigError(f"{path}: config must be a YAML mapping at the top level")
-        return cls.from_dict(data)
+        data = _load_yaml_config_dict(path)
+        return cls.from_dict(data, base_dir=path.parent)
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> PipelineConfig:
+    def from_dict(cls, data: dict[str, Any], *, base_dir: Path | None = None) -> PipelineConfig:
         """Build and validate a :class:`PipelineConfig` from a parsed mapping.
 
         Parameters
         ----------
         data : dict[str, Any]
             Parsed config (e.g. from ``yaml.safe_load``).
+        base_dir : pathlib.Path or None
+            Directory a relative
+            ``environment.radiation_environment.surfaces_file`` path (WP29
+            Tier 1 Part 1) is resolved against; `None` is the default, and
+            what a caller building `data` directly gets without going
+            through :meth:`from_yaml`, leaving such a path unresolved, i.e.
+            relative to the current working directory at read time, same
+            as `field.csv`/`field.comsol` already behave. :meth:`from_yaml`
+            passes the config file's own directory here.
 
         Returns
         -------
@@ -1005,7 +1010,7 @@ class PipelineConfig:
         ensemble_cfg = _parse_ensemble(_require(data, "ensemble", "config"))
         integration_cfg = _parse_integration(_require(data, "integration", "config"))
         coupling_cfg = _parse_coupling(_require(data, "coupling", "config"))
-        environment_cfg = _parse_environment(data.get("environment"))
+        environment_cfg = _parse_environment(data.get("environment"), base_dir=base_dir)
         quadrupole_cfg = _parse_quadrupole(data.get("quadrupole"))
         output_cfg = _parse_output(data.get("output"))
         uncertainty_notes = str(data.get("uncertainty_notes", ""))
@@ -1057,6 +1062,34 @@ class PipelineConfig:
 # ---------------------------------------------------------------------------
 # Config parsing helpers.
 # ---------------------------------------------------------------------------
+
+
+def _load_yaml_config_dict(path: Path) -> dict[str, Any]:
+    """Read and YAML-parse `path` into a raw config mapping.
+
+    Factored out of :meth:`PipelineConfig.from_yaml` so
+    ``cliffordclock.cli``'s ``--radiation-surfaces`` override (WP29 Tier 1
+    Part 2) can merge into the same raw mapping :meth:`PipelineConfig.from_dict`
+    consumes, without duplicating this function's file-read/YAML-parse
+    error handling.
+
+    Raises
+    ------
+    PipelineConfigError
+        The file cannot be read, is not valid YAML, or is not a mapping
+        at the top level.
+    """
+    try:
+        text = path.read_text(encoding="utf-8")
+    except OSError as exc:
+        raise PipelineConfigError(f"cannot read config file {path}: {exc}") from exc
+    try:
+        data = yaml.safe_load(text)
+    except yaml.YAMLError as exc:
+        raise PipelineConfigError(f"{path}: invalid YAML: {exc}") from exc
+    if not isinstance(data, dict):
+        raise PipelineConfigError(f"{path}: config must be a YAML mapping at the top level")
+    return data
 
 
 def _require(data: dict[str, Any], key: str, context: str) -> Any:
@@ -1315,13 +1348,17 @@ def _parse_coupling(data: Any) -> CouplingConfig:
     )
 
 
-def _parse_environment(data: Any) -> EnvironmentConfig:
+def _parse_environment(data: Any, *, base_dir: Path | None = None) -> EnvironmentConfig:
     """Parse the optional ``environment:`` YAML section (WP20/WP29, :class:`EnvironmentConfig`).
 
     `data` is `None` when the key is absent from the config (the default,
     common case) -- returns `EnvironmentConfig()` (BBR off), matching
     every other optional-section parser's ``data.get(...)`` -> `None` ->
     default-value pattern in this module.
+
+    `base_dir` is forwarded to :func:`_parse_radiation_environment`, which
+    resolves a relative ``radiation_environment.surfaces_file`` path
+    against it; see :meth:`PipelineConfig.from_dict`'s docstring.
     """
     if data is None:
         return EnvironmentConfig()
@@ -1360,7 +1397,9 @@ def _parse_environment(data: Any) -> EnvironmentConfig:
             f"{temperature_uncertainty_k}"
         )
 
-    radiation_environment = _parse_radiation_environment(radiation_environment_raw)
+    radiation_environment = _parse_radiation_environment(
+        radiation_environment_raw, base_dir=base_dir
+    )
     gravity = _parse_gravity(data.get("gravity"))
 
     return EnvironmentConfig(
@@ -1371,7 +1410,120 @@ def _parse_environment(data: Any) -> EnvironmentConfig:
     )
 
 
-def _parse_radiation_environment(data: Any) -> RadiationEnvironmentConfig | None:
+#: Reserved token marking an absent optional column in a surfaces table file
+#: (:func:`_load_radiation_surfaces_file`); also rejected as a surface
+#: `name`, since a bare `-` there would be indistinguishable from the
+#: placeholder.
+_SURFACES_FILE_ABSENT_TOKEN = "-"
+
+
+def _parse_surfaces_file_float(path: Path, lineno: int, column: str, token: str) -> float:
+    """Parse one numeric column of a surfaces table file row, or raise
+    :class:`PipelineConfigError` naming the file, line, and offending token
+    (mirrors `cliffordclock.fields.io.load_field_comsol`'s error style).
+    """
+    try:
+        return float(token)
+    except ValueError:
+        raise PipelineConfigError(
+            f"{path}: line {lineno}: non-numeric {column} value {token!r}"
+        ) from None
+
+
+def _load_radiation_surfaces_file(path: Path) -> list[dict[str, Any]]:
+    """Parse a ``environment.radiation_environment.surfaces_file`` surfaces
+    table (WP29 Tier 1 Part 1, CONVENTIONS.md E37; docs/cli.md's "Surfaces
+    table file format" section has the full grammar).
+
+    Plain text, UTF-8. `#` starts a comment, whole-line or trailing; blank
+    lines are ignored. One surface per line, whitespace-separated columns::
+
+        name weight temperature_K [temperature_uncertainty_K] [emissivity]
+
+    `name` must be a bare token (no whitespace, guaranteed by the
+    whitespace split); the two trailing optional columns may each be
+    written as `-` to mean absent, so `emissivity` can be set while
+    `temperature_uncertainty_K` is left out. Mirrors
+    :func:`cliffordclock.fields.io.load_field_comsol`'s error style: every
+    raised error names the file, the 1-based line number, and the
+    offending token. Read with ``encoding="utf-8-sig"`` so a leading UTF-8
+    byte-order mark (a plain Notepad "Save As UTF-8" file carries one) is
+    stripped transparently, instead of ending up glued onto the first
+    surface's `name`.
+
+    Duplicate surface names are NOT rejected here: that check runs once,
+    after this function returns, in :func:`_parse_radiation_environment`'s
+    shared per-entry loop, so it applies identically to a `surfaces_file`
+    and an inline YAML `surfaces:` list (a duplicate name is a config
+    mistake in either syntax, not a file-format-specific one).
+
+    Returns
+    -------
+    list[dict[str, Any]]
+        One dict per surface, carrying the same ``name``/``weight``/
+        ``temperature_K``/``temperature_uncertainty_K``/``emissivity`` keys
+        (the last two present only when given) an inline YAML `surfaces:`
+        entry already carries -- fed straight into
+        :func:`_parse_radiation_environment`'s existing per-entry parsing
+        loop, so no E37 invariant check is duplicated here.
+
+    Raises
+    ------
+    PipelineConfigError
+        The file cannot be read, is empty (no surface rows survive
+        comment/blank-line stripping), a line has fewer than 3 or more
+        than 5 columns, a numeric column is non-numeric, or `name` is the
+        reserved `-` placeholder token.
+    """
+    try:
+        text = path.read_text(encoding="utf-8-sig")
+    except OSError as exc:
+        raise PipelineConfigError(
+            f"environment.radiation_environment.surfaces_file: cannot read {path}: {exc}"
+        ) from exc
+
+    surfaces: list[dict[str, Any]] = []
+    for lineno, raw_line in enumerate(text.splitlines(), start=1):
+        line = raw_line.split("#", 1)[0].strip()
+        if not line:
+            continue
+        tokens = line.split()
+        if not (3 <= len(tokens) <= 5):
+            raise PipelineConfigError(
+                f"{path}: line {lineno}: expected 3 to 5 columns (name weight "
+                f"temperature_K [temperature_uncertainty_K] [emissivity]), got "
+                f"{len(tokens)}: {line!r}"
+            )
+
+        name = tokens[0]
+        if name == _SURFACES_FILE_ABSENT_TOKEN:
+            raise PipelineConfigError(
+                f"{path}: line {lineno}: blank surface name -- {_SURFACES_FILE_ABSENT_TOKEN!r} "
+                "is reserved for an absent optional column, not a valid name"
+            )
+
+        weight = _parse_surfaces_file_float(path, lineno, "weight", tokens[1])
+        temperature_k = _parse_surfaces_file_float(path, lineno, "temperature_K", tokens[2])
+
+        entry: dict[str, Any] = {"name": name, "weight": weight, "temperature_K": temperature_k}
+        if len(tokens) >= 4 and tokens[3] != _SURFACES_FILE_ABSENT_TOKEN:
+            entry["temperature_uncertainty_K"] = _parse_surfaces_file_float(
+                path, lineno, "temperature_uncertainty_K", tokens[3]
+            )
+        if len(tokens) >= 5 and tokens[4] != _SURFACES_FILE_ABSENT_TOKEN:
+            entry["emissivity"] = _parse_surfaces_file_float(path, lineno, "emissivity", tokens[4])
+
+        surfaces.append(entry)
+
+    if not surfaces:
+        raise PipelineConfigError(f"{path}: no surface rows found")
+
+    return surfaces
+
+
+def _parse_radiation_environment(
+    data: Any, *, base_dir: Path | None = None
+) -> RadiationEnvironmentConfig | None:
     """Parse the optional ``environment.radiation_environment:`` YAML section
     (WP29 Tier 1, :class:`RadiationEnvironmentConfig`, CONVENTIONS.md E37).
 
@@ -1388,6 +1540,21 @@ def _parse_radiation_environment(data: Any) -> RadiationEnvironmentConfig | None
     `~cliffordclock.integrator.omega.bbr_environment_pivot_perturbation`
     performs later, against `species.resolve_bbr_coefficients()`'s own
     `validity_min_k`/`validity_max_k`, is the authoritative one).
+
+    The surfaces are given either inline (``surfaces:``, a YAML list) or
+    as a table file (``surfaces_file:``, a path parsed by
+    :func:`_load_radiation_surfaces_file`); the two forms are mutually
+    exclusive and exactly one is required. The file form is resolved
+    against `base_dir` (see :meth:`PipelineConfig.from_dict`) when it
+    gives a relative path, mirroring how a relative
+    ``environment.radiation_environment.surfaces_file`` is meant to be
+    read next to the config file that names it. Once resolved, the file
+    loader produces the same list-of-mappings shape the inline `surfaces:`
+    list already is, so both forms converge into the single per-entry
+    parsing loop below and every E37 invariant (unique surface names,
+    weight normalization, the validity window, the emissivity topology
+    rule) is checked exactly once, in the existing place, identically for
+    both input forms.
     """
     if data is None:
         return None
@@ -1397,15 +1564,45 @@ def _parse_radiation_environment(data: Any) -> RadiationEnvironmentConfig | None
         )
 
     surfaces_raw = data.get("surfaces")
+    surfaces_file_raw = data.get("surfaces_file")
+    if surfaces_raw is not None and surfaces_file_raw is not None:
+        raise PipelineConfigError(
+            "environment.radiation_environment.surfaces and "
+            "environment.radiation_environment.surfaces_file are mutually exclusive: "
+            "a run's multi-surface environment comes from exactly one of an inline "
+            "surfaces list or a surfaces table file, not both."
+        )
+    if surfaces_raw is None and surfaces_file_raw is None:
+        raise PipelineConfigError(
+            "environment.radiation_environment: must specify one of 'surfaces' (an "
+            "inline list) or 'surfaces_file' (a path to a surfaces table file, "
+            "docs/cli.md's 'Surfaces table file format' section)"
+        )
+
+    if surfaces_file_raw is not None:
+        surfaces_path = Path(str(surfaces_file_raw))
+        if base_dir is not None and not surfaces_path.is_absolute():
+            surfaces_path = base_dir / surfaces_path
+        surfaces_raw = _load_radiation_surfaces_file(surfaces_path)
+
     if not isinstance(surfaces_raw, list) or not surfaces_raw:
         raise PipelineConfigError(
             "environment.radiation_environment.surfaces must be a non-empty list"
         )
 
     surfaces = []
+    seen_names: set[str] = set()
     for index, entry in enumerate(surfaces_raw):
         context = f"environment.radiation_environment.surfaces[{index}]"
         name = str(_require(entry, "name", context))
+        if name in seen_names:
+            raise PipelineConfigError(
+                f"{context}.name={name!r} is a duplicate: every surface in "
+                "environment.radiation_environment.surfaces must have a distinct name "
+                "(CONVENTIONS.md E37), whether the list is given inline or via "
+                "surfaces_file."
+            )
+        seen_names.add(name)
         weight = float(_require(entry, "weight", context))
         temperature_k = float(_require(entry, "temperature_K", context))
         uncertainty_raw = entry.get("temperature_uncertainty_K", 0.0)

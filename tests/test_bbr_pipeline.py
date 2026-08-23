@@ -147,13 +147,30 @@ def test_environment_temperature_species_without_bbr_data_raises_config_error(
 # ---------------------------------------------------------------------------
 
 
+#: `examples/radiation_environment_surfaces_sr87.yaml` (WP29 Tier 1 Part 1)
+#: is the one deliberate, post-WP20 exception to
+#: `test_no_shipped_example_uses_environment_key`'s "no example opts into
+#: BBR" rule below -- it exists specifically to demonstrate
+#: `environment.radiation_environment.surfaces_file`. Excluded here by
+#: name; the check itself stays as strict as before for every other
+#: example.
+_RADIATION_ENVIRONMENT_EXAMPLE_NAME = "radiation_environment_surfaces_sr87.yaml"
+
+
 def test_no_shipped_example_uses_environment_key() -> None:
-    """No `examples/*.yaml` config opts into BBR -- the WP20 acceptance
-    criterion is that every shipped example's output is byte-identical to
-    its pre-WP20 value, which this structural check protects independent
-    of any numeric regression below.
+    """No pre-WP20/WP29 `examples/*.yaml` config opts into BBR -- the WP20
+    acceptance criterion is that every one of THOSE shipped examples'
+    output is byte-identical to its pre-WP20 value, which this structural
+    check protects independent of any numeric regression below.
+    `_RADIATION_ENVIRONMENT_EXAMPLE_NAME` is excluded: it postdates WP20
+    and exists specifically to demonstrate
+    `environment.radiation_environment.surfaces_file` (WP29 Tier 1 Part 1).
     """
-    example_paths = sorted(_EXAMPLES_DIR.glob("*.yaml"))
+    example_paths = [
+        path
+        for path in sorted(_EXAMPLES_DIR.glob("*.yaml"))
+        if path.name != _RADIATION_ENVIRONMENT_EXAMPLE_NAME
+    ]
     assert len(example_paths) >= 5, "expected several shipped example configs"
     for path in example_paths:
         data = yaml.safe_load(path.read_text(encoding="utf-8"))

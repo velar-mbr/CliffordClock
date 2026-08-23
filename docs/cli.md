@@ -10,7 +10,7 @@ rotor path equation, analyze the result) from a single `config.yaml`.
 
 ```bash
 cliffordclock version
-cliffordclock run config.yaml [--output-dir DIR]
+cliffordclock run config.yaml [--output-dir DIR] [--radiation-surfaces PATH]
 ```
 
 - `cliffordclock version` prints the installed package version.
@@ -20,6 +20,16 @@ cliffordclock run config.yaml [--output-dir DIR]
   fractional shift ± SEM, T2*, and the two output paths).
 - `--output-dir DIR` overrides `output.directory` from the config file
   without editing it.
+- `--radiation-surfaces PATH` injects/overrides
+  `environment.radiation_environment.surfaces_file` from `PATH` (a
+  surfaces table file, see "Surfaces table file format" below), equivalent
+  to the config file having had that key set. `PATH` is resolved relative
+  to the CURRENT WORKING DIRECTORY (it came from the command line, not the
+  config file). If the config already sets
+  `environment.radiation_temperature_K` or an inline
+  `environment.radiation_environment.surfaces` list, the normal E37
+  mutual-exclusivity error fires instead of the flag silently overriding
+  it.
 
 **Exit codes:**
 
@@ -78,7 +88,9 @@ environment:                           # optional section (WP20, CONVENTIONS.md 
   #                                       #   multi-surface alternative to radiation_temperature_K
   #                                       #   above (mutually exclusive with it). See the
   #                                       #   "Multi-surface thermal environment" section below.
-  #   surfaces:
+  #   surfaces:                          # exactly one of `surfaces` (inline) or
+  #                                       #   `surfaces_file` (a table file, see the
+  #                                       #   "Surfaces table file format" section below)
   #     - name: shield                   # label only, used in error messages/report notes
   #       weight: 0.9                    # solid-angle fraction Omega_i/4pi; all surfaces'
   #                                       #   weights must sum to 1 (tolerance 1e-9)
@@ -89,6 +101,7 @@ environment:                           # optional section (WP20, CONVENTIONS.md 
   #       weight: 0.1
   #       temperature_K: 300.0
   #       temperature_uncertainty_K: 0.01  # optional per-surface 1-sigma uncertainty, kelvin
+  #   # surfaces_file: path/to/surfaces.txt  # equivalent to `surfaces` above, from a file
   #   correlated: false                  # optional (default false): per-surface temperature-
   #                                       #   uncertainty combination mode, see below
   gravity:                             # optional sub-section (WP22, CONVENTIONS.md section 15
@@ -325,7 +338,21 @@ mode identically.
   `Sr87`/`Yb171` only).
 - **`surfaces` is a non-empty list**, each entry requiring `name`,
   `weight`, and `temperature_K`; `temperature_uncertainty_K` (default
-  `0.0`) and `emissivity` (default: none) are optional per surface.
+  `0.0`) and `emissivity` (default: none) are optional per surface. Every
+  surface's `name` must be distinct: a duplicate name is a
+  `PipelineConfigError` naming the repeated value, checked identically
+  whether `surfaces` is written inline or loaded from `surfaces_file`
+  below (see "Surfaces table file format"'s own note on this).
+- **`surfaces_file` is an equivalent, mutually exclusive alternative to
+  `surfaces`**: a path to a plain-text surfaces table (WP29 Tier 1 Part 1;
+  see "Surfaces table file format" below), parsed into the exact same
+  per-surface structure `surfaces` carries, before any of the checks
+  below run. Exactly one of `surfaces`/`surfaces_file` is required;
+  giving both, or neither, is a `PipelineConfigError`. A relative
+  `surfaces_file` path is resolved against the directory containing the
+  config file that names it (mirroring the CLI's own
+  `--radiation-surfaces` flag, which resolves relative to the current
+  working directory instead, since it comes from the command line).
 - **Weights must sum to 1** across all surfaces, within a `1e-9` absolute
   tolerance: `PipelineConfigError` otherwise, checked at config-load time.
 - **`temperature_K` must lie in `[50, 350]`** for every surface, the same
@@ -354,6 +381,52 @@ mode identically.
   name/weight/temperature, the per-moment effective temperatures
   `T_eff,n` (one per registry dynamic-term power plus `n=4`), and the
   uncertainty combination mode.
+
+#### Surfaces table file format (`surfaces_file`, WP29 Tier 1 Part 1)
+
+A plain-text, UTF-8 alternative to writing `surfaces:` inline, mirroring
+`docs/fields.md`'s COMSOL-format documentation approach: one surface per
+line, whitespace-separated columns,
+
+```
+name weight temperature_K [temperature_uncertainty_K] [emissivity]
+```
+
+```
+# Two-surface enclosure-and-aperture example (CONVENTIONS.md E37).
+# name      weight  temperature_K  temperature_uncertainty_K  emissivity
+shield       0.9     100.0          -                          0.5
+aperture     0.1     300.0          0.01                       -
+```
+
+- `#` starts a comment, whole-line or trailing; blank lines are ignored.
+  The file is read as UTF-8, tolerating (and stripping) a leading
+  byte-order mark, so a plain Notepad "Save As UTF-8" file works
+  unmodified.
+- `name` must be a bare token (no whitespace).
+- `weight` and `temperature_K` are required on every line.
+- `temperature_uncertainty_K` and `emissivity` are optional trailing
+  columns; write `-` for either one to leave it absent while still
+  supplying the other (as `shield`'s row does above, to set `emissivity`
+  with no `temperature_uncertainty_K`).
+- Every column, and every surface as a whole, parses through the exact
+  same checks the inline `surfaces:` list goes through (unique names,
+  weight normalization, the `[50, 350]` K validity window, the emissivity
+  topology rule). These run once, after the file is loaded, identically
+  for both input forms, never as separate file-specific logic: a
+  `surfaces_file` and the equivalent inline `surfaces:` list produce
+  byte-identical pipeline results.
+- Malformed input specific to the file's own grammar (wrong column
+  count, a non-numeric column, a blank/reserved-token name, a missing
+  file) raises `PipelineConfigError` naming the file, the 1-based line
+  number, and the offending token, matching `load_field_comsol`'s error
+  style (`docs/fields.md`). A duplicate surface name is instead caught by
+  the shared cross-form check above; its error names the surface's index
+  and value, not a file line number.
+
+See `examples/radiation_environment_surfaces.txt` and
+`examples/radiation_environment_surfaces_sr87.yaml` for a complete
+worked example.
 
 ### Gravitational redshift (`environment.gravity:`, WP22)
 

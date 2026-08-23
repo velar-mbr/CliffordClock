@@ -23,6 +23,7 @@ import sys
 from collections.abc import Sequence
 from dataclasses import asdict, replace
 from pathlib import Path
+from typing import Any
 
 from cliffordclock import __version__
 from cliffordclock.analytics import MetrologyReport, write_json, write_line_profile_csv
@@ -31,6 +32,7 @@ from cliffordclock.pipeline import (
     PhysicsValidationError,
     PipelineConfig,
     PipelineConfigError,
+    _load_yaml_config_dict,
     run_pipeline_full,
 )
 
@@ -119,10 +121,57 @@ def _print_summary(
         print(f"  site map:               {site_map_path}")
 
 
-def _cmd_run(config_path: str, output_dir: str | None) -> int:
+def _inject_radiation_surfaces_override(data: dict[str, Any], surfaces_path: str) -> None:
+    """Merge ``--radiation-surfaces PATH`` into a raw config dict, in place.
+
+    Equivalent to the config file having had
+    ``environment.radiation_environment.surfaces_file: PATH``: merged into
+    whatever ``environment``/``environment.radiation_environment`` mapping
+    the config already carries, never replacing it outright, so an
+    existing ``environment.radiation_temperature_K`` or an existing
+    ``environment.radiation_environment.surfaces`` still trips its normal
+    ``PipelineConfigError`` (CONVENTIONS.md E37, raised inside
+    `cliffordclock.pipeline._parse_radiation_environment`) instead of being
+    silently overridden by the flag. When ``environment:`` or
+    ``environment.radiation_environment:`` is present but not a mapping
+    (an already-malformed config), the merge is skipped and
+    `PipelineConfig.from_dict`'s own type check surfaces that error
+    unchanged.
+
+    `surfaces_path` is resolved to an absolute path against the CURRENT
+    WORKING DIRECTORY before being written into the mapping (it came from
+    the command line, not the config file), so
+    `_parse_radiation_environment`'s config-directory-relative resolution
+    rule for a YAML-supplied `surfaces_file` never re-resolves it against
+    the config file's own directory.
+    """
+    environment = data.get("environment")
+    if environment is None:
+        environment = {}
+        data["environment"] = environment
+    if not isinstance(environment, dict):
+        return
+
+    radiation_environment = environment.get("radiation_environment")
+    if radiation_environment is None:
+        radiation_environment = {}
+        environment["radiation_environment"] = radiation_environment
+    if not isinstance(radiation_environment, dict):
+        return
+
+    radiation_environment["surfaces_file"] = str(Path(surfaces_path).resolve())
+
+
+def _cmd_run(config_path: str, output_dir: str | None, radiation_surfaces: str | None) -> int:
     """Run ``cliffordclock run``; returns the process exit code (see module docstring)."""
     try:
-        config = PipelineConfig.from_yaml(config_path)
+        path = Path(config_path)
+        if radiation_surfaces is not None:
+            data = _load_yaml_config_dict(path)
+            _inject_radiation_surfaces_override(data, radiation_surfaces)
+            config = PipelineConfig.from_dict(data, base_dir=path.parent)
+        else:
+            config = PipelineConfig.from_yaml(path)
         if output_dir is not None:
             config = replace(config, output=replace(config.output, directory=output_dir))
         result = run_pipeline_full(config)
@@ -188,6 +237,23 @@ def main(argv: Sequence[str] | None = None) -> int:
         default=None,
         help="Override the config's output.directory",
     )
+    run_parser.add_argument(
+        "--radiation-surfaces",
+        dest="radiation_surfaces",
+        default=None,
+        metavar="PATH",
+        help=(
+            "Path to a radiation-environment surfaces table file (docs/cli.md's "
+            "'Surfaces table file format' section). Injects/overrides "
+            "environment.radiation_environment.surfaces_file, equivalent to the config "
+            "file having had that key set. Resolved relative to the CURRENT WORKING "
+            "DIRECTORY, since it came from the command line, not the config file. If "
+            "the config already sets environment.radiation_temperature_K or an inline "
+            "environment.radiation_environment.surfaces list, the normal CONVENTIONS.md "
+            "E37 mutual-exclusivity error fires -- this flag does not silently override "
+            "an existing radiation-environment setting."
+        ),
+    )
 
     args = parser.parse_args(argv)
 
@@ -195,7 +261,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(__version__)
         return 0
     if args.command == "run":
-        return _cmd_run(args.config, args.output_dir)
+        return _cmd_run(args.config, args.output_dir, args.radiation_surfaces)
 
     parser.print_help()  # pragma: no cover - unreachable: subparsers are required
     return 1  # pragma: no cover

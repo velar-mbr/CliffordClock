@@ -1,6 +1,6 @@
 # Physics & Numerical Conventions: CliffordClock
 
-**Version:** 1.5.0 · **Status: reviewed and approved** (2026-08-11, per
+**Version:** 1.5.1 · **Status: reviewed and approved** (2026-08-11, per
 the project's G9 theory sign-off record, following
 the owner's trigger after reviewing the Fortier/Luiten/Margolis survey
 (Optica 13, 143 (2026)): mm-scale extended samples and their gravitational
@@ -690,7 +690,15 @@ change. Config surface: `environment.radiation_environment` (a list of
 per-surface `name`/`weight`/`temperature_K`/`temperature_uncertainty_K`/
 `emissivity` entries plus a `correlated` flag), mutually exclusive with
 `environment.radiation_temperature_K`
-(`cliffordclock.pipeline.EnvironmentConfig`).
+(`cliffordclock.pipeline.EnvironmentConfig`). The surfaces list is given
+either inline as above or, equivalently, via
+`environment.radiation_environment.surfaces_file`, a path to a plain-text
+surfaces table (WP29 Tier 1 Part 1,
+`cliffordclock.pipeline._load_radiation_surfaces_file`, docs/cli.md's
+"Surfaces table file format" section); the two forms are mutually
+exclusive with each other and produce the identical parsed `surfaces`
+tuple, so this section's formalism is unchanged by which form a config
+uses.
 
 ## 14. Ion-clock electric-quadrupole shift (v1.3.0, WP21 Tier 2)
 
@@ -1147,6 +1155,13 @@ deliberate, not coincidental.
 
 ---
 *Changelog:*
+*1.5.1 (2026-08-23): WP29 Tier 1 Part 1, tooling/input-format addition, no
+formalism change (no separate sign-off ceremony recorded, same basis as
+1.5.0): §13's E37 `environment.radiation_environment.surfaces` list gains
+an equivalent `surfaces_file` form (a plain-text surfaces table, see
+docs/cli.md), mutually exclusive with the inline `surfaces` list and
+parsed into the identical intermediate structure before reaching E37's
+existing weight-normalization/validity-window/emissivity-topology checks.*
 *1.5.0 (2026-08-22): WP29 Tier 1, specified directly by the project owner
 following the project's internal BBR thermal-environment research dossier
 (no separate formalism sign-off ceremony recorded for this entry): §13
