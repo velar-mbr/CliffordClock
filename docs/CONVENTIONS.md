@@ -1,6 +1,6 @@
 # Physics & Numerical Conventions: CliffordClock
 
-**Version:** 1.7.0 · **Status: reviewed and approved** (2026-08-11, per
+**Version:** 1.8.0 · **Status: reviewed and approved** (2026-08-11, per
 the project's G9 theory sign-off record, following
 the owner's trigger after reviewing the Fortier/Luiten/Margolis survey
 (Optica 13, 143 (2026)): mm-scale extended samples and their gravitational
@@ -14,7 +14,12 @@ specified directly by the project owner, likewise not carrying its own
 separate formalism sign-off record, **plus §8's E39 addition and §16's
 participation-factor extension (2026-08-22, WP31)**, both specified
 directly by the project owner, likewise not carrying their own separate
-formalism sign-off record. §15 (E36) was approved 2026-08-11
+formalism sign-off record, **plus §16's radial-spectrum-reconstruction
+addition (2026-08-23, WP32)**, replacing the axial-form-as-radial
+approximation with a genuine two-ion radial eigenproblem inversion for a
+caller who supplies the lab's own measured radial mode frequencies,
+specified directly by the project owner, likewise not carrying its own
+separate formalism sign-off record. §15 (E36) was approved 2026-08-11
 conditional on the A1 computed-magnitude regression and the A4 extended-mode
 dispersion-labeling edit; see §15's sign-off note for the itemized record.
 §1–§11 (E1–E28) were reviewed and
@@ -1323,11 +1328,73 @@ for the derivation, its citation, and the radial scope caveat.
 (`participation=1.0`) and participation-corrected variants against a
 published two-ion crystal's per-mode data.
 
-**Remaining scope boundary.** With the two-ion partition now consumed,
-what remains open is (i) `N > 2`-ion crystals, which need a numeric
-normal-mode eigensolver (no closed form in general), and (ii) the
-RF/micromotion dynamics package (unrelated to participation: see the EMM
-paragraph below).
+**Radial participation factors from spectrum reconstruction (v1.8.0,
+WP32).** `two_ion_participations`'s radial rows are a documented
+approximation (the axial mu-only closed form reused for radial, since the
+full radial closed form needs trap RF/DC geometry parameters this project
+has no way to supply). WP32 replaces that approximation for a caller who
+has the lab's own measured radial mode frequencies, by inverting the
+two-ion radial normal-mode problem directly against them instead of
+assuming a trap geometry. Per transverse direction, the coupled radial
+equations of motion in mass-weighted coordinates form a 2x2 eigenproblem
+
+    [[omega_r1^2 - c/m_clock, c'], [c', omega_r2^2 - c/m_partner]]
+
+with `omega_r1`, `omega_r2` the two ions' own (unknown) bare radial
+frequencies, `c = e^2/(4*pi*eps0*d^3)` the Coulomb curvature at the
+equilibrium spacing `d`, and `c' = c/sqrt(m_clock*m_partner)`. The
+transverse Coulomb curvature is exactly half the axial curvature's
+magnitude and opposite in sign (a standard two-ion-crystal
+electrostatics result, worked from `U_int = e^2/(4*pi*eps0*|r2-r1|)`
+expanded to second order in the axial and transverse displacements about
+`d`); `c` itself is recovered from the AXIAL confinement alone, since the
+two ions share an axial spring constant `k_z = m_clock*omega_z1^2 =
+m_partner*omega_z2^2` (Wubbena et al. 2012 Eq. 7: the DC field gradient
+sets a mass-independent per-ion spring constant), giving `d^3 =
+(e^2/4*pi*eps0)*2/k_z` from the equilibrium force balance and hence `c =
+k_z/2` exactly, with `k_z` itself recovered from the measured axial
+IN-PHASE (COM) mode frequency by inverting Wubbena Eq. 12
+(`cliffordclock.integrator.omega.axial_coulomb_curvature`). The two
+measured radial mode frequencies squared are the matrix's two
+eigenvalues; their sum and product (trace/determinant) invert to the two
+diagonal entries up to a branch swap (the QUADRANT AMBIGUITY), resolved
+by requiring the LIGHTER ion to carry the higher bare radial frequency
+(RF pseudopotential confinement scales as `1/mass` at fixed trap drive,
+Wubbena's own `omega_p` expression before Eq. 3), and
+`cliffordclock.integrator.omega.two_ion_radial_participations` implements
+the full inversion, raising a `ValueError` naming the numbers whenever
+the measured frequencies are infeasible for the computed coupling
+(`(lambda_hi-lambda_lo)^2 < 4*c'^2`) or the branch choice is not
+resolved (equal masses, neither/both branches satisfying the
+disambiguation rule, or the winning branch's separation not clearing its
+own propagated uncertainty, including implicitly, since the same
+checks re-run at every finite-difference uncertainty sample point).
+`benchmarks/run_motional_al_ion.py`'s WP32 case reconstructs both
+transverse branches for the Al27+/Mg25+ crystal from Marshall et al.'s
+own published mode frequencies and reports the result with no tuning:
+the reconstruction's per-mode ratios against Marshall's own published
+per-mode weights sit in the same rough range as WP31's approximation
+(neither matches well), and the reconstructed-participation TOTAL lands
+at essentially the same total-level deviation from the published band as
+WP31's total (~14.0 sigma versus ~14.11 sigma, still `NOT MET`). The
+reason is structural, not a flaw in the reconstruction: each mode-pair's
+clock-ion participations sum to `1.0` exactly regardless of how a pair's
+total is split between its COM and STR members, and Marshall's own
+COM/STR `(n_bar+1/2)`-weighted magnitudes for a given branch are
+comparable in size, so redistributing participation within a radial pair
+moves the per-mode ratios without moving that pair's own total by much,
+and getting the split right need not by itself close a total-level gap
+this size. This is reported as an open empirical finding, not resolved
+here.
+
+**Remaining scope boundary.** With the two-ion partition now consumed for
+both the axial pair (exact, WP31) and, where a lab supplies its own
+measured radial spectrum, the radial pairs too (WP32), what remains open
+is (i) `N > 2`-ion crystals, which need a numeric normal-mode eigensolver
+(no closed form in general), (ii) the RF/micromotion dynamics package
+(unrelated to participation: see the EMM paragraph below), and (iii) the
+open total-level gap WP32's own Al27+/Mg25+ case reports, whose mechanism
+is not yet identified.
 
 **Optional second input channel: excess micromotion (EMM).** Ion-trap
 clocks additionally accumulate a time-dilation shift from excess
@@ -1434,6 +1501,21 @@ verbatim (`cliffordclock.pipeline._resolve_motional_pivot_perturbation`).
 
 ---
 *Changelog:*
+*1.8.0 (2026-08-23): WP32, specified directly by the project owner (no
+separate formalism sign-off ceremony recorded for this entry): §16
+extended with the radial-spectrum-reconstruction addition, the two-ion
+RADIAL normal-mode inversion (the mass-weighted 2x2 eigenproblem, the
+Coulomb-curvature derivation from the shared axial spring constant and
+Wubbena Eq. 7/12, the quadrant disambiguation rule and its RF-
+pseudopotential physical basis, and the feasibility guard), replacing
+WP31's axial-form-as-radial approximation for a caller who supplies the
+lab's own measured radial mode frequencies (WP31's approximation stays
+available, unmodified, as its own labeled case), and the resulting
+open finding from the Al27+/Mg25+ benchmark case: the reconstruction's
+total-level agreement with Marshall et al.'s published band is
+essentially unchanged from WP31's own approximation, for a structural
+reason (mode-pair participation sums to `1.0` regardless of split) this
+entry states but does not resolve.*
 *1.7.0 (2026-08-22): WP31, specified directly by the project owner (no
 separate formalism sign-off ceremony recorded for this entry): §8 added
 (E39 coherent/phase-resolved rotor composition and Ramsey visibility: the

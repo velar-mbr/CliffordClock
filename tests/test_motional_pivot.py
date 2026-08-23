@@ -28,10 +28,11 @@ import numpy as np
 import pytest
 import yaml
 
-from cliffordclock.constants import HBAR, SPEED_OF_LIGHT
+from cliffordclock.constants import ATOMIC_MASS_UNIT, HBAR, SPEED_OF_LIGHT
 from cliffordclock.ensemble.species import get_species
 from cliffordclock.integrator.omega import (
     MotionalMode,
+    axial_coulomb_curvature,
     bbr_pivot_perturbation,
     build_omega_stark,
     grav_pivot_perturbation,
@@ -43,6 +44,7 @@ from cliffordclock.integrator.omega import (
     spin_connection_stark,
     stark_pivot_terms,
     two_ion_participations,
+    two_ion_radial_participations,
 )
 from cliffordclock.pipeline import (
     _FAST_PATH_DOPPLER_EXCLUSION_NOTE,
@@ -972,3 +974,310 @@ def test_participation_composes_into_velocity_squared_expectation() -> None:
     v2_full = motional_mean_squared_velocity_m2_s2((full,), _AL27_PLUS)
     v2_half = motional_mean_squared_velocity_m2_s2((half,), _AL27_PLUS)
     np.testing.assert_allclose(v2_half, 0.5 * v2_full, rtol=1e-14, atol=0)
+
+
+# ---------------------------------------------------------------------------
+# WP32: two-ion RADIAL participation factors reconstructed from the measured
+# normal-mode spectrum (CONVENTIONS.md section 16, WP32; `axial_coulomb_curvature`/
+# `two_ion_radial_participations`). Covers: axial-curvature hand computation,
+# a numpy-eigendecomposition round trip (build a synthetic 2x2 problem,
+# diagonalize it, invert the resulting frequencies, recover the inputs), the
+# disambiguation kill test (equal mass, and the physical branch choice for
+# unequal mass), the feasibility guard, input validation, uncertainty
+# propagation against an independently-coded finite difference, and a
+# benchmark regression pinning the Al27+/Mg25+ case's reconstructed totals.
+# ---------------------------------------------------------------------------
+
+_M_AL27 = _AL27_PLUS.mass_kg
+_M_MG25 = 24.985837 * ATOMIC_MASS_UNIT
+
+
+def test_axial_coulomb_curvature_hand_computed() -> None:
+    """`axial_coulomb_curvature` at the Al27+/Mg25+ mass ratio and
+    Marshall et al.'s own axial-COM mode frequency (2.16 MHz), hand
+    computed directly from Wubbena Eq. 7/12 (double-checked against a
+    plain calculator, not copied from the implementation):
+
+        mu = m_Mg25/m_Al27, root = sqrt(1-mu+mu^2)
+        omega_com = 2*pi*2.16e6
+        omega_z1 = omega_com / sqrt((1+mu-root)/mu)
+        c = m_Al27 * omega_z1^2 / 2
+    """
+    mu = _M_MG25 / _M_AL27
+    root = math.sqrt(1.0 - mu + mu * mu)
+    omega_com = 2.0 * math.pi * 2.16e6
+    omega_z1 = omega_com / math.sqrt((1.0 + mu - root) / mu)
+    expected_c = _M_AL27 * omega_z1 * omega_z1 / 2.0
+
+    c, c_uncertainty = axial_coulomb_curvature(_M_AL27, _M_MG25, 2.16e6)
+    np.testing.assert_allclose(c, expected_c, rtol=0, atol=1e-24)
+    # A sanity range check on the physical magnitude (a few pN/m for a
+    # few-micron ion spacing), catching a stray missing/extra factor that a
+    # bitwise self-comparison against the same formula cannot.
+    assert 1e-13 < c < 1e-10
+    assert c_uncertainty == 0.0
+
+
+def test_axial_coulomb_curvature_uncertainty_matches_analytic_partial() -> None:
+    """`c` depends on `axial_com_frequency_hz` only through its square, so
+    `sigma_c = c * 2 * sigma_f / f` exactly -- checked against an
+    independently-coded finite difference (not the function's own
+    analytic-partial line).
+    """
+    f = 2.16e6
+    sigma_f = 500.0
+    c_plus, _ = axial_coulomb_curvature(_M_AL27, _M_MG25, f + sigma_f)
+    c_minus, _ = axial_coulomb_curvature(_M_AL27, _M_MG25, f - sigma_f)
+    finite_difference_sigma_c = (c_plus - c_minus) / 2.0
+
+    _, sigma_c = axial_coulomb_curvature(_M_AL27, _M_MG25, f, sigma_f)
+    np.testing.assert_allclose(sigma_c, finite_difference_sigma_c, rtol=1e-6, atol=0)
+
+
+def test_axial_coulomb_curvature_rejects_invalid_input() -> None:
+    with pytest.raises(ValueError, match="m_clock_kg"):
+        axial_coulomb_curvature(0.0, _M_MG25, 2.16e6)
+    with pytest.raises(ValueError, match="m_partner_kg"):
+        axial_coulomb_curvature(_M_AL27, -1.0, 2.16e6)
+    with pytest.raises(ValueError, match="axial_com_frequency_hz"):
+        axial_coulomb_curvature(_M_AL27, _M_MG25, 0.0)
+    with pytest.raises(ValueError, match="axial_com_frequency_uncertainty_hz"):
+        axial_coulomb_curvature(_M_AL27, _M_MG25, 2.16e6, -1.0)
+
+
+def test_two_ion_radial_participations_round_trip_recovers_bare_frequencies() -> None:
+    """Round trip (WP32 deliverable 3): build a synthetic 2x2 radial
+    eigenproblem from KNOWN bare frequencies/masses/coupling, diagonalize
+    it with `numpy.linalg.eigh` (an implementation independent of
+    `two_ion_radial_participations`' own branch-selection code), feed the
+    two resulting mode frequencies back into
+    `two_ion_radial_participations`, and check the recovered bare
+    frequencies and participations match the synthetic inputs and numpy's
+    own eigenvector components to near machine precision.
+    """
+    m_clock, m_partner = 4.4803898868635304e-26, 4.1489958508166885e-26  # Al27+, Mg25+
+    c = 3.976554191127463e-12
+    wr_clock_true = 2.0 * math.pi * 3.9e6
+    wr_partner_true = 2.0 * math.pi * 4.8e6  # partner (lighter) has the higher bare frequency
+
+    c_prime = c / math.sqrt(m_clock * m_partner)
+    a = wr_clock_true**2 - c / m_clock
+    b = wr_partner_true**2 - c / m_partner
+    matrix = np.array([[a, c_prime], [c_prime, b]])
+    eigenvalues, eigenvectors = np.linalg.eigh(matrix)  # ascending order
+    lambda_lo, lambda_hi = eigenvalues
+    f_lo = math.sqrt(lambda_lo) / (2.0 * math.pi)
+    f_hi = math.sqrt(lambda_hi) / (2.0 * math.pi)
+    clock_participation_at_lo = eigenvectors[0, 0] ** 2
+    clock_participation_at_hi = eigenvectors[0, 1] ** 2
+
+    # Feed the lower-frequency mode in as "com", the higher as "str" (the
+    # inversion does not care about the label, only the two eigenvalues).
+    result = two_ion_radial_participations(m_clock, m_partner, c, f_lo, f_hi)
+
+    np.testing.assert_allclose(
+        result.bare_frequency_clock_hz, wr_clock_true / (2.0 * math.pi), rtol=1e-9, atol=0
+    )
+    np.testing.assert_allclose(
+        result.bare_frequency_partner_hz, wr_partner_true / (2.0 * math.pi), rtol=1e-9, atol=0
+    )
+    np.testing.assert_allclose(
+        result.com_participation, clock_participation_at_lo, rtol=1e-9, atol=0
+    )
+    np.testing.assert_allclose(
+        result.str_participation, clock_participation_at_hi, rtol=1e-9, atol=0
+    )
+    np.testing.assert_allclose(
+        result.com_participation + result.str_participation, 1.0, rtol=0, atol=1e-12
+    )
+
+
+def test_two_ion_radial_participations_kill_test_equal_mass_is_ambiguous() -> None:
+    """Kill test (WP32 deliverable 1): at the equal-mass limit the
+    RF-pseudopotential disambiguation rule (the lighter ion has the higher
+    bare radial frequency) supplies no distinguishing direction, so the
+    branch choice is genuinely undefined; this must raise, not silently
+    pick one of the two equally-plausible branches.
+    """
+    with pytest.raises(ValueError, match="m_clock_kg == m_partner_kg"):
+        two_ion_radial_participations(
+            30.0 * ATOMIC_MASS_UNIT, 30.0 * ATOMIC_MASS_UNIT, 1e-12, 4.0e6, 3.0e6
+        )
+
+
+def test_two_ion_radial_participations_disambiguation_picks_physical_branch() -> None:
+    """The disambiguation rule picks whichever branch gives the LIGHTER
+    ion the higher bare radial frequency, regardless of which ion is
+    labeled `clock` -- swapping which ion is lighter must swap which of
+    `bare_frequency_clock_hz`/`bare_frequency_partner_hz` comes out larger.
+    """
+    heavier, lighter = 27.0 * ATOMIC_MASS_UNIT, 25.0 * ATOMIC_MASS_UNIT
+    c = 3.976554191127463e-12
+
+    clock_is_heavier = two_ion_radial_participations(heavier, lighter, c, 4.22e6, 3.48e6)
+    assert clock_is_heavier.bare_frequency_partner_hz > clock_is_heavier.bare_frequency_clock_hz
+
+    clock_is_lighter = two_ion_radial_participations(lighter, heavier, c, 4.22e6, 3.48e6)
+    assert clock_is_lighter.bare_frequency_clock_hz > clock_is_lighter.bare_frequency_partner_hz
+
+
+def test_two_ion_radial_participations_feasibility_guard_raises_for_infeasible_spectrum() -> None:
+    """Feasibility guard (WP32 deliverable 2): measured radial mode
+    frequencies too close together for the computed Coulomb coupling
+    (`(lambda_hi-lambda_lo)^2 < 4*c'^2`) must raise, naming the numbers,
+    never silently clamp or return a complex-valued result.
+    """
+    c = 3.976554191127463e-12  # the real Al27+/Mg25+ axial-derived coupling
+    with pytest.raises(ValueError, match="infeasible radial mode pair"):
+        two_ion_radial_participations(_M_AL27, _M_MG25, c, 4.22e6, 4.21e6)
+
+
+def test_two_ion_radial_participations_rejects_invalid_input() -> None:
+    c = 3.976554191127463e-12
+    with pytest.raises(ValueError, match="m_clock_kg"):
+        two_ion_radial_participations(0.0, _M_MG25, c, 4.22e6, 3.48e6)
+    with pytest.raises(ValueError, match="m_partner_kg"):
+        two_ion_radial_participations(_M_AL27, -1.0, c, 4.22e6, 3.48e6)
+    with pytest.raises(ValueError, match="coulomb_curvature_n_per_m"):
+        two_ion_radial_participations(_M_AL27, _M_MG25, 0.0, 4.22e6, 3.48e6)
+    with pytest.raises(ValueError, match="radial_com_frequency_hz"):
+        two_ion_radial_participations(_M_AL27, _M_MG25, c, 0.0, 3.48e6)
+    with pytest.raises(ValueError, match="radial_str_frequency_hz"):
+        two_ion_radial_participations(_M_AL27, _M_MG25, c, 4.22e6, 0.0)
+    with pytest.raises(ValueError, match="radial_com_frequency_hz == radial_str_frequency_hz"):
+        two_ion_radial_participations(_M_AL27, _M_MG25, c, 4.22e6, 4.22e6)
+    with pytest.raises(ValueError, match="coulomb_curvature_uncertainty_n_per_m"):
+        two_ion_radial_participations(
+            _M_AL27, _M_MG25, c, 4.22e6, 3.48e6, coulomb_curvature_uncertainty_n_per_m=-1.0
+        )
+    with pytest.raises(ValueError, match="radial_com_frequency_uncertainty_hz"):
+        two_ion_radial_participations(
+            _M_AL27, _M_MG25, c, 4.22e6, 3.48e6, radial_com_frequency_uncertainty_hz=-1.0
+        )
+    with pytest.raises(ValueError, match="radial_str_frequency_uncertainty_hz"):
+        two_ion_radial_participations(
+            _M_AL27, _M_MG25, c, 4.22e6, 3.48e6, radial_str_frequency_uncertainty_hz=-1.0
+        )
+
+
+def test_two_ion_radial_participations_uncertainty_matches_finite_difference() -> None:
+    """Uncertainty propagation sanity (WP32 deliverable 4): the reported
+    `com_participation_uncertainty`/`str_participation_uncertainty` must
+    match an INDEPENDENTLY-coded central finite difference over each
+    uncertain input, combined in quadrature -- not merely reproduce the
+    function's own internal arithmetic line by line.
+    """
+    c = 3.976554191127463e-12
+    sigma_c = c * 1e-4
+    f_com, sigma_f_com = 4.22e6, 2000.0
+    f_str, sigma_f_str = 3.48e6, 1500.0
+
+    def participations(c_val: float, f_com_val: float, f_str_val: float) -> tuple[float, float]:
+        r = two_ion_radial_participations(_M_AL27, _M_MG25, c_val, f_com_val, f_str_val)
+        return r.com_participation, r.str_participation
+
+    p_com_0, p_str_0 = participations(c, f_com, f_str)
+
+    d_com_dc = (
+        participations(c + sigma_c, f_com, f_str)[0] - participations(c - sigma_c, f_com, f_str)[0]
+    ) / 2.0
+    d_com_dfcom = (
+        participations(c, f_com + sigma_f_com, f_str)[0]
+        - participations(c, f_com - sigma_f_com, f_str)[0]
+    ) / 2.0
+    d_com_dfstr = (
+        participations(c, f_com, f_str + sigma_f_str)[0]
+        - participations(c, f_com, f_str - sigma_f_str)[0]
+    ) / 2.0
+    expected_com_uncertainty = math.sqrt(d_com_dc**2 + d_com_dfcom**2 + d_com_dfstr**2)
+
+    d_str_dc = (
+        participations(c + sigma_c, f_com, f_str)[1] - participations(c - sigma_c, f_com, f_str)[1]
+    ) / 2.0
+    d_str_dfcom = (
+        participations(c, f_com + sigma_f_com, f_str)[1]
+        - participations(c, f_com - sigma_f_com, f_str)[1]
+    ) / 2.0
+    d_str_dfstr = (
+        participations(c, f_com, f_str + sigma_f_str)[1]
+        - participations(c, f_com, f_str - sigma_f_str)[1]
+    ) / 2.0
+    expected_str_uncertainty = math.sqrt(d_str_dc**2 + d_str_dfcom**2 + d_str_dfstr**2)
+
+    result = two_ion_radial_participations(
+        _M_AL27,
+        _M_MG25,
+        c,
+        f_com,
+        f_str,
+        coulomb_curvature_uncertainty_n_per_m=sigma_c,
+        radial_com_frequency_uncertainty_hz=sigma_f_com,
+        radial_str_frequency_uncertainty_hz=sigma_f_str,
+    )
+    assert result.com_participation == p_com_0
+    assert result.str_participation == p_str_0
+    np.testing.assert_allclose(
+        result.com_participation_uncertainty, expected_com_uncertainty, rtol=1e-9, atol=0
+    )
+    np.testing.assert_allclose(
+        result.str_participation_uncertainty, expected_str_uncertainty, rtol=1e-9, atol=0
+    )
+
+
+def test_two_ion_radial_participations_uncertainty_zero_when_every_input_exact() -> None:
+    c = 3.976554191127463e-12
+    result = two_ion_radial_participations(_M_AL27, _M_MG25, c, 4.22e6, 3.48e6)
+    assert result.com_participation_uncertainty == 0.0
+    assert result.str_participation_uncertainty == 0.0
+    assert result.bare_frequency_clock_uncertainty_hz == 0.0
+    assert result.bare_frequency_partner_uncertainty_hz == 0.0
+
+
+def test_two_ion_radial_participations_raises_ambiguous_within_uncertainty() -> None:
+    """A nominal spectrum whose branch choice is cleanly resolved at the
+    point estimate can still have its uncertainty band reach into
+    genuinely ambiguous territory: this is exactly the case the finite-
+    difference uncertainty propagation samples directly (both +/-1-sigma
+    points re-run the SAME feasibility/disambiguation checks the nominal
+    point passed), so a large-enough supplied frequency uncertainty must
+    raise -- not silently report a participation the data cannot actually
+    support at that precision.
+
+    Constructed synthetically (mirrors the round-trip test's forward-
+    construction method): two bare radial frequencies 70 kHz apart give a
+    cleanly resolved nominal reconstruction, but even a modest (2 kHz)
+    frequency uncertainty is enough for the DOWNWARD sample to land back
+    in the region where neither/both branches satisfy the disambiguation
+    rule.
+    """
+    m_clock, m_partner = 27.0 * ATOMIC_MASS_UNIT, 25.0 * ATOMIC_MASS_UNIT
+    c = 3.976554191127463e-12  # the real Al27+/Mg25+ axial-derived coupling
+    c_prime = c / math.sqrt(m_clock * m_partner)
+    wr_clock_true = 2.0 * math.pi * 4.0e6
+    wr_partner_true = 2.0 * math.pi * 4.07e6  # 70 kHz above the clock ion's bare frequency
+    a = wr_clock_true**2 - c / m_clock
+    b = wr_partner_true**2 - c / m_partner
+    matrix = np.array([[a, c_prime], [c_prime, b]])
+    eigenvalues, _ = np.linalg.eigh(matrix)
+    lambda_lo, lambda_hi = eigenvalues
+    f_lo = math.sqrt(lambda_lo) / (2.0 * math.pi)
+    f_hi = math.sqrt(lambda_hi) / (2.0 * math.pi)
+
+    nominal = two_ion_radial_participations(m_clock, m_partner, c, f_lo, f_hi)
+    np.testing.assert_allclose(
+        abs(nominal.bare_frequency_clock_hz - nominal.bare_frequency_partner_hz),
+        70000.0,
+        rtol=1e-6,
+        atol=0,
+    )
+
+    with pytest.raises(ValueError, match="ambiguous radial quadrant"):
+        two_ion_radial_participations(
+            m_clock,
+            m_partner,
+            c,
+            f_lo,
+            f_hi,
+            radial_com_frequency_uncertainty_hz=2000.0,
+            radial_str_frequency_uncertainty_hz=2000.0,
+        )

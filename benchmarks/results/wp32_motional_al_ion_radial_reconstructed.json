@@ -1,0 +1,80 @@
+{
+  "wp32_motional_al_ion_radial_reconstructed_schema": "1.0",
+  "generated_at_utc": "2026-08-23T14:33:02.172712+00:00",
+  "case_class": "arithmetic_reproduction",
+  "marshall_2504_13071_radial_reconstructed_variant_case": {
+    "case_class": "arithmetic_reproduction",
+    "coulomb_curvature_n_per_m": 3.976554191127463e-12,
+    "coulomb_curvature_cross_check_n_per_m": 3.983457322953556e-12,
+    "coulomb_curvature_cross_check_relative_deviation": 0.0017359581925214483,
+    "per_mode": [
+      {
+        "name": "axial_com",
+        "is_axial": true,
+        "participation": 0.5383182958618564,
+        "predicted_shift_per_quantum": -9.566690214148586e-20,
+        "published_shift_per_quantum": -9.5e-20,
+        "residual_fractional": -6.669021414858614e-22,
+        "ratio_predicted_over_published": 1.0070200225419563
+      },
+      {
+        "name": "axial_str",
+        "is_axial": true,
+        "participation": 0.4616817041381436,
+        "predicted_shift_per_quantum": -1.4244353778671586e-19,
+        "published_shift_per_quantum": -1.42e-19,
+        "residual_fractional": -4.435377867158599e-22,
+        "ratio_predicted_over_published": 1.0031235055402525
+      },
+      {
+        "name": "x_com",
+        "is_axial": false,
+        "participation": 0.21383374360296137,
+        "predicted_shift_per_quantum": -7.424334140856997e-20,
+        "published_shift_per_quantum": -1.77e-19,
+        "residual_fractional": 1.0275665859143003e-19,
+        "ratio_predicted_over_published": 0.4194539062631072
+      },
+      {
+        "name": "x_str",
+        "is_axial": false,
+        "participation": 0.7861662563970391,
+        "predicted_shift_per_quantum": -2.250932452230263e-19,
+        "published_shift_per_quantum": -6.48e-19,
+        "residual_fractional": 4.2290675477697375e-19,
+        "ratio_predicted_over_published": 0.34736611917133686
+      },
+      {
+        "name": "y_com",
+        "is_axial": false,
+        "participation": 0.1662947736122066,
+        "predicted_shift_per_quantum": -7.347197348309897e-20,
+        "published_shift_per_quantum": -1.42e-19,
+        "residual_fractional": 6.852802651690103e-20,
+        "ratio_predicted_over_published": 0.5174082639654857
+      },
+      {
+        "name": "y_str",
+        "is_axial": false,
+        "participation": 0.8337052263877938,
+        "predicted_shift_per_quantum": -3.2581790964306833e-19,
+        "published_shift_per_quantum": -6.53e-19,
+        "residual_fractional": 3.271820903569317e-19,
+        "ratio_predicted_over_published": 0.49895545121449975
+      }
+    ],
+    "bare_frequency_clock_x_hz": 3946771.607526584,
+    "bare_frequency_partner_x_hz": 4360931.835761294,
+    "bare_frequency_clock_y_hz": 5084690.883277048,
+    "bare_frequency_partner_y_hz": 5497385.853262768,
+    "predicted_total_nominal": -5.716945188613549e-18,
+    "predicted_total_uncertainty_fractional": 1.5350414847485596e-19,
+    "predicted_total_band_lo": -5.870449337088405e-18,
+    "predicted_total_band_hi": -5.563441040138693e-18,
+    "total_bands_overlap": false,
+    "total_kpi_verdict": "NOT MET",
+    "per_mode_citation": "Marshall et al., arXiv:2504.13071v2 (2025), Supplemental Material Table S2, \"Frequency shift per quantum (10^-19)\" row: -0.95, -1.42, -1.77, -6.48, -1.42, -6.53 for Axial COM, Axial STR, X COM, X STR, Y COM, Y STR respectively (same mode order as MARSHALL_AL_ION_MODES_MHZ_NBAR). This is the paper's own PUBLISHED per-mode time-dilation weight (distinct from the unrelated 'Geometric factor kappa' row, a Doppler-cooling-laser geometry factor, MARSHALL_AL_ION_MODES_CITATION's own caveat). Re-fetched and confirmed directly against the arXiv PDF text this session.",
+    "radial_reconstruction_caveat": "WP32 SCOPE NOTE: this case's X/Y participations are NOT the axial mu-only closed form reused for radial (WP31's documented approximation, still reported unmodified in the participation-corrected variant case above); they are reconstructed directly from Marshall et al.'s own measured axial-COM and radial mode frequencies (cliffordclock.integrator.omega.axial_coulomb_curvature/two_ion_radial_participations), inverting the two-ion radial eigenproblem for each transverse direction's two unknown bare radial frequencies with no trap RF/DC geometry parameter (epsilon, alpha) as input. The disambiguation assumption (RF pseudopotential scaling: the lighter ion, Mg25+, carries the higher bare radial frequency) is applied identically to both the X and Y branches. Reported per-mode and total-level agreement below is whatever this reconstruction gives against Marshall's own published per-mode and total rows, with no tuning; see this case's own participation_note for the result stated in full.",
+    "participation_note": "Radial-spectrum-reconstructed per-mode comparison against Marshall et al.'s own published 'Frequency shift per quantum' row (Table S2): the two AXIAL modes are unchanged from the WP31 variant (two_ion_participations' exact mu-only closed form). The four RADIAL modes now use two_ion_radial_participations' reconstruction from the measured X/Y spectra instead of the axial-form approximation; the resulting per-mode ratios (predicted/published) sit in the same rough range as WP31's radial rows, landing at 14.01 sigma from the published total (NOT MET), essentially unchanged from WP31's own radial-approximation total. Because each mode-pair's clock-ion participations sum to 1.0 exactly regardless of how the pair's total is split between its COM and STR members, and Marshall's own COM/STR (n_bar+1/2)-weighted magnitudes for a given branch are comparable in size, redistributing participation within a radial pair moves the per-mode ratios without moving the pair's own total much, a structural reason a correctly reconstructed split need not by itself close a total-level gap this size. The reconstruction, its cross-check, and this result are reported as run, with no tuning."
+  }
+}

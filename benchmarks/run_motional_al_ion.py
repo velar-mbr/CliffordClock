@@ -166,6 +166,25 @@ TOTAL does not reproduce Marshall's published band as closely as the
 original single-mass (`participation=1.0`) total does -- both totals are
 reported, each with its own `kpi_verdict`, rather than picking one to
 foreground.
+
+**WP32 addendum: the radial-spectrum-reconstructed variant.** CONVENTIONS.md
+section 16's radial-spectrum-reconstruction addition
+(`cliffordclock.integrator.omega.axial_coulomb_curvature`/
+`two_ion_radial_participations`) replaces WP31's radial rows for this
+case: instead of reusing the axial mu-only closed form, this module now
+runs a THIRD case, :func:`run_motional_al_ion_radial_reconstructed_case`,
+inverting the actual measured X and Y mode frequencies against the
+Coulomb coupling computed from the axial confinement. The result is
+written to its OWN artifact set (`wp32_motional_al_ion_radial_
+reconstructed.json`/`.md`, produced by :func:`build_wp32_report`/
+:func:`render_wp32_markdown`), leaving the WP30/WP31 artifacts above
+completely unchanged. Reported with no tuning: the reconstruction's
+per-mode agreement with Marshall's own published per-mode row is in the
+same rough range as WP31's approximation, and the reconstructed-
+participation total lands at essentially the same total-level deviation
+from the published band as WP31's own total, for the structural reason
+this module's `MotionalAlIonRadialReconstructedCase.participation_note`
+states in full.
 """
 
 from __future__ import annotations
@@ -192,10 +211,12 @@ from cliffordclock.constants import ATOMIC_MASS_UNIT, HBAR, SPEED_OF_LIGHT  # no
 from cliffordclock.ensemble.species import get_species  # noqa: E402
 from cliffordclock.integrator.omega import (  # noqa: E402
     MotionalMode,
+    axial_coulomb_curvature,
     motional_mean_squared_velocity_m2_s2,
     motional_pivot_perturbation,
     motional_pivot_uncertainty,
     two_ion_participations,
+    two_ion_radial_participations,
 )
 
 _RESULTS_DIR = _BENCHMARKS_DIR / "results"
@@ -635,6 +656,372 @@ def run_motional_al_ion_participation_variant_case() -> MotionalAlIonParticipati
     )
 
 
+# ---------------------------------------------------------------------------
+# WP32: the radial-spectrum-reconstructed variant (see this module's own
+# module-level docstring addendum below `run_motional_al_ion_participation_
+# variant_case`'s docstring, and CONVENTIONS.md section 16's WP32 addition,
+# for the method). Replaces WP31's radial rows (the axial mu-only closed
+# form applied to the radial pairs as a documented approximation) with
+# `two_ion_radial_participations`'s genuine inversion of the MEASURED
+# radial spectrum -- WP30's and WP31's own cases and artifacts are left
+# completely untouched by this section; this is a third, additional case.
+# ---------------------------------------------------------------------------
+
+#: WP32's own caveat, replacing WP31's radial-scope framing for the
+#: reconstructed rows specifically (kept separate from `GEOMETRIC_FACTOR_
+#: CAVEAT` above, which documents WP30's single-mass case and stays
+#: unmodified -- WP31's own approximation stays available too, labeled, in
+#: `run_motional_al_ion_participation_variant_case`'s own untouched output).
+RADIAL_RECONSTRUCTION_CAVEAT = (
+    "WP32 SCOPE NOTE: this case's X/Y participations are NOT the axial mu-only closed form "
+    "reused for radial (WP31's documented approximation, still reported unmodified in the "
+    "participation-corrected variant case above); they are reconstructed directly from "
+    "Marshall et al.'s own measured axial-COM and radial mode frequencies "
+    "(cliffordclock.integrator.omega.axial_coulomb_curvature/two_ion_radial_participations), "
+    "inverting the two-ion radial eigenproblem for each transverse direction's two unknown "
+    "bare radial frequencies with no trap RF/DC geometry parameter (epsilon, alpha) as input. "
+    "The disambiguation assumption (RF pseudopotential scaling: the lighter ion, Mg25+, "
+    "carries the higher bare radial frequency) is applied identically to both the X and Y "
+    "branches. Reported per-mode and total-level agreement below is whatever this "
+    "reconstruction gives against Marshall's own published per-mode and total rows, with no "
+    "tuning; see this case's own participation_note for the result stated in full."
+)
+
+
+@dataclass(frozen=True)
+class MotionalAlIonRadialReconstructedCase:
+    """The WP32 radial-spectrum-reconstructed variant of the WP30/WP31 Al+
+    secular-motion case.
+
+    Attributes
+    ----------
+    case_class : str
+        Always ``"arithmetic_reproduction"`` (same structural class as the
+        other two variants).
+    coulomb_curvature_n_per_m : float
+        ``c`` (N/m), recovered from Marshall's own axial-COM mode
+        frequency via :func:`~cliffordclock.integrator.omega.axial_coulomb_curvature`.
+    coulomb_curvature_cross_check_n_per_m : float
+        The SAME `c`, independently recovered from the axial-STR mode
+        frequency using Wubbena Eq. 13 in place of Eq. 12, a consistency
+        check on the shared-`k_z` assumption, not consumed by anything
+        downstream in this case.
+    coulomb_curvature_cross_check_relative_deviation : float
+        ``(coulomb_curvature_cross_check_n_per_m - coulomb_curvature_n_per_m)
+        / coulomb_curvature_n_per_m``.
+    per_mode : tuple[MotionalAlIonModeComparison, ...]
+        One entry per mode, `_MODE_NAMES` order: the two axial entries
+        reuse `two_ion_participations`'s exact closed form unmodified (the
+        same values the WP31 variant case reports); the four radial
+        entries use `two_ion_radial_participations`'s reconstructed
+        participations instead of WP31's axial-form approximation.
+    bare_frequency_clock_x_hz, bare_frequency_partner_x_hz : float
+        The reconstructed bare (single-ion) radial frequencies for the X
+        branch, hertz.
+    bare_frequency_clock_y_hz, bare_frequency_partner_y_hz : float
+        Same, for the Y branch.
+    predicted_total_nominal : float
+        The reconstructed-participation TOTAL `(P-1)_motional`, summed
+        over all six modes with `(n_bar_i+1/2)`.
+    predicted_total_uncertainty_fractional : float
+        Propagated 1-sigma uncertainty on `predicted_total_nominal`
+        (`motional_pivot_uncertainty`, same n_bar uncertainties as the
+        other two variants; the reconstructed participations' own
+        uncertainty is `0.0` here since Table S2 publishes no per-mode
+        frequency uncertainty to propagate through the inversion -- see
+        `two_ion_radial_participations`'s own uncertainty parameters for
+        where a lab-supplied frequency uncertainty would enter).
+    predicted_total_band_lo, _hi : float
+        ``predicted_total_nominal +/- predicted_total_uncertainty_fractional``.
+    total_bands_overlap : bool
+        Whether the reconstructed-participation total's band overlaps
+        Marshall's own published band.
+    total_kpi_verdict : str
+        ``"MET"`` if `total_bands_overlap` else ``"NOT MET"``.
+    per_mode_citation, radial_reconstruction_caveat, participation_note : str
+        Citation for the per-mode published data, :data:`RADIAL_RECONSTRUCTION_CAVEAT`
+        verbatim, and a plain-language summary of this case's own result.
+    """
+
+    case_class: str
+    coulomb_curvature_n_per_m: float
+    coulomb_curvature_cross_check_n_per_m: float
+    coulomb_curvature_cross_check_relative_deviation: float
+    per_mode: tuple[MotionalAlIonModeComparison, ...]
+    bare_frequency_clock_x_hz: float
+    bare_frequency_partner_x_hz: float
+    bare_frequency_clock_y_hz: float
+    bare_frequency_partner_y_hz: float
+    predicted_total_nominal: float
+    predicted_total_uncertainty_fractional: float
+    predicted_total_band_lo: float
+    predicted_total_band_hi: float
+    total_bands_overlap: bool
+    total_kpi_verdict: str
+    per_mode_citation: str
+    radial_reconstruction_caveat: str
+    participation_note: str
+
+
+def run_motional_al_ion_radial_reconstructed_case() -> MotionalAlIonRadialReconstructedCase:
+    """Build the WP32 radial-spectrum-reconstructed variant (see this
+    module's WP32 section header comment for the method).
+
+    1. Resolve Al27+'s registry mass and Mg25+'s raw mass, exactly as
+       :func:`run_motional_al_ion_participation_variant_case`.
+    2. `axial_coulomb_curvature(m_Al27, m_Mg25, axial_com_frequency_hz)` ->
+       Coulomb curvature `c`, from Marshall's own axial-COM mode
+       frequency; independently cross-checked (not consumed downstream)
+       against the axial-STR mode via the same function.
+    3. `two_ion_radial_participations(m_Al27, m_Mg25, c, x_com_hz, x_str_hz)`
+       and the same call for the Y branch -> reconstructed X/Y
+       participations and bare radial frequencies.
+    4. The two axial modes reuse `two_ion_participations`'s unmodified
+       closed form (unchanged from WP31; exact for axial).
+    5. Per-mode: compute the participation-corrected coefficient exactly
+       as the WP31 variant does, now with the reconstructed radial
+       participations, and compare against
+       `loaders.MARSHALL_AL_ION_FREQUENCY_SHIFT_PER_QUANTUM`.
+    6. Total: `motional_pivot_perturbation`/`motional_pivot_uncertainty`
+       over the six reconstructed-participation modes, compared against
+       `loaders.MARSHALL_AL_ION_SECULAR_MOTION_SHIFT`.
+
+    Returns
+    -------
+    MotionalAlIonRadialReconstructedCase
+    """
+    species = get_species("Al27+")
+    m_al = species.mass_kg
+    m_mg = loaders.MG25_ATOMIC_MASS_AMU * ATOMIC_MASS_UNIT
+
+    axial_com_hz = loaders.MARSHALL_AL_ION_MODES_MHZ_NBAR[0][1] * 1.0e6
+    axial_str_hz = loaders.MARSHALL_AL_ION_MODES_MHZ_NBAR[1][1] * 1.0e6
+    c, _c_unc = axial_coulomb_curvature(m_al, m_mg, axial_com_hz)
+    # Cross-check: the SAME c, independently recovered from the axial-STR
+    # mode via Wubbena Eq. 13 instead of Eq. 12. axial_coulomb_curvature
+    # only implements the Eq. 12 (COM) path, so the Eq. 13 (STR) path is
+    # reproduced directly here from the same closed form
+    # (two_ion_participations' own mu/root, not re-derived).
+    mu = m_mg / m_al
+    root = math.sqrt(1.0 - mu + mu * mu)
+    omega_str = 2.0 * math.pi * axial_str_hz
+    omega_z1_from_str = omega_str / math.sqrt((1.0 + mu + root) / mu)
+    c_cross_check = (m_al * omega_z1_from_str * omega_z1_from_str) / 2.0
+    c_cross_check_deviation = (c_cross_check - c) / c
+
+    axial_participations = two_ion_participations(m_al, m_mg)
+    x_com_hz = loaders.MARSHALL_AL_ION_MODES_MHZ_NBAR[2][1] * 1.0e6
+    x_str_hz = loaders.MARSHALL_AL_ION_MODES_MHZ_NBAR[3][1] * 1.0e6
+    y_com_hz = loaders.MARSHALL_AL_ION_MODES_MHZ_NBAR[4][1] * 1.0e6
+    y_str_hz = loaders.MARSHALL_AL_ION_MODES_MHZ_NBAR[5][1] * 1.0e6
+    x_result = two_ion_radial_participations(m_al, m_mg, c, x_com_hz, x_str_hz)
+    y_result = two_ion_radial_participations(m_al, m_mg, c, y_com_hz, y_str_hz)
+
+    reconstructed_participations = (
+        axial_participations[0],
+        axial_participations[1],
+        x_result.com_participation,
+        x_result.str_participation,
+        y_result.com_participation,
+        y_result.str_participation,
+    )
+
+    modes = tuple(
+        MotionalMode(
+            name=name,
+            frequency_hz=frequency_mhz * 1.0e6,
+            n_bar=n_bar,
+            n_bar_uncertainty=n_bar_uncertainty,
+            participation=participation,
+        )
+        for (name, frequency_mhz, n_bar, n_bar_uncertainty), participation in zip(
+            loaders.MARSHALL_AL_ION_MODES_MHZ_NBAR, reconstructed_participations, strict=True
+        )
+    )
+
+    per_mode = []
+    for mode, participation, published_pq in zip(
+        modes,
+        reconstructed_participations,
+        loaders.MARSHALL_AL_ION_FREQUENCY_SHIFT_PER_QUANTUM,
+        strict=True,
+    ):
+        omega_i = 2.0 * math.pi * mode.frequency_hz
+        predicted_pq = -(HBAR * omega_i / m_al) * participation / (2.0 * SPEED_OF_LIGHT**2)
+        residual = predicted_pq - published_pq
+        ratio = predicted_pq / published_pq
+        is_axial = mode.name in _AXIAL_MODE_NAMES
+        per_mode.append(
+            MotionalAlIonModeComparison(
+                name=mode.name,
+                is_axial=is_axial,
+                participation=participation,
+                predicted_shift_per_quantum=predicted_pq,
+                published_shift_per_quantum=published_pq,
+                residual_fractional=residual,
+                ratio_predicted_over_published=ratio,
+            )
+        )
+
+    predicted_total = motional_pivot_perturbation(modes, species)
+    predicted_sigma = motional_pivot_uncertainty(modes, species)
+    published = loaders.MARSHALL_AL_ION_SECULAR_MOTION_SHIFT
+    band_lo = predicted_total - predicted_sigma
+    band_hi = predicted_total + predicted_sigma
+    overlap = run_benchmarks._bands_overlap(  # noqa: SLF001 (reusing the tested helper)
+        band_lo, band_hi, published.lo, published.hi
+    )
+    combined_sigma = math.sqrt(predicted_sigma**2 + (published.hi - published.nominal) ** 2)
+    deviation_sigma = abs(predicted_total - published.nominal) / combined_sigma
+
+    participation_note = (
+        "Radial-spectrum-reconstructed per-mode comparison against Marshall et al.'s own "
+        "published 'Frequency shift per quantum' row (Table S2): the two AXIAL modes are "
+        "unchanged from the WP31 variant (two_ion_participations' exact mu-only closed form). "
+        "The four RADIAL modes now use two_ion_radial_participations' reconstruction from the "
+        "measured X/Y spectra instead of the axial-form approximation; the resulting per-mode "
+        "ratios (predicted/published) sit in the same rough range as WP31's radial rows, "
+        f"landing at {deviation_sigma:.2f} sigma from the published total "
+        f"({'MET' if overlap else 'NOT MET'}), essentially unchanged from WP31's own "
+        "radial-approximation total. Because each mode-pair's clock-ion participations sum to "
+        "1.0 exactly regardless of how the pair's total is split between its COM and STR "
+        "members, and Marshall's own COM/STR (n_bar+1/2)-weighted magnitudes for a given "
+        "branch are comparable in size, redistributing participation within a radial pair "
+        "moves the per-mode ratios without moving the pair's own total much, a structural "
+        "reason a correctly reconstructed split need not by itself close a total-level gap "
+        "this size. The reconstruction, its cross-check, and this result are reported as run, "
+        "with no tuning."
+    )
+
+    return MotionalAlIonRadialReconstructedCase(
+        case_class="arithmetic_reproduction",
+        coulomb_curvature_n_per_m=c,
+        coulomb_curvature_cross_check_n_per_m=c_cross_check,
+        coulomb_curvature_cross_check_relative_deviation=c_cross_check_deviation,
+        per_mode=tuple(per_mode),
+        bare_frequency_clock_x_hz=x_result.bare_frequency_clock_hz,
+        bare_frequency_partner_x_hz=x_result.bare_frequency_partner_hz,
+        bare_frequency_clock_y_hz=y_result.bare_frequency_clock_hz,
+        bare_frequency_partner_y_hz=y_result.bare_frequency_partner_hz,
+        predicted_total_nominal=predicted_total,
+        predicted_total_uncertainty_fractional=predicted_sigma,
+        predicted_total_band_lo=band_lo,
+        predicted_total_band_hi=band_hi,
+        total_bands_overlap=overlap,
+        total_kpi_verdict="MET" if overlap else "NOT MET",
+        per_mode_citation=loaders.MARSHALL_AL_ION_FREQUENCY_SHIFT_PER_QUANTUM_CITATION,
+        radial_reconstruction_caveat=RADIAL_RECONSTRUCTION_CAVEAT,
+        participation_note=participation_note,
+    )
+
+
+def build_wp32_report() -> dict[str, Any]:
+    """Build the standalone WP32 radial-spectrum-reconstructed report as a
+    JSON-serializable dict, kept in its OWN artifact (``wp32_*.json/md``)
+    instead of folded into `build_report`'s WP30/WP31 dict, so the
+    existing WP30 artifacts stay frozen (bit-for-bit unchanged by this
+    addition).
+
+    Returns
+    -------
+    dict[str, Any]
+        Metadata plus the WP32 case (:func:`run_motional_al_ion_radial_reconstructed_case`).
+    """
+    case = run_motional_al_ion_radial_reconstructed_case()
+    return {
+        "wp32_motional_al_ion_radial_reconstructed_schema": "1.0",
+        "generated_at_utc": datetime.now(UTC).isoformat(),
+        "case_class": case.case_class,
+        "marshall_2504_13071_radial_reconstructed_variant_case": asdict(case),
+    }
+
+
+def render_wp32_markdown(report: dict[str, Any]) -> str:
+    """Render the WP32 radial-spectrum-reconstructed case as a markdown
+    summary, mirroring :func:`render_markdown`'s style.
+
+    Parameters
+    ----------
+    report : dict[str, Any]
+        A report dict as returned by :func:`build_wp32_report`.
+
+    Returns
+    -------
+    str
+        A markdown document suitable for embedding or diffing against
+        `benchmarks/RESULTS.md`.
+    """
+    case = report["marshall_2504_13071_radial_reconstructed_variant_case"]
+    lines = [
+        "# WP32 motional Al+ ion radial-spectrum-reconstructed benchmark case (generated)",
+        "",
+        f"Generated: {report['generated_at_utc']}",
+        "",
+        "## WP32: radial-spectrum-reconstructed variant "
+        "(two_ion_radial_participations, Al27+/Mg25+)",
+        "",
+        f"**{case['radial_reconstruction_caveat']}**",
+        "",
+        f"**{case['participation_note']}**",
+        "",
+        "| Quantity | Value |",
+        "|---|---|",
+        f"| Coulomb curvature c (N/m), from axial COM | {case['coulomb_curvature_n_per_m']:.6e} |",
+        (
+            "| Coulomb curvature c (N/m), cross-check from axial STR | "
+            f"{case['coulomb_curvature_cross_check_n_per_m']:.6e} |"
+        ),
+        (
+            "| Cross-check relative deviation | "
+            f"{case['coulomb_curvature_cross_check_relative_deviation']:+.4e} |"
+        ),
+        (
+            "| Bare radial frequency, clock ion, X branch (Hz) | "
+            f"{case['bare_frequency_clock_x_hz']:.6e} |"
+        ),
+        (
+            "| Bare radial frequency, partner ion, X branch (Hz) | "
+            f"{case['bare_frequency_partner_x_hz']:.6e} |"
+        ),
+        (
+            "| Bare radial frequency, clock ion, Y branch (Hz) | "
+            f"{case['bare_frequency_clock_y_hz']:.6e} |"
+        ),
+        (
+            "| Bare radial frequency, partner ion, Y branch (Hz) | "
+            f"{case['bare_frequency_partner_y_hz']:.6e} |"
+        ),
+        "",
+        "| Mode | Axial? | Participation | Predicted shift/quantum | Published "
+        "shift/quantum | Ratio (pred/pub) |",
+        "|---|---|---|---|---|---|",
+        *(
+            f"| {m['name']} | {m['is_axial']} | {m['participation']:.4f} | "
+            f"{m['predicted_shift_per_quantum']:+.4e} | "
+            f"{m['published_shift_per_quantum']:+.4e} | "
+            f"{m['ratio_predicted_over_published']:+.4f} |"
+            for m in case["per_mode"]
+        ),
+        "",
+        "| Quantity | Value |",
+        "|---|---|",
+        f"| Reconstructed-participation total (P-1)_motional | "
+        f"{case['predicted_total_nominal']:+.6e} |",
+        f"| Reconstructed-participation uncertainty (1-sigma) | "
+        f"+/-{case['predicted_total_uncertainty_fractional']:.3e} |",
+        (
+            "| Reconstructed-participation band | "
+            f"[{case['predicted_total_band_lo']:+.6e}, "
+            f"{case['predicted_total_band_hi']:+.6e}] |"
+        ),
+        f"| Total bands overlap | {case['total_bands_overlap']} |",
+        f"| **total_kpi_verdict** | **{case['total_kpi_verdict']}** |",
+        "",
+        f"Per-mode published-value citation: {case['per_mode_citation']}",
+    ]
+    return "\n".join(lines) + "\n"
+
+
 def build_report() -> dict[str, Any]:
     """Build the full WP30/WP31 motional-Al-ion benchmark report as a
     JSON-serializable dict.
@@ -760,9 +1147,12 @@ def render_markdown(report: dict[str, Any]) -> str:
 
 
 def main() -> None:
-    """Run the WP30 motional-Al-ion benchmark case and write
+    """Run the WP30/WP31 motional-Al-ion benchmark cases and write
     `benchmarks/results/wp30_motional_al_ion_arithmetic_reproduction.json`
-    and a generated markdown summary alongside it."""
+    and a generated markdown summary alongside it (frozen format, unchanged
+    by WP32), then run the WP32 radial-spectrum-reconstructed case and
+    write its own `wp32_motional_al_ion_radial_reconstructed.json`/`.md`
+    artifacts alongside the WP30 ones."""
     report = build_report()
     _RESULTS_DIR.mkdir(parents=True, exist_ok=True)
     json_path = _RESULTS_DIR / "wp30_motional_al_ion_arithmetic_reproduction.json"
@@ -773,6 +1163,18 @@ def main() -> None:
     print(markdown)
     print(f"Wrote {json_path}")
     print(f"Wrote {md_path}")
+
+    wp32_report = build_wp32_report()
+    wp32_json_path = _RESULTS_DIR / "wp32_motional_al_ion_radial_reconstructed.json"
+    wp32_md_path = _RESULTS_DIR / "wp32_motional_al_ion_radial_reconstructed.md"
+    wp32_json_path.write_text(
+        json.dumps(wp32_report, indent=2, sort_keys=False) + "\n", encoding="utf-8"
+    )
+    wp32_markdown = render_wp32_markdown(wp32_report)
+    wp32_md_path.write_text(wp32_markdown, encoding="utf-8")
+    print(wp32_markdown)
+    print(f"Wrote {wp32_json_path}")
+    print(f"Wrote {wp32_md_path}")
 
 
 if __name__ == "__main__":
