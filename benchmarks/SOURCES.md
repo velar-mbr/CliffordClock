@@ -38,7 +38,7 @@ bundle contains only the TeX sources, bibliography, and figure PDFs/PNGs
 needed to typeset the paper (`main.tex`, `supplementary.tex`, `main.bbl`,
 `supplementary.bbl`, `bibliography.bib`, and per-figure PDF/PNG files):
 no machine-readable data table. This was confirmed by listing the e-print
-tarball's contents directly, not inferred.
+tarball's contents directly.
 
 **Files fetched (checksums of the actual bytes retrieved 2026-08-10):**
 
@@ -50,8 +50,8 @@ tarball's contents directly, not inferred.
 **License / redistribution.** The submission's rights page
 (<https://arxiv.org/abs/2403.10664>) links
 `http://arxiv.org/licenses/nonexclusive-distrib/1.0/`: arXiv's default
-"perpetual, non-exclusive license to distribute" granted *to arXiv*, not a
-copyleft/CC license granting third-party redistribution rights. Copyright
+"perpetual, non-exclusive license to distribute" granted *to arXiv*,
+covering only arXiv's own hosting of the submission. Copyright
 remains with the authors. Per this benchmark's binding instruction ("If a license
 forbids redistribution, keep a fetch script instead of committing the raw
 file"), **the PDF and TeX source are not committed to this repository.**
@@ -64,7 +64,7 @@ scholarly-citation practice already established in this repo (e.g.
 transcribed number carries an exact table/section/page citation, see
 `benchmarks/MAPPING.md`.
 
-**What the paper actually contains (relevant to this benchmark):** Table I, "Fractional
+**What the paper contains (relevant to this benchmark):** Table I, "Fractional
 frequency shifts and uncertainties for the JILA 1D Sr optical lattice
 clock": 9 systematic-shift line items + total (BBR, lattice light,
 second-order Zeeman, density, first-order Zeeman, background gas, DC
@@ -83,8 +83,8 @@ transcribed into `benchmarks/fixtures/jila_2403_10664_table1.csv` for
 WP10, above: restated as `benchmarks/loaders.JILA_BBR_PUBLISHED_SHIFT`)
 and the main-text in-vacuum-RTD operating-temperature statement
 (`T = 20.132(4) °C = 293.282(4) K`, `benchmarks/loaders.JILA_BBR_TEMPERATURE_K`).
-Per the binding instruction to extend this logged source rather than
-duplicate it, this WP20 pass did not re-fetch or re-read the PDF itself;
+Per the binding instruction to reuse and extend this logged source, this
+WP20 pass did not re-fetch or re-read the PDF;
 the temperature value was independently verified against Aeppli et
 al.'s primary text in this project's internal review sweep (2026-08-11,
 prior session). No new checksum, license question, or access attempt
@@ -130,8 +130,8 @@ vs time.csv` = "Time, Phase(rad)"; `10GHz_phase(mrad) vs time.csv` =
 **License / redistribution.** `accessLevel: "public"`, license
 `https://www.nist.gov/open/license`: "works of NIST employees are not
 subject to copyright protection in the United States" (17 U.S.C. § 105);
-freely redistributable with attribution to NIST. Redistribution is **not**
-the reason these files are excerpted rather than committed in full:
+freely redistributable with attribution to NIST. These files are
+excerpted to 20 rows for a different reason than redistribution rights:
 see the next paragraph.
 
 **Why only a 20-row excerpt is committed (not a license issue).** Unlike
@@ -172,14 +172,14 @@ credentials, prohibited regardless of any authorization):**
 | Attempt | URL | Result |
 |---|---|---|
 | Article abstract page | `https://journals.aps.org/prl/abstract/10.1103/PhysRevLett.133.023401` | Loads (after a Cloudflare bot-check the browser tool passed automatically); page text explicitly reads "Supplemental Material (Subscription Required)" and "Authorization Required -- We need you to provide your credentials before accessing this content." |
-| Supplemental-material anchor/link | `https://journals.aps.org/prl/abstract/10.1103/PhysRevLett.133.023401#supplemental` | In-page anchor only (`<a name="supplemental">`), not a distinct downloadable file; the one labeled link that reads "Supplemental Material (Subscription Required)" resolves to the same paywalled article-PDF endpoint, confirmed by inspecting the page's DOM directly (`<a href="https://journals.aps.org/prl/pdf/10.1103/PhysRevLett.133.023401">`), not a separate SM file URL. |
-| CHORUS public-access accepted manuscript | `https://link.aps.org/accepted/10.1103/PhysRevLett.133.023401` | A legitimately public route (CHORUS is a funder public-access mechanism, no login prompt shown), but the endpoint serves a file download rather than a page; the download could not be captured through any available fetch mechanism (`curl`/`WebFetch`: HTTP 403 from Cloudflare bot-detection even with a browser-like User-Agent; the interactive browser tool triggered a native OS save dialog it cannot read the bytes of, and explicitly refuses a retry of that URL). No file bytes and no checksum were obtained. |
+| Supplemental-material anchor/link | `https://journals.aps.org/prl/abstract/10.1103/PhysRevLett.133.023401#supplemental` | In-page anchor only (`<a name="supplemental">`), not a distinct downloadable file; the one labeled link that reads "Supplemental Material (Subscription Required)" resolves to the same paywalled article-PDF endpoint, confirmed by inspecting the page's DOM directly (`<a href="https://journals.aps.org/prl/pdf/10.1103/PhysRevLett.133.023401">`), the identical endpoint as the main article PDF. |
+| CHORUS public-access accepted manuscript | `https://link.aps.org/accepted/10.1103/PhysRevLett.133.023401` | A legitimately public route (CHORUS is a funder public-access mechanism, no login prompt shown), but the endpoint serves a raw file download with no HTML page at that URL; the download could not be captured through any available fetch mechanism (`curl`/`WebFetch`: HTTP 403 from Cloudflare bot-detection even with a browser-like User-Agent; the interactive browser tool triggered a native OS save dialog it cannot read the bytes of, and explicitly refuses a retry of that URL). No file bytes and no checksum were obtained. |
 | ResearchGate mirror | `https://www.researchgate.net/publication/382168376` | HTTP 403 (scraper-blocked). |
 
 None of these were pursued further (no credential entry, no institutional
 login, no CAPTCHA-solving, no account creation): per this session's
-binding safety rules, a paywall is a stop, not an obstacle to route
-around, regardless of the owner's fetch authorization.
+binding safety rules, a paywall is a stop. The owner's authorization to
+fetch a source never authorizes bypassing that stop.
 
 **Cross-check performed instead (using the already-fetched, checksummed
 arXiv v2 e-print, source 1 above):** the arXiv e-print tarball
@@ -189,7 +189,7 @@ compiled together into the one PDF already fetched and text-extracted.
 This is strong, directly-inspectable evidence that the arXiv v2 PDF
 already *is* the main article concatenated with the same Supplemental
 Material file submitted to PRL (same LaTeX sources, same authors, same
-submission), not an independent, possibly-differing document. Confirming
+submission). Confirming
 evidence found by re-reading the extracted text end to end (not assumed):
 
 - The main-text bibliography's reference **[23]** reads verbatim: *"See
@@ -207,8 +207,7 @@ evidence found by re-reading the extracted text end to end (not assumed):
   "Lifetime Uncertainty Budget"], **II** "Temperature Measurement," **III**
   "Dynamic BBR Shift," **IV** "First Order Zeeman Shift," **V**
   "Background Gas Shift," confirmed complete: the document ends with
-  this section's own separate numbered bibliography ([1]-[14]), not a
-  truncation).
+  this section's own separate numbered bibliography ([1]-[14])).
 - **The DC Stark paragraph in the main text cites no such reference at
   all**: its only citation is `[29]`, a generic literature citation for
   "stray electric fields can shift the clock transition frequency"
@@ -219,17 +218,17 @@ evidence found by re-reading the extracted text end to end (not assumed):
 
 **Conclusion:** the Supplemental Material has exactly five sections (I-V
 above), none of them about DC Stark, and the DC-Stark discussion's total
-absence of any supplemental-material citation is itself evidence (not
-merely an absence of evidence) that the officially separate PRL
+absence of any supplemental-material citation counts as positive
+evidence that the officially separate PRL
 Supplemental Material (which this session could not access directly)
-does not contain additional DC-Stark quantitative data either. See
+contains no additional DC-Stark quantitative data either. See
 `benchmarks/MAPPING.md` for how this affects (does not change) this
 benchmark's outcome.
 
 **Checksums:** none recorded for this source: no file bytes were
 successfully retrieved from `journals.aps.org` or `link.aps.org` in this
-session (see the access-attempts table above). This is disclosed
-explicitly rather than fabricated.
+session (see the access-attempts table above). This gap is disclosed
+explicitly, with no fabricated checksum standing in its place.
 
 ## 4. arXiv:1706.01944: NPL Rydberg electrometry (follow-up, authorized 2026-08-10)
 
@@ -251,8 +250,8 @@ explicitly rather than fabricated.
 
 **License / redistribution.** Same rights page pattern as arXiv:2403.10664
 (section 1 above): `http://arxiv.org/licenses/nonexclusive-distrib/1.0/`:
-arXiv's default non-exclusive submission license, not a grant of
-third-party redistribution. Per the same binding instruction as section 1,
+arXiv's default non-exclusive submission license, covering only arXiv's
+own hosting of the submission. Per the same binding instruction as section 1,
 **the PDF and TeX source are not committed to this repository**;
 `benchmarks/fetch_data.py` re-downloads and checksum-verifies both on
 demand. The two numeric values transcribed into
@@ -261,7 +260,7 @@ demand. The two numeric values transcribed into
 as every other transcribed value in this project, each with an exact
 section/page citation (`benchmarks/MAPPING.md`).
 
-**What the paper actually contains (relevant to this benchmark),
+**What the paper contains (relevant to this benchmark),
 independently verified from the fetched, `pdftotext`-extracted full text
 (not trusted from an internal research dossier that first flagged this
 source, which explicitly called for independent re-verification):**
@@ -319,7 +318,7 @@ published PDF supersedes it for this benchmark).**
 this work may be used under the terms of the Creative Commons Attribution
 4.0 licence. Any further distribution of this work must maintain
 attribution to the author(s) and the title of the work, journal citation
-and DOI."*: **CC BY 4.0**, confirmed, not assumed from the dossier.
+and DOI."*: **CC BY 4.0**.
 This permits committing extracted excerpts freely with attribution (per
 the benchmark protocol): see
 `benchmarks/fixtures/ustc_metrologia_63_025002_sec3_5_table3_excerpt.txt`,
@@ -328,7 +327,7 @@ owner-provided PDF itself (3.8 MB) is not committed to this repository
 (large, and the excerpt already contains everything this benchmark uses from it);
 its SHA-256 above is the provenance record.
 
-**What the paper actually contains (relevant to this benchmark, own independent
+**What the paper contains (relevant to this benchmark, own independent
 read of the owner-provided PDF, not trusted from the dossier):**
 
 - Section 3.5 "Other minor systematic shifts," subsection "Residual DC
@@ -373,8 +372,7 @@ Fetching it was authorized for this benchmark, 2026-08-10.
 
 **Outcome: no file could be retrieved by any route attempted; no
 checksum recorded; no content extracted or examined.** This is reported
-precisely, not glossed into a classification this session has no basis
-for.
+precisely, as the specific access outcome it is.
 
 **Access attempts (all logged, none bypassed a paywall or used
 credentials, prohibited regardless of authorization):**
@@ -382,7 +380,7 @@ credentials, prohibited regardless of authorization):**
 | Attempt | URL | Result |
 |---|---|---|
 | DOI resolution | `https://doi.org/10.1088/1681-7575/ad1a4c` | 302 redirect to the IOPscience landing page below. |
-| IOPscience landing page (interactive browser, full page render) | `https://iopscience.iop.org/article/10.1088/1681-7575/ad1a4c` | Loads; explicitly **not** marked open access (no "OPEN ACCESS" banner, unlike section 5's 2026 paper): copyright line reads "© 2024 BIPM & IOP Publishing Ltd. All rights, including for text and data mining, AI training, and similar technologies, are reserved." The "Access this article" panel reads: "The computer you are using is not registered by an institution with a subscription to this article," offering only Login / Purchase (Article Galaxy, CCC RightFind) / Rent (DeepDyve): no free-access or accepted-manuscript route of any kind (DOM inspected directly for a hidden PDF/accepted-manuscript/CHORUS-style link, as found for the JILA PRL paper, section 3 above; none exists on this page; the only "open access"-labeled links found are generic footer links to IOP's general publishing-policy page, not specific to this article). |
+| IOPscience landing page (interactive browser, full page render) | `https://iopscience.iop.org/article/10.1088/1681-7575/ad1a4c` | Loads; explicitly **not** marked open access (no "OPEN ACCESS" banner, unlike section 5's 2026 paper): copyright line reads "© 2024 BIPM & IOP Publishing Ltd. All rights, including for text and data mining, AI training, and similar technologies, are reserved." The "Access this article" panel reads: "The computer you are using is not registered by an institution with a subscription to this article," offering only Login / Purchase (Article Galaxy, CCC RightFind) / Rent (DeepDyve): no free-access or accepted-manuscript route of any kind (DOM inspected directly for a hidden PDF/accepted-manuscript/CHORUS-style link, as found for the JILA PRL paper, section 3 above; none exists on this page; the only "open access"-labeled links found are generic footer links to IOP's general publishing-policy page). |
 | arXiv mirror search | 4 independent `WebSearch` queries (title text, author + subject-matter keywords, `site:arxiv.org "Metrologia 61" "015006"`, USTC institutional-repository keywords) | No arXiv preprint or USTC-hosted copy found for this specific paper: every hit was either the IOPscience page itself, an unrelated paper, or the same paywalled ResearchGate listing below. (Contrast with section 4's NPL paper and section 5's USTC 2026 paper, both of which do have accessible full text.) |
 | ResearchGate listing | `https://www.researchgate.net/publication/377137903_A_strontium_lattice_clock_with_both_stability_and_uncertainty_below_510-18` | HTTP 403 (scraper-blocked, same failure mode as the JILA-follow-up's ResearchGate attempt, `benchmarks/SOURCES.md` section 3's historical note). |
 
@@ -402,8 +400,8 @@ paper's DC-Stark characterization as "budget-only," "reproducibility-
 grade," or "blind-prediction-grade": any such classification would be
 a guess dressed as a finding. The correct status is **"not
 accessed: classification not possible without a copy,"** reported as
-its own outcome, not silently folded into "not applicable" (which this
-project uses only for content that *was* examined and found not to map).
+its own outcome. This project reserves "not applicable" for content
+that *was* examined and found not to map.
 
 ## 7. quant-ph/0701215v1: Roos et al., the two-ion quadrupole-shift benchmark (owner-supplied, 2026-08-11)
 
@@ -419,7 +417,7 @@ owner-supplied PDF's own title page in review.)
 
 **Provenance: owner-supplied primary text, recorded as such; no fetch
 checksum table here.** Unlike sections 1-6 above, this session did not
-itself retrieve this file (no `curl`/`WebFetch` request was made for it),
+retrieve this file (no `curl`/`WebFetch` request was made for it),
 so there is no fetch log or byte-checksum for this session to accurately
 report; performing one anyway (hashing a file this session never
 downloaded) would misrepresent the provenance as a fresh, independently
@@ -429,8 +427,8 @@ two-ion entangled-state Theta = (5/12)*h*a relation) was already
 performed and independently reviewed against the primary text
 (Roos et al., Nature 443, 316 (2006), quant-ph/0701215v1, Eq. 1/Fig. 4a)
 in this project's internal review (2026-08-11, "PRIMARY
-VERIFIED"): this benchmark extends that already-logged extraction
-rather than re-reading the PDF a second time, the same "extend, do not
+VERIFIED"): this benchmark reuses and extends that already-logged
+extraction, the same "extend, do not
 duplicate" pattern `benchmarks/loaders.py`'s `JILA_BBR_TEMPERATURE_K`
 addendum uses for the already-fetched arXiv:2403.10664 source (section 1
 above).
@@ -451,18 +449,17 @@ above).
 - **Eq. 1** (p.6): the primary-text quadrupole-level-shift formula
   already adopted verbatim as `docs/CONVENTIONS.md` E34's leading form
   (§14, G8 sign-off gate edit 1a), re-derived independently for this
-  benchmark's two-ion extension, not re-transcribed.
+  benchmark's two-ion extension.
 - **The two-ion entangled state** Psi_1 = (|-5/2>|+3/2> +
   |-1/2>|-1/2>)/sqrt(2) and the stated 24/5 two-ion enhancement (relative
   to a single |-5/2> ion) and gradient-doubling mechanism (p.5-6: "the
   presence of a second ion doubles the electric field gradient at the
   location of the other ion"), both used as structural pins on this
-  benchmark's own derivation (see the script's module docstring), not
-  taken on faith.
+  benchmark's own derivation (see the script's module docstring).
 - **Ca+:D5/2 Theta values**, already registered in
   `cliffordclock.ensemble.species.QUADRUPOLE_MOMENTS["Ca+:D5/2"]`
-  (`theta_au=1.83`, `theory_theta_au=1.917`), not re-transcribed here,
-  consumed directly from the registry by the benchmark script.
+  (`theta_au=1.83`, `theory_theta_au=1.917`), consumed directly from the
+  registry by the benchmark script.
 
 **License/committing note.** The PDF itself (214,638 bytes) is not
 committed to this repository, for the same repo-hygiene reasoning as
@@ -480,7 +477,7 @@ only discovers packages under `src/`, and `benchmarks/` lives at the repo
 top level alongside `src/`, `tests/`, `examples/`, the same mechanism
 that already excludes `examples/`, `notebooks/`, and `tests/`. No
 packaging-config change was needed or made for this benchmark (verified by
-reading `pyproject.toml`, not assumed).
+reading `pyproject.toml`).
 
 ## 8. arXiv:2109.12238 / Nature 602, 420 (2022): Bothwell et al. mm-scale
    gravitational redshift
@@ -515,7 +512,7 @@ NOAA Technical Memorandum NOS NGS-77 (2019): cited BY Bothwell et al.
 in their Methods ("Known Redshift") for the USGS-surveyed local
 gravitational acceleration at their Boulder, CO site, `g = 9.796 m/s^2`.
 Not independently fetched by this project; used only as Bothwell's own
-cited value (transcribed from their Methods text, not re-derived).
+cited value (transcribed from their Methods text).
 
 **What this source was used to conclude:** the WP22 Part 3 Bothwell
 reproducibility case (`benchmarks/RESULTS.md`'s "Reproducibility case:

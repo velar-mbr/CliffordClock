@@ -46,7 +46,7 @@ measurement_method: >-
   calibration electrode, 1 kV -> 26 Hz sensitivity, field nulled via UV
   discharge" (Lodewyck-style) or "quadrant-electrode field alternation,
   clock-frequency lock-in" (JILA-style). This is what makes the number
-  auditable rather than a bare figure.>
+  auditable.>
 
 field_source: >-
   <PLACEHOLDER: how the field in field_grid.csv was characterized,
@@ -71,7 +71,7 @@ notes: >-
   config.yaml are the collaborator's actual apparatus parameters or an
   approximation, etc. A stated caveat here is exactly the kind of
   content docs/validation.md's existing cases already carry (e.g. KA1-4's
-  stated tolerances and measured agreement, not just "PASS").>
+  stated tolerances and measured agreement, beyond a bare "PASS").>
 ```
 
 ## Computing and reporting the residual
@@ -87,17 +87,17 @@ Report the residual **and** whether it falls inside
 `measured_uncertainty_fractional` (or, for a Monte Carlo ensemble case,
 inside some stated multiple of `report["shift_std_error"]`, the same
 convention `docs/validation.md`'s KA4 uses: `0.32σ`, stated explicitly,
-not just "passed"). If the residual is *larger* than the stated
+beyond a bare "passed"). If the residual is *larger* than the stated
 uncertainty, report that too, with the same reported-as-found discipline
 `benchmarks/RESULTS.md` uses for WP10's negative result: a mismatch is
 real information (a physics-scope gap this engine doesn't model yet, a
 field-characterization uncertainty larger than assumed, or a modeling
 assumption, e.g. `ensemble.regime`/`motional_n`/temperature, that
-doesn't match the real apparatus), not a failure to hide.
+doesn't match the real apparatus). Report it exactly as it comes out.
 
 ## Turning this into a real case
 
-This template does not modify `benchmarks/run_benchmarks.py`: that
+This template stays independent of `benchmarks/run_benchmarks.py`: that
 script's current job (classifying the WP10 public sources as found) is
 unrelated to a partner case, and no wiring should be built for data that
 doesn't exist yet. Once real data arrives, either:
@@ -109,5 +109,5 @@ doesn't exist yet. Once real data arrives, either:
 - Or, if/when there are enough partner cases to want automation, extend
   `benchmarks/loaders.py`/`run_benchmarks.py` to also load
   `beta_case_*/expected.yaml` files and compute residuals the same way
-  the JILA/NIST loaders parse their sources, a natural follow-up WP, not
-  attempted here (no real data exists yet to build or test it against).
+  the JILA/NIST loaders parse their sources, a natural follow-up WP once
+  real data exists to build and test it against.

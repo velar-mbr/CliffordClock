@@ -78,8 +78,8 @@ grid = load_field_comsol("my_export.txt", expression_prefix="es")  # default
   `% Dimension:` line other than `3`, a column-header line
   containing an `@ param=value` tag (a parameter-sweep/multi-study
   export), or a complex-valued (frequency-domain) data cell all raise a
-  descriptive `ValueError` rather than being silently mis-parsed or
-  truncated. `docs/byof-guide.md`'s "COMSOL exports" section has the exact
+  descriptive `ValueError` naming the problem, so none of these get
+  silently mis-parsed or truncated. `docs/byof-guide.md`'s "COMSOL exports" section has the exact
   export-dialog settings that keep you in this supported scope.
 - **Header cross-checks:** if present, `% Nodes:` and `% Expressions:`
   are checked against the actual data-row and column counts and raise on
@@ -128,8 +128,7 @@ E, grad_E = smoother.evaluate(pos)  # pos: (N, 3) m -> E: (N, 3) V/m, grad_E: (N
 - The fit is capped at `smoother.MAX_FIT_POINTS` (~20,000) points: the RBF
   fit solves a dense `(N, N)` linear system, an O(N³) operation.
 - Querying `evaluate` outside the fit data's bounding box raises an
-  `OutOfBoundsWarning` (values are still returned, extrapolated, not
-  interpolated).
+  `OutOfBoundsWarning` (values are still returned, extrapolated).
 
 ## Synthetic test fields
 

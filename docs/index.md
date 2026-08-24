@@ -8,7 +8,7 @@ level) caused by stray DC electric fields and by the atom's own motion.
 
 **Pre-beta research code.** See the top-level [README](../README.md)'s
 Status section for the two-sentence validation summary, and
-[`validation.md`](validation.md) for the full picture.
+[`validation.md`](validation.md) for the full record.
 
 ## Start here: Tutorial
 
@@ -31,7 +31,7 @@ Task-oriented instructions for a specific job:
 
 ## Reference
 
-Look-up material, organized around the artifact, not a narrative:
+Look-up material, organized around the artifact:
 
 - [`report-schema.md`](report-schema.md): the `report.json` and
   `line_profile.csv` output formats written by `cliffordclock run`.

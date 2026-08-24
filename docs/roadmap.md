@@ -7,9 +7,9 @@ for ion clocks, blackbody-radiation shifts, second-order Doppler, and
 gravitational redshift across an extended atomic sample. Every one of
 these terms runs through the same numerics proven at 1e-18 against
 adversarial tests, so a lab can add a new field geometry or species today
-and get a full dispersion budget rather than a single hand-computed
-number. The sections below describe the physics packages that extend
-this coverage next, organized by area, each can be re-prioritized based 
+and get back a full dispersion budget across the whole atom cloud,
+computed automatically. The sections below describe the physics packages that extend
+this coverage next, organized by area; each can be re-prioritized based
 on community interest and need.
 
 ## Lattice light shifts
@@ -29,8 +29,10 @@ which is what lets every atom's trajectory and shift be computed
 separately and combined into a dispersion budget. Density and
 collisional shifts are a different physics class: they need
 an interaction model between atoms (s-wave and p-wave collision
-physics, excitation-fraction dependence), not an added term on a single
-atom's pivot. This package waits for a partner lab to make it the
+physics, excitation-fraction dependence). Every term this tool ships
+today is a single added term on one atom's pivot, computed
+independently of the other atoms in the ensemble. This package waits
+for a partner lab to make it the
 binding constraint on their evaluation; some labs manage it entirely
 through density control and extrapolation, in which case it may stay
 outside this tool's scope indefinitely.
@@ -65,14 +67,14 @@ an effective temperature themselves, often via thermal finite-element
 modeling in tools like ANSYS, and feed CliffordClock that single number.
 Importing a spatial temperature map (T(r) across the chamber) and
 computing the solid-angle effective temperature it implies is a natural
-next step once a partner lab wants to hand over the FEA output directly
-instead of pre-reducing it.
+next step once a partner lab wants to hand over the raw FEA output,
+skipping their own pre-reduction step.
 
 ## Time-dependent fields
 
 RF trap fields and probe-beam AC Stark shifts share their underlying
 machinery with the micromotion work above: both need a field that
-varies during the interrogation, not a static snapshot. Building that
+varies over the course of the interrogation. Building that
 time-dependent field machinery once, for the RF/micromotion package,
 sets up AC-field support broadly.
 

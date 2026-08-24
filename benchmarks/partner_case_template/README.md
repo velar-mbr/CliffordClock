@@ -1,19 +1,20 @@
 # Partner benchmark case: template
 
-**What this is:** a skeleton showing exactly what data a beta
+**What this is:** a template showing exactly what data a beta
 collaborator needs to send (or run locally and report back on) to become
 a real, comparable benchmark case, the thing `benchmarks/RESULTS.md`
 found none of the current public sources could supply (see
 `benchmarks/MAPPING.md`: the DC-Stark row is in this engine's scope, but
 every currently-authorized public source reports a measured shift
 without the independent field magnitude that produced it, and solving
-backwards for that field would be a forbidden tuned parameter, not a
-benchmark). A collaborator supplying *both* halves (a characterized
-field and the shift it produced) closes exactly that gap.
+backwards for that field would make the field magnitude a fitted
+parameter chosen to match the measured shift, which this project's
+benchmarks never allow). A collaborator supplying *both* halves (a
+characterized field and the shift it produced) closes exactly that gap.
 
-This directory is not itself a runnable benchmark case; it is the
-template `benchmarks/beta_case_<name>/` gets copied from once real data
-arrives (see "Turning this into a real case" below).
+This directory is the template `benchmarks/beta_case_<name>/` gets
+copied from once real data arrives (see "Turning this into a real case"
+below).
 
 ## What plugs in where
 
@@ -53,7 +54,8 @@ arrives (see "Turning this into a real case" below).
    larger than hoped. A "this doesn't match yet" result is real,
    reportable information (physics gap, field-characterization
    uncertainty, or a modeling assumption that doesn't hold for this
-   apparatus), not a failed collaboration.
+   apparatus): reporting it faithfully is the collaboration succeeding,
+   exactly as designed.
 
 ## What this case will NOT need
 

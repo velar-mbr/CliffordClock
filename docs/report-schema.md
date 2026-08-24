@@ -15,12 +15,13 @@ order). Floats are written with full precision (`repr`-roundtrip safe;
 Python's `json` encoder already guarantees this for finite floats, so no
 extra handling is needed on read).
 
-**Null convention.** Non-finite float fields are written as JSON `null`,
-not a bare `NaN`/`Infinity` token; neither is valid JSON (RFC 8259
-section 6 permits only finite numbers); `write_json` passes
-`allow_nan=False` to `json.dump` so any non-finite value that reaches it
-without first being converted to `null` raises loudly instead of emitting
-invalid JSON. Two cases currently produce a `null`:
+**Null convention.** Non-finite float fields are written as JSON `null`.
+A bare `NaN`/`Infinity` token never appears, because neither is valid
+JSON (RFC 8259 section 6 permits only finite numbers); `write_json`
+passes `allow_nan=False` to `json.dump` so any non-finite value that
+reaches it without first being converted to `null` raises loudly,
+preventing invalid JSON from being emitted. Two cases currently produce
+a `null`:
 
 1. **Undefined** (`shift_std_error` and `t2_star_s` together): single-atom
    M=1 ensembles: their E25 sample-variance statistics need >= 2
@@ -30,7 +31,7 @@ invalid JSON. Two cases currently produce a `null`:
    exactly zero (every atom accumulated the identical phase, e.g. a
    lattice ensemble in a spatially uniform field), so E27's
    `sigma_Phi -> 0+` limit gives `T2* = +inf`, a *defined*, physically
-   meaningful value (no inhomogeneous dephasing) that JSON simply cannot
+   meaningful value (no inhomogeneous dephasing) that JSON cannot
    represent. In memory this is `float("inf")`
    (`cliffordclock.analytics.stats.dephasing_time_t2star`).
 
@@ -49,7 +50,7 @@ bit-identically; only those two can ever be `null`.
 | `conventions_version` | string | n/a | `docs/CONVENTIONS.md` version the formulas trace to (currently `"1.1.0"`) |
 | `package_version` | string | n/a | `cliffordclock` package version (`importlib.metadata`) |
 | `generated_at_utc` | string | n/a | ISO-8601 UTC timestamp |
-| `config_hash` | string or `null` | n/a | caller-supplied hash of the input configuration; `null` if not supplied (populated by the pipeline façade, not by this module itself) |
+| `config_hash` | string or `null` | n/a | caller-supplied hash of the input configuration; `null` if not supplied (populated by the pipeline façade) |
 | `species_name` | string | n/a | atomic species registry name, e.g. `"Sr87"` |
 | `ensemble_type` | string | n/a | free-text ensemble/regime label, e.g. `"classical_direct"`, `"classical_secular_average"`, `"lattice_fast_path"`, `"lattice_worldline_crosscheck"`, `"lattice_extended_fast_path"`, or `"lattice_extended_worldline_crosscheck"` (WP22; not a closed enum: see `docs/timescales.md` for what each `integration.mode` produces) |
 | `ensemble_size` | integer | n/a | number of atoms/nodes `M` |

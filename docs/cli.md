@@ -24,19 +24,19 @@ cliffordclock run config.yaml [--output-dir DIR] [--radiation-surfaces PATH]
   `environment.radiation_environment.surfaces_file` from `PATH` (a
   surfaces table file, see "Surfaces table file format" below), equivalent
   to the config file having had that key set. `PATH` is resolved relative
-  to the CURRENT WORKING DIRECTORY (it came from the command line, not the
-  config file). If the config already sets
+  to the CURRENT WORKING DIRECTORY, since it came from the command line;
+  paths named inside the config file itself resolve relative to the
+  config file's own location. If the config already sets
   `environment.radiation_temperature_K` or an inline
   `environment.radiation_environment.surfaces` list, the normal E37
-  mutual-exclusivity error fires instead of the flag silently overriding
-  it.
+  mutual-exclusivity error fires; the flag never silently overrides it.
 
 **Exit codes:**
 
 | Code | Meaning |
 |---|---|
 | `0` | Success. |
-| `1` | Physics-validation failure: the integrated result failed a basic sanity check (non-finite phase, or rotor-norm drift, E20, far beyond what a correctly configured run should show). Not a precision-grade check: see `cliffordclock.pipeline.PhysicsValidationError`. |
+| `1` | Physics-validation failure: the integrated result failed a basic sanity check (non-finite phase, or rotor-norm drift, E20, far beyond what a correctly configured run should show). This is a coarse sanity check aimed at gross integrator failures: see `cliffordclock.pipeline.PhysicsValidationError` for the exact bound. |
 | `2` | Bad input: a malformed/unreadable config file, an unknown species or synthetic-field kind, an invalid parameter value, or a bad CLI argument (the last handled by `argparse` itself, which also exits 2). |
 
 Errors are printed to stderr; the run summary goes to stdout.
@@ -139,7 +139,7 @@ environment:                           # optional section (WP20, CONVENTIONS.md 
   #       n_bar: 0.05
   #   v_rms_emm_m_s: 0.0                 # optional (default 0.0): measured rms excess-
   #                                       #   micromotion velocity, m/s (a full RF-dynamics
-  #                                       #   treatment is a roadmap package, not modeled here)
+  #                                       #   treatment is a roadmap package)
   #   v_rms_emm_uncertainty_m_s: 0.0     # optional (default 0.0), 1-sigma, m/s
 
 quadrupole:                            # optional section (WP21, CONVENTIONS.md E34/E35);
@@ -233,8 +233,8 @@ integration:
   trajectory_stride: null              # optional (default null/None), streaming path only:
                                         #   how often (in steps) to retain a position snapshot
                                         #   in the report's underlying trajectories output
-                                        #   (PipelineResult.trajectories via the Python API;
-                                        #   not part of report.json/line_profile.csv). null:
+                                        #   (PipelineResult.trajectories, a Python
+                                        #   API-only field). null:
                                         #   only the initial/final positions are kept (O(M)).
                                         #   An explicit stride retains more, at
                                         #   O(M * steps / trajectory_stride) memory, still
@@ -289,8 +289,9 @@ section 5); see `docs/coupling.md` for the full physics/API.
 - `linear_mu` (E14a; the default when `coupling.type` is omitted): an
   explicit, user-supplied effective dipole moment `coupling.mu`. A
   closed-form MVP coupling used to validate the integrator/phase-
-  accumulation pipeline (Sprint 1), not a claim about the real physics
-  of a clock transition (real clock states carry no permanent dipole).
+  accumulation pipeline (Sprint 1). It makes no claim about the real
+  physics of a clock transition, since real clock states carry no
+  permanent dipole.
 - `stark_dc` (E14b; **recommended for new configs**): the physical
   second-order DC-Stark shift, `P(r) - 1 = -(Delta_alpha/2)|E(r)|^2/(h
   nu0)`. With no override fields, the coefficient is resolved from the
@@ -302,8 +303,9 @@ section 5); see `docs/coupling.md` for the full physics/API.
   (e.g. for a species not in the registry, or a newer measurement).
   `stark_dc` works in every `integration.mode` (`fast_path`, `direct`,
   `secular`, `worldline`); for `direct` it runs through a coupling-
-  agnostic scalar phase accumulator rather than the rotor path (same
-  E21/E22 physics: see `cliffordclock.pipeline._stark_scalar_ensemble`).
+  agnostic scalar phase accumulator (same E21/E22 physics: see
+  `cliffordclock.pipeline._stark_scalar_ensemble`), separate from the
+  rotor path used by `worldline` below.
   For `worldline` it runs through the **true Cl(1,3) rotor** instantiated
   for E14b (`cliffordclock.integrator.omega.build_omega_stark`, via
   `cliffordclock.pipeline._stark_rotor_ensemble`), directly verified
@@ -316,7 +318,8 @@ section 5); see `docs/coupling.md` for the full physics/API.
   override"), and for `integration.mode: fast_path` runs, an explicit
   note that the fast path omits the motional second-order Doppler shift
   (E29 scope, CONVENTIONS.md section 12), a real, separately-budgeted
-  systematic, not included in that run's `mean_fractional_shift`.
+  systematic tracked only in that note; `mean_fractional_shift` reports
+  the field-induced shift alone.
   `examples/lattice_sr87_stark.yaml` is a runnable `stark_dc` example.
 
 Shipped validation example YAMLs (`examples/quadrupole_classical.yaml`,
@@ -337,8 +340,8 @@ for the config schema specifically:
 - **Requires `coupling.type: stark_dc`.** BBR needs the species' registry
   `BbrCoefficients` (a separately published static/dynamic fit, distinct
   from `delta_alpha_dc_si`), which `linear_mu` has no equivalent of;
-  setting `radiation_temperature_K` with `coupling.type: linear_mu` is a
-  `PipelineConfigError` at config-load time, not a silently ignored key.
+  setting `radiation_temperature_K` with `coupling.type: linear_mu` raises
+  `PipelineConfigError` at config-load time.
 - **Hard-validated range.** `radiation_temperature_K` must lie in
   `[50, 350]` kelvin (the published fit's validity window):
   `PipelineConfigError` outside it, both edges.
@@ -357,10 +360,11 @@ for the config schema specifically:
 ### Multi-surface thermal environment (`environment.radiation_environment:`, WP29 Tier 1)
 
 `environment.radiation_environment` is a multi-surface alternative to
-`radiation_temperature_K` (CONVENTIONS.md E37): instead of one ambient
-temperature, the atoms sit in an enclosure of `N` named surfaces, each
-with its own solid-angle weight, temperature, optional temperature
-uncertainty, and optional emissivity. It resolves to the same `(P-1)_BBR`
+`radiation_temperature_K` (CONVENTIONS.md E37): the atoms sit in an
+enclosure of `N` named surfaces, each with its own solid-angle weight,
+temperature, optional temperature uncertainty, and optional emissivity,
+replacing the single ambient temperature `radiation_temperature_K`
+supplies. It resolves to the same `(P-1)_BBR`
 scalar `radiation_temperature_K` does and threads into every evaluation
 mode identically.
 
@@ -397,7 +401,7 @@ mode identically.
   the enclosure's effective weight is whatever is left after the
   apertures' weights are corrected for reflections
   (`w_i_eff = w_i / (W + (1 - W) * emissivity)`, `W` the apertures'
-  combined raw weight), never an independently renormalized share.
+  combined raw weight).
   Setting `emissivity` on more than one surface is a `PipelineConfigError`:
   multi-reflector radiosity (more than one partially-reflective enclosure
   surface) is out of scope for this tier.
@@ -405,11 +409,12 @@ mode identically.
   uncertainties combine: `false` combines them independently, in
   quadrature; `true` treats every surface's temperature error as moving
   together (a shared calibration-chain error) and combines them linearly
-  before taking the magnitude, never smaller than the independent mode
-  for the same inputs.
+  before taking the magnitude. That linear sum is always at least as
+  large as the independent (quadrature) combination for the same
+  inputs, by the triangle inequality.
 - **A uniform, single-surface environment** (`weight: 1.0`, no
   `emissivity`) reduces to `radiation_temperature_K`'s result bit for
-  bit, not just numerically.
+  bit.
 - **The report's `uncertainty_notes`** lists every surface's
   name/weight/temperature, the per-moment effective temperatures
   `T_eff,n` (one per registry dynamic-term power plus `n=4`), and the
@@ -446,16 +451,19 @@ aperture     0.1     300.0          0.01                       -
   same checks the inline `surfaces:` list goes through (unique names,
   weight normalization, the `[50, 350]` K validity window, the emissivity
   topology rule). These run once, after the file is loaded, identically
-  for both input forms, never as separate file-specific logic: a
+  for both input forms: a
   `surfaces_file` and the equivalent inline `surfaces:` list produce
   byte-identical pipeline results.
 - Malformed input specific to the file's own grammar (wrong column
   count, a non-numeric column, a blank/reserved-token name, a missing
   file) raises `PipelineConfigError` naming the file, the 1-based line
   number, and the offending token, matching `load_field_comsol`'s error
-  style (`docs/fields.md`). A duplicate surface name is instead caught by
-  the shared cross-form check above; its error names the surface's index
-  and value, not a file line number.
+  style (`docs/fields.md`). A duplicate surface name is caught by the
+  shared cross-form check above instead, since that check runs after
+  both input forms parse into the same structure. The two error paths
+  report different things: the malformed-grammar error above names the
+  file and 1-based line number; the duplicate-name error names the
+  surface's index and value.
 
 See `examples/radiation_environment_surfaces.txt` and
 `examples/radiation_environment_surfaces_sr87.yaml` for a complete
@@ -486,7 +494,7 @@ samples measure directly (Bothwell et al., Nature 602, 420 (2022);
   and `worldline` (through the rotor's scalar `B_hat_C` rotation-plane
   coefficient only; static, `v=0` lattice/lattice_extended nodes make this
   the WHOLE contribution: see CONVENTIONS.md section 15).
-- **A runtime warning** (not a config-load-time rejection) is recorded in
+- **A runtime warning** is recorded in
   the report's `uncertainty_notes` if a run's sampled positions span more
   than `cliffordclock.pipeline.GRAVITY_EXTENT_WARN_M` (10 m) along
   `up_axis`, the uniform-g approximation's validity margin
@@ -527,7 +535,7 @@ for lattice clocks too.
 - **`v_rms_emm_m_s`/`v_rms_emm_uncertainty_m_s`** (both optional, default
   `0.0`) supply a lab's own measured excess-micromotion (EMM)
   characterization, already reduced to an equivalent rms velocity; a full
-  RF-dynamics treatment of EMM is a roadmap package, not modeled here.
+  RF-dynamics treatment of EMM is a roadmap package.
 - **The shift:** `(P-1)_motional = -<v^2>/(2c^2)` with `<v^2> = sum_i
   (hbar*omega_i/m)*(n_bar_i + 1/2) + v_rms_emm^2`, `m` the `species:`
   registry mass. `n_bar_i = 0` for every mode does NOT make the shift
@@ -595,7 +603,7 @@ clock states.
 - **Traceless symmetric gradient only.** The quadrupole term uses only
   the traceless symmetric part of the field-gradient tensor (E13); its
   own contribution to the rotor's spin connection (`worldline` mode) is
-  a documented, bounded scope limit, not modeled (CONVENTIONS.md E35).
+  a documented, bounded scope limit (CONVENTIONS.md E35).
 - **Micromotion boundary / hyperfine-E2 budget notes.** Any run whose
   `species:` is `Al27+`/`In115+` (WP21's registered ion clocks) carries
   two report notes regardless of whether `quadrupole:` is set: the
@@ -639,8 +647,8 @@ clock states.
   weighted-least-squares linear-gradient fit (`slope_per_m`, the map's
   headline number) and the gate-mandated deterministic-vs-stochastic
   dispersion-labeling split (`total_spread_fractional`/
-  `gradient_removed_residual_spread_fractional`), not part of
-  `report.json`'s schema (`MetrologyReport` is unchanged), but a
+  `gradient_removed_residual_spread_fractional`). This split is not
+  part of `report.json`'s schema (`MetrologyReport` is unchanged); a
   test-pinned note in `report.uncertainty_notes` states that
   `t2_star_s`/`shift_std_error` include the deterministic per-site
   gradient and points to `site_map` for the split. See
@@ -650,8 +658,8 @@ clock states.
 ### Interrogation times and the three-tier fast-path architecture
 
 **See `docs/timescales.md`** for the full explanation: why real
-(microsecond-to-second) interrogation times are the norm (not an
-"unexplored headroom" caveat), the three-tier architecture
+(microsecond-to-second) interrogation times are the norm, cheap to
+compute directly at full accuracy, the three-tier architecture
 (`fast_path`/`direct`/`secular`/`worldline`, CONVENTIONS.md v1.1.0-draft
 section 12, E29-E31) this schema configures, the large-`dτ̃` accuracy
 study behind `select_dtau`'s automatic step-size selection, and the

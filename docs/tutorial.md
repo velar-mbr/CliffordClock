@@ -8,7 +8,7 @@ example (with every line of output explained), and the validation example
 to go to use your own field data.
 
 Every command below was run in a fresh virtual environment while writing
-this page; the numbers shown are real output, not illustrations.
+this page; the numbers shown are real output.
 
 ## 1. Install
 
@@ -17,8 +17,8 @@ pip install cliffordclock
 ```
 
 This installs the library and the `cliffordclock` command-line tool.
-The examples and notebooks this tutorial runs live in the repository,
-so grab a clone alongside:
+The examples and notebooks this tutorial runs are stored in the
+repository, so grab a clone alongside:
 
 ```bash
 git clone https://github.com/velar-mbr/CliffordClock.git
@@ -88,9 +88,9 @@ polarizability: no fitting, no tuned parameters.
   flying around a trap), and the tool used its fast, exact evaluation
   path for that case: no time-stepping needed, so it costs the same
   whether you ask for a microsecond or an hour of interrogation.
-- **interrogation time**: how long the clock actually probes the atoms
+- **interrogation time**: how long the clock probes the atoms
   for, in seconds. `1.000000e+00 s` is a real, physically meaningful
-  Ramsey/Rabi interrogation time, not a simulation artifact.
+  Ramsey/Rabi interrogation time.
 - **mean fractional shift**: the predicted shift, `Δν/ν₀`
   (dimensionless: a fraction of the clock's transition frequency), caused
   by the stray field. `-7.723399e-19` means the clock's frequency reads
@@ -110,11 +110,11 @@ polarizability: no fitting, no tuned parameters.
   scenario.
 - **notes**: free-text provenance: which coupling coefficient was used,
   where it's cited from, and a caveat that this particular calculation
-  mode reports the field-induced (Stark) shift only, not the separate
-  motional (Doppler) shift covered by the validation example's secular
-  mode (see `docs/coupling.md` and `docs/validation.md` KA4). Safe to
-  skip on a first read; useful when you need to cite exactly where a
-  number came from.
+  mode reports the field-induced (Stark) shift only. The separate
+  motional (Doppler) shift is covered by the validation example's
+  secular mode (see `docs/coupling.md` and `docs/validation.md` KA4).
+  Safe to skip on a first read; useful when you need to cite exactly
+  where a number came from.
 - **report / line profile**: the two files written: `report.json` (the
   numbers above plus metadata, machine-readable, see
   [`report-schema.md`](report-schema.md)) and `line_profile.csv` (the
@@ -145,12 +145,16 @@ different, and the tool tells you so directly: the extra
 without that line: the interrogation time (`1.29e-18 s`, a fraction of
 an attosecond, far shorter than any real clock interrogation) and the
 mean shift's own error bar (`SEM` is larger than the shift itself, i.e.
-this number is statistical noise, not a real prediction).
+this number is statistical noise).
 
 This example exists to exercise the tool's integrator directly, one
 Compton-scale step at a time (the fundamental timescale the underlying
-physics is formulated in), rather than to predict a real clock shift. It
-is useful for development and cross-checking, not for citing a number.
+physics is formulated in). The toy case validates that stepping
+mechanism; predicting a real clock's frequency shift needs the full
+pipeline, with its registry-sourced species data and coupling
+coefficients, which section 2's example supplies. It is useful for
+development and cross-checking; the physical example in section 2 is
+what to cite when you need a number.
 Whenever `cliffordclock run`'s resolved interrogation time is below one nanosecond,
 you'll see this note; treat it as a signal to check
 [`docs/timescales.md`](timescales.md) for why real interrogation times
@@ -210,7 +214,7 @@ format limitations (Spreadsheet text export only, no VTK/mesh formats).
 
 ## Where to go next
 
-- [`docs/validation.md`](validation.md): the full validation picture:
+- [`docs/validation.md`](validation.md): the full validation record:
   every case this tool has been checked against, with sources and
   measured agreement.
 - [`docs/coupling.md`](coupling.md): the DC-Stark physics in full, and
