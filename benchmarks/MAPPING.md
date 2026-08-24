@@ -7,7 +7,7 @@ item, whether it maps to a `cliffordclock` pipeline config, and if not,
 exactly why not. A documented "cannot map" (e.g. blackbody radiation,
 outside this engine's scope; a paper reporting a shift but not the field
 that produced it) is reported as a normal, acceptable outcome throughout,
-never suppressed or downgraded to make the numbers look better. See
+with the same visibility given to every row regardless of outcome. See
 `benchmarks/RESULTS.md`'s executive summary for the headline result and
 `benchmarks/SOURCES.md` for citations, checksums, and access logs.
 
@@ -15,7 +15,7 @@ Every assumption below is reviewable and traceable to a specific source
 citation. This document explains, row by row / file by file, whether a
 published parameter maps to a `cliffordclock` pipeline config, and if not,
 exactly why not; a documented "cannot map" is a normal, acceptable
-outcome, not a shortfall to paper over.
+outcome, stated here at face value.
 
 ## Engine physics scope (recap, for the classification below)
 
@@ -30,8 +30,8 @@ implements exactly two systematic-shift mechanisms:
 At the time of this WP10 pass, nothing else (BBR, AC/lattice light shift,
 Zeeman/magnetic-field physics, collisional/density shifts,
 tunneling/band-structure physics, tensor/quadrupole polarizability for
-ion clocks) existed anywhere in `src/cliffordclock`. This is not a
-finding of this benchmark; it is the documented, intentional scope of the
+ion clocks) existed anywhere in `src/cliffordclock`. This reflects the
+documented, intentional scope of the
 engine at that point (`docs/CONVENTIONS.md` E14b/E29 scope notes). The
 WP20/WP21/WP22 addenda below cover the BBR, ion-quadrupole, and
 gravitational-redshift physics this project has added since.
@@ -49,7 +49,7 @@ gravitational-redshift physics this project has added since.
 | **DC Stark** | **Yes (E14b)** | **See "DC Stark row" below: in scope, but no independent forward mapping is possible from what the paper publishes.** |
 | Tunneling | No | Inter-lattice-site band-structure/Wannier-Stark tunneling. This engine models motional states as harmonic-oscillator Hermite-Gauss quadrature nodes (`cliffordclock.ensemble.lattice`), not a lattice band structure, so there is no tunneling degree of freedom to map onto. **No mapping attempted.** |
 | Minor Shifts | No | An unitemized grab-bag ("all other systematic effects have uncertainties below 1e-19" per the abstract); no single mechanism to map. **No mapping attempted.** |
-| Total Shift | n/a | Sum of the rows above, not a physical mechanism. |
+| Total Shift | n/a | An arithmetic sum of the rows above. |
 
 ### DC Stark row: why no forward config can be built
 
@@ -58,9 +58,10 @@ text, unlabeled "DC Stark Shift" section, page 4-5, quoted verbatim in
 `benchmarks/loaders.py`'s `JILA_DC_STARK_PRECISE`): *"The total residual DC
 Stark shift is −9.8 ± 0.7 × 10⁻²⁰."*, a **fractional-frequency shift**,
 determined by *directly measuring the clock frequency* while alternating
-quadrant-electrode fields high/low (a null/lock-in measurement), not by
-computing it from a separately-known field magnitude and a polarizability
-formula. The paper explicitly does not report:
+quadrant-electrode fields high/low (a null/lock-in measurement). Recovering
+a field magnitude from this shift would require a separately-known field
+value and a polarizability formula, and this measurement method produces
+neither. The paper explicitly does not report:
 
 - the residual stray-field magnitude in V/m (or V/cm/kV/cm) at the atoms;
 - which `Δα` value (if any) they used, since their method needs none:
@@ -72,7 +73,8 @@ formula. The paper explicitly does not report:
 `kV/cm`, `electric field`, and `polarizab`: every hit is either this
 prose paragraph itself, or an unrelated dipole-matrix-element/AC-
 polarizability discussion in the supplementary fitting section, sections 6-9
-pages 12+, which concerns the BBR dynamic-correction fit, not DC Stark.)
+pages 12+, which concerns the BBR dynamic-correction fit, a systematic
+distinct from DC Stark.)
 
 **Third source investigated, 2026-08-10 (authorized for this benchmark follow-up;
 supersedes the earlier "uninvestigated" review note):** the paper's
@@ -111,7 +113,7 @@ gas), and the paper's own citation pattern never points a reader to it
 for DC Stark. This is strong, specific, checkable evidence (not an
 absence-of-evidence guess): every one of the sections the Supplemental
 Material *is* shown to contain is independently confirmed from the
-already-fetched, checksummed arXiv v2 text, not asserted. **This
+already-fetched, checksummed arXiv v2 text. **This
 benchmark's outcome for the DC Stark row is unchanged** by this follow-up: still no
 independent forward-comparable case, for the same fundamental reason
 documented below (no independent field input published anywhere the
@@ -122,11 +124,11 @@ project has legitimate access to, including this third source).
 published, independent number to put there. The two ways around this are
 both illegitimate:
 
-1. **Guess a field, report a "residual."** Any guessed field is not
-   independently sourced from the publication (the benchmark protocol:
-   "Every input traces to the publication or to MAPPING.md"; a guess
-   traces to neither), and the resulting "residual" would be a comparison
-   between an invented number and a real one, meaningless, not a valid comparison.
+1. **Guess a field, report a "residual."** Any guessed field violates
+   the benchmark protocol's rule that every input traces to the
+   publication or to MAPPING.md; a guess traces to neither. The
+   resulting "residual" would then compare an invented number against a
+   real one, a meaningless comparison.
 2. **Solve for the field that reproduces −9.8×10⁻²⁰ exactly**, then report
    that as a "predicted vs. published, residual ≈ 0, PASS" case. This is
    *exactly* the forbidden move per the benchmark protocol: "No parameter
@@ -160,8 +162,10 @@ The dataset is two phase-vs-time series (`Yb_Clock_phase(rad) vs time.csv`,
 optical-to-microwave frequency-division scheme: it characterizes
 the **short-term instability** of a specific down-conversion apparatus
 (how much the down-converted microwave's phase wanders relative to the
-optical clock over time), not a **systematic frequency shift** caused by
-a field, temperature, or motional configuration.
+optical clock over time). This engine's benchmark comparisons need a
+**systematic frequency shift** caused by a field, temperature, or
+motional configuration; the dataset measures a different quantity
+entirely.
 
 There is no field-gradient, trap, temperature, species, or motional
 parameter anywhere in this dataset to populate a `PipelineConfig` with.
@@ -257,7 +261,7 @@ quadrature is a common *approximation* for asymmetric errors, not the
 only defensible treatment (e.g. Barlow-style variable-Gaussian
 combination handles asymmetric-uncertainty shapes more carefully); the
 MET verdict here is robust to that choice, since NPL's band sits deep
-inside the predicted band, not near a boundary. This yields:
+inside the predicted band. This yields:
 
 ```
 E_lo     = 1.52 - sqrt(0.22^2 + 0.03^2) = 1.298... V/m
@@ -269,13 +273,14 @@ E_hi     = 1.52 + sqrt(0.62^2 + 0.05^2) = 2.142... V/m
 **real pipeline three separate times** (`species: Sr87`, `coupling.type:
 stark_dc`, lattice fast path, `n_quad=1` uniform field, 1 s
 interrogation, the same machinery KA1 validates) at `E_lo`, `E_nominal`,
-and `E_hi`, not an algebraic shortcut. Because E14b's shift is
+and `E_hi`, each a full pipeline execution. Because E14b's shift is
 `-(k_S)|E|²/ν0` (monotonically more negative with `|E|`, `k_S < 0` for
 Sr87), `E_hi` maps to the most-negative predicted shift and `E_lo` to the
 least-negative; the resulting predicted band's asymmetry is *inherited*
-through the pipeline from the field's asymmetry, not assumed or
-constructed by hand. The pipeline call's own monotonicity is asserted at
-runtime (`predicted_shift_lo <= predicted_shift_nominal <=
+through the pipeline from the field's asymmetry, a direct consequence of
+running the same formula at three different field values. The pipeline
+call's own monotonicity is checked programmatically at runtime
+(`predicted_shift_lo <= predicted_shift_nominal <=
 predicted_shift_hi`).
 
 ### Comparison and result
@@ -311,7 +316,7 @@ headline.
 **Same structural class as the JILA arXiv:2403.10664 DC-Stark row
 (Source 1): in engine scope, but no independent field magnitude
 published in this paper.** Full verbatim extraction, own independent
-read of the owner-provided PDF (not trusted from the dossier):
+read of the owner-provided PDF, verified directly against the source:
 `benchmarks/SOURCES.md` section 5.
 
 Section 3.5 "Other minor systematic shifts" ("Residual DC Stark shift"
@@ -319,12 +324,13 @@ subsection, printed page 9) and Table 3 (printed page 10) constrain the
 **total** DC-Stark shift to `0.0(0.1) × 10⁻¹⁹`, but the derivation is
 two steps removed from a field measurement:
 
-1. A **prior** shift measurement (not a field): "the y-component of the
-   field caused a shift of 1.4(5.2) × 10⁻²¹", cited to their own
-   reference **[30], Li J et al 2024 Metrologia 61 015006**, a *different
-   paper*, not this one.
+1. A **prior** shift measurement, itself derived from a field measured
+   elsewhere: "the y-component of the field caused a shift of
+   1.4(5.2) × 10⁻²¹", cited to their own reference **[30], Li J et al
+   2024 Metrologia 61 015006**, a different paper from this one.
 2. **Geometric/shielding-factor scaling arguments** applied to that prior
-   shift (not a re-derivation from a field magnitude): an 8× geometric
+   shift, a scaling argument applied to an existing measurement, not a
+   fresh derivation from a field magnitude: an 8× geometric
    factor from the ratio of viewport distances (142 mm vs 237 mm,
    `E_stat ∝ r⁻²`), and a 3× shielding factor "according to FE
    simulations" for the other two axes.
@@ -334,8 +340,8 @@ discussion.** Building a `PipelineConfig` would require either the same
 two illegitimate moves already ruled out for Source 1 (guess a field, or
 solve for one that reproduces `0.0(0.1)×10⁻¹⁹`, doubly meaningless here
 since the published value is consistent with zero, so "solving for a
-field" would trivially suggest `E ≈ 0`, not a genuine reconstruction of
-anything). **No mapping attempted; classified `comparable=False`,
+field" would trivially suggest `E ≈ 0`, an artifact of the published
+value's consistency with zero). **No mapping attempted; classified `comparable=False`,
 `kpi_verdict="N/A"`,** same shape as every JILA row
 (`run_benchmarks.classify_ustc_dc_stark`).
 
@@ -420,9 +426,9 @@ scope or no independent field/measurement input is published. The NPL
 case is `"reproducibility"` because NPL's *field* was measured
 independently of the clock transition. **This BBR case is neither**: the
 physics is now in scope (unlike every `not_applicable` row), but the
-comparison target (JILA's own BBR row) is not an independent measurement
-the way NPL's field was: it is itself a computed row (their T through the
-standard BBR formula with their own fitted coefficients). Hence a third,
+comparison target (JILA's own BBR row) is itself a computed row (their T
+through the standard BBR formula with their own fitted coefficients),
+unlike NPL's independently measured field. Hence a third,
 explicitly weaker label: **"arithmetic reproduction of a published
 standard-formula evaluation"** (G7 sign-off B5, ratified); see
 `benchmarks/RESULTS.md`'s "Arithmetic-reproduction case: JILA BBR row"
@@ -464,8 +470,7 @@ quant-ph/0701215v1 (Eq. 1/Fig. 4a) as typed `PublishedBand`
 constants; both Theta values (`1.83(1)` measured, `1.917` Itano theory)
 were already registered in
 `cliffordclock.ensemble.species.QUADRUPOLE_MOMENTS["Ca+:D5/2"]` before
-this addendum (WP21) and are consumed directly from that registry, not
-re-transcribed.
+this addendum (WP21) and are consumed directly from that registry.
 
 **Why this needs a FOURTH structural class, distinct from every one
 above:** the NPL case is `"reproducibility"` because NPL's own field and
@@ -475,18 +480,19 @@ comparison target (JILA's own BBR row) is itself computed from the same
 formula/coefficients being checked. **This Roos case is neither, on
 either variant:**
 
-- Its headline (cross-vintage) variant uses a Theta genuinely independent
+- Its headline (cross-vintage) variant uses a Theta independent
   of Roos's own fit (Itano's ab-initio theory value, a different vintage
   and method), unlike the BBR case's circularity, this is a real
   external comparison. But unlike the NPL case's `"reproducibility"`
   label, Roos's own applied gradient (the OTHER ingredient in the
-  comparison) is not independent of a trap model: it is calibrated from
-  the ion's own measured `omega_z` (`dE_z/dz = -m*omega_z^2/e`, dossier
-  section 6), and Roos's own fit is what produced the slope `a` being
+  comparison) is calibrated from the ion's own measured `omega_z`
+  (`dE_z/dz = -m*omega_z^2/e`, dossier section 6), a trap-model-derived
+  value, and Roos's own fit is what produced the slope `a` being
   predicted. So this is weaker than a `"blind_prediction"` case would be
   (which needs every ingredient on both sides independent of every
   other), but stronger/more genuine than `"arithmetic_reproduction"`
-  (the Theta input was never derived from the fit being predicted).
+  (the Theta input comes from an independent theoretical calculation,
+  external to the fit being predicted).
 - Its secondary variant, using Roos's own extracted Theta, IS
   `"arithmetic_reproduction"`, circular by the same logic as the BBR
   case, computed and reported for completeness (G8 sign-off B4's binding
@@ -498,15 +504,16 @@ this addendum), for the headline variant specifically, distinct from
 both `"reproducibility"` and `"arithmetic_reproduction"`.
 
 **Non-circularity caveat for the headline variant:**
-even though Itano's Theta is genuinely independent of Roos's fit, the
+even though Itano's Theta is independent of Roos's fit, the
 "agreement" (or, here, the recovered ~4.7% disagreement) is bounded by
 Roos's own measured-slope uncertainty AND by the fact that Itano's theory
 value carries no published uncertainty at all; there is no meaningful
 "combined uncertainty band" to report for this variant beyond Roos's own
 tight `2.975(2)` figure. `benchmarks/RESULTS.md` reports this residual as
-a recovered, literature-known theory-vs-measurement tension, explicitly
-NOT a precision validation of either the engine or the theory value (G8
-sign-off B4's first nuance, applied here as it was for Barwood).
+a recovered, literature-known theory-vs-measurement tension (G8 sign-off
+B4's first nuance, applied here as it was for Barwood): the residual
+measures the size of that known tension, and neither the engine's own
+precision nor the theory value's precision is what this figure scores.
 
 **Structural pin, computed not asserted:** the two-ion 24/5 enhancement
 Roos states (dossier section 6) is independently recomputed here,
@@ -543,7 +550,7 @@ considered:
   al 2024, Metrologia 61,015006) was the most promising lead for closing
   this gap, authorized, attempted, and **blocked** (no arXiv preprint,
   no open-access route, ResearchGate 403); its content remains entirely
-  unknown to this project, not ruled in or out.
+  unknown to this project.
 - **13 not-applicable rows**: JILA's Table I DC-Stark row (Source 1) and
   the USTC Metrologia 63,025002 DC-Stark constraint (Source 5) both
   publish only a resulting shift/bound with no independent field input
@@ -551,11 +558,14 @@ considered:
   after the Supplemental Material follow-up, Source 3); every other row
   across both papers (BBR, Zeeman, density, lattice light, background
   gas, tunneling, etc.) is physics entirely outside this engine's scope;
-  the NIST M32206 dataset (Source 2) measures a different physical
-  quantity (a scope mismatch, not a data gap) entirely.
+  the NIST M32206 dataset (Source 2) measures an entirely different
+  physical quantity, a scope mismatch distinct from the field-input data
+  gap affecting the DC-Stark rows above.
 - **Source 6: not accessed, not classified**: a fourth, distinct
-  outcome category from the three above, reported as its own category,
-  never collapsed into "not applicable" or silently dropped. See the Source 5
+  outcome category from the three above, reported here as its own line
+  item. The "not-applicable" count above excludes it: that label is
+  reserved for content that was examined and found out of scope, and
+  Source 6's content was never obtained to examine. See the Source 5
   section's "Reference [30] follow-up" subsection above and
   `benchmarks/SOURCES.md` section 6 for the full access-attempt log.
 
@@ -563,9 +573,9 @@ This is the outcome this project's binding evaluation rules ask
 for, reported as found: neither a forced "everything passes" story nor a
 suppressed "nothing works" one. One genuine, correctly-labeled
 reproducibility success; zero blind predictions (a real capability gap in
-what public data currently supports, not a modeling failure); the rest
+what public data currently supports); the rest
 reported as not-applicable with exact reasons. USTC's reference
-[30] is flagged, not chased, as the clearest lead for a future case.
+[30] is flagged as the clearest lead for a future case.
 
 ## WP22 addendum: Bothwell mm-scale gravitational-redshift reproducibility case (2026-08-11)
 
@@ -578,25 +588,25 @@ reproduce a real mm-scale redshift measurement end-to-end.
 (research sweep, read cover to cover, 2026-08-11), and, for the
 reference gravity, van Westrum, NOAA Technical Memorandum NOS NGS-77
 (2019). See the staged `benchmarks/SOURCES.md` entry below for the full
-citation/checksum-style record this document's own discipline expects;
-NOT YET fetched/checksummed independently by this WP22 pass (the dossier's
-own research sweep already read the preprint in full; this pass did not
-re-fetch it, matching the WP20 BBR addendum's precedent: an
-already-authorized source gets reused and extended, not re-fetched,
-since the same source was already authorized and read).
+citation/checksum-style record this document's own discipline expects.
+This WP22 pass reuses the dossier's own research sweep, which already
+read the preprint in full, matching the WP20 BBR addendum's precedent of
+extending an already-authorized source directly from its existing
+record; this pass did not fetch or checksum the preprint independently.
 
 **Why this is `"reproducibility"`, with the caveat INVERTED from the
 BBR/JILA case's:** the WP20 BBR case is `"arithmetic_reproduction"`
 (weaker) because JILA's own comparison ROW is itself a computed number,
-not an independent measurement. Bothwell's comparison target IS an
+derived from the same standard formula and coefficients being checked.
+Bothwell's comparison target IS an
 independent measurement (a real, physically observed per-pixel frequency
 map, fit to a slope), structurally the same class as the NPL case. The
 caveat that keeps this from reading as a strong "blind prediction",
 though, is that the underlying arithmetic (`g/c^2`) is textbook, and
 Bothwell computed it themselves in their own paper; this project's
-contribution is reproducing their measured slope through the full
+contribution is running that same textbook arithmetic through the full
 extended-sample MACHINERY (geometry, envelope weighting, per-site pivot
-evaluation, map fit), not discovering new arithmetic. See
+evaluation, map fit) to reproduce their measured slope. See
 `benchmarks/RESULTS.md`'s "Reproducibility case: Bothwell..." section
 (staged above) for the full method and `benchmarks/run_bothwell_redshift.py`
 for the generating script (a separate, dedicated script, not folded

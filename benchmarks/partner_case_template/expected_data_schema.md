@@ -97,7 +97,7 @@ doesn't match the real apparatus). Report it exactly as it comes out.
 
 ## Turning this into a real case
 
-This template does not modify `benchmarks/run_benchmarks.py`: that
+This template stays independent of `benchmarks/run_benchmarks.py`: that
 script's current job (classifying the WP10 public sources as found) is
 unrelated to a partner case, and no wiring should be built for data that
 doesn't exist yet. Once real data arrives, either:
@@ -109,5 +109,5 @@ doesn't exist yet. Once real data arrives, either:
 - Or, if/when there are enough partner cases to want automation, extend
   `benchmarks/loaders.py`/`run_benchmarks.py` to also load
   `beta_case_*/expected.yaml` files and compute residuals the same way
-  the JILA/NIST loaders parse their sources, a natural follow-up WP, not
-  attempted here (no real data exists yet to build or test it against).
+  the JILA/NIST loaders parse their sources, a natural follow-up WP once
+  real data exists to build and test it against.

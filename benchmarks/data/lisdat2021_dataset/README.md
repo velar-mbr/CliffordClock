@@ -48,4 +48,4 @@ Lisdat et al., PRR 3, L042036 (2021); Aeppli et al., PRL 133, 023401
 dataset's own coefficients are not used directly. This
 dataset's own tabulated `BBR_shift.dat` values are used by
 `paper/figures/fig5_bbr_temperature.py` purely as a published-data
-overlay for comparison, not as an input to the registry.
+overlay for comparison.

@@ -12,9 +12,9 @@ parameter chosen to match the measured shift, which this project's
 benchmarks never allow). A collaborator supplying *both* halves (a
 characterized field and the shift it produced) closes exactly that gap.
 
-This directory is not itself a runnable benchmark case; it is the
-template `benchmarks/beta_case_<name>/` gets copied from once real data
-arrives (see "Turning this into a real case" below).
+This directory is the template `benchmarks/beta_case_<name>/` gets
+copied from once real data arrives (see "Turning this into a real case"
+below).
 
 ## What plugs in where
 
