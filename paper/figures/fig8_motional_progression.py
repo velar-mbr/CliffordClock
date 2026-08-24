@@ -95,22 +95,22 @@ def main() -> None:
 
     progression = [
         (
-            "WP30: single-mass",
+            "single mass",
             al_case.predicted_shift_nominal,
             al_case.predicted_uncertainty_fractional,
         ),
         (
-            "WP31: participation\n(mass-ratio form)",
+            "participation\n(mass-ratio form)",
             participation_case.predicted_total_nominal,
             participation_case.predicted_total_uncertainty_fractional,
         ),
         (
-            "WP32: participation\n(spectrum-reconstructed)",
+            "participation\n(spectrum-reconstructed)",
             radial_case.predicted_total_nominal,
             radial_case.predicted_total_uncertainty_fractional,
         ),
         (
-            "WP33: participation\n$\\times$ micromotion",
+            "participation\n$\\times$ micromotion",
             enhanced_case.predicted_total_nominal,
             enhanced_case.predicted_total_uncertainty_fractional,
         ),
