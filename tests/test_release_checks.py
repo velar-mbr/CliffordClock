@@ -821,3 +821,234 @@ def test_latex_en_dash_brace_closed_ranges_not_flagged():
     prose = r"the pivot $P(r)$ -- the scalar factor -- stays untouched"
     cleaned2 = rc.LATEX_EN_DASH_RE.sub(lambda m: m.group(0).replace("--", "  "), prose)
     assert " -- " in cleaned2
+
+
+# ---------------------------------------------------------------------------
+# prose-scan: wrapped-line phrase matching + fenced-block comment prose
+# (prose-audit follow-up: a phrase split across a markdown hard line-wrap
+# escaped the line-by-line scan, and a phrase inside a fenced YAML block's
+# config comment was removed from scanning by fence-stripping).
+# ---------------------------------------------------------------------------
+
+
+def test_prose_scan_catches_wrapped_fatal_phrase_planted_violation():
+    """The exact prose-audit escape: 'not merely' hard-wrapped so 'not'
+    ends one source line and 'merely' starts the next."""
+    text = "The lattice pivot is not\nmerely a bookkeeping device in this framing.\n"
+    findings = rc._scan_prose_text(
+        "fixture.md",
+        text,
+        strip_code=True,
+        meta_slop_fatal=["not merely"],
+        meta_slop_minor=[],
+        allowed=[],
+    )
+    assert len(findings) == 1
+    assert findings[0].severity == "FAIL"
+    assert findings[0].line == 1
+
+
+def test_prose_scan_catches_wrapped_minor_phrase_planted_violation():
+    text = "We used method A rather\nthan method B for this case.\n"
+    findings = rc._scan_prose_text(
+        "fixture.md",
+        text,
+        strip_code=True,
+        meta_slop_fatal=[],
+        meta_slop_minor=["rather than"],
+        allowed=[],
+    )
+    assert len(findings) == 1
+    assert findings[0].severity == "MINOR"
+
+
+def test_prose_scan_wrapped_phrase_reports_line_where_phrase_begins():
+    text = (
+        "First sentence of the paragraph sits on this line.\n"
+        "We used method A rather\n"
+        "than method B for this case.\n"
+    )
+    findings = rc._scan_prose_text(
+        "fixture.md",
+        text,
+        strip_code=True,
+        meta_slop_fatal=[],
+        meta_slop_minor=["rather than"],
+        allowed=[],
+    )
+    assert len(findings) == 1
+    assert findings[0].line == 2
+
+
+def test_prose_scan_blank_line_is_a_paragraph_boundary():
+    # A paragraph break between the two words is not a wrapped phrase.
+    text = "The pivot is not\n\nmerely is how the next paragraph starts.\n"
+    findings = rc._scan_prose_text(
+        "fixture.md",
+        text,
+        strip_code=True,
+        meta_slop_fatal=["not merely"],
+        meta_slop_minor=[],
+        allowed=[],
+    )
+    assert findings == []
+
+
+def test_prose_scan_list_items_do_not_join_into_one_paragraph():
+    # Two adjacent bullets are separate units; joining them would
+    # fabricate a phrase neither one contains.
+    text = "- the pivot was chosen, not\n- merely defaulted to by the loader\n"
+    findings = rc._scan_prose_text(
+        "fixture.md",
+        text,
+        strip_code=True,
+        meta_slop_fatal=["not merely"],
+        meta_slop_minor=[],
+        allowed=[],
+    )
+    assert findings == []
+
+
+def test_prose_scan_wrapped_bullet_continuation_still_joins():
+    # A single bullet whose own text wraps onto an unmarked continuation
+    # line is one unit; the phrase inside it must still be caught.
+    text = "- the lattice pivot is not\n  merely a bookkeeping device here\n"
+    findings = rc._scan_prose_text(
+        "fixture.md",
+        text,
+        strip_code=True,
+        meta_slop_fatal=["not merely"],
+        meta_slop_minor=[],
+        allowed=[],
+    )
+    assert len(findings) == 1
+    assert findings[0].line == 1
+
+
+def test_prose_scan_heading_does_not_join_with_body():
+    text = "## Chosen, not\nmerely defaulted is what the body says next.\n"
+    findings = rc._scan_prose_text(
+        "fixture.md",
+        text,
+        strip_code=True,
+        meta_slop_fatal=["not merely"],
+        meta_slop_minor=[],
+        allowed=[],
+    )
+    assert findings == []
+
+
+def test_prose_scan_wrapped_phrase_in_blockquote_is_caught():
+    text = "> the lattice pivot is not\n> merely a bookkeeping device\n"
+    findings = rc._scan_prose_text(
+        "fixture.md",
+        text,
+        strip_code=True,
+        meta_slop_fatal=["not merely"],
+        meta_slop_minor=[],
+        allowed=[],
+    )
+    assert len(findings) == 1
+
+
+def test_prose_scan_wrapped_phrase_allowlisted_by_first_line_snippet():
+    # The allowlist stays line-based: an entry matching the line the
+    # phrase starts on suppresses the finding, as for unwrapped phrases.
+    text = "We used method A rather\nthan method B for this case.\n"
+    findings = rc._scan_prose_text(
+        "fixture.md",
+        text,
+        strip_code=True,
+        meta_slop_fatal=[],
+        meta_slop_minor=["rather than"],
+        allowed=["We used method A rather"],
+    )
+    assert findings == []
+
+
+def test_prose_scan_catches_phrase_in_fenced_yaml_comment_planted_violation():
+    """The prose-audit fenced-block escape: a banned phrase in a config
+    comment that fence-stripping used to remove from scanning."""
+    text = "```yaml\n# choose the secular sampler rather than the default\nmode: secular\n```\n"
+    findings = rc._scan_prose_text(
+        "fixture.md",
+        text,
+        strip_code=True,
+        meta_slop_fatal=[],
+        meta_slop_minor=["rather than"],
+        allowed=[],
+    )
+    assert len(findings) == 1
+    assert findings[0].severity == "MINOR"
+    assert findings[0].line == 2
+    assert "fenced-block comment" in findings[0].message
+
+
+def test_prose_scan_wrapped_fenced_comment_phrase_is_caught():
+    text = "```yaml\n# this sampler is not\n# merely a default choice\nmode: secular\n```\n"
+    findings = rc._scan_prose_text(
+        "fixture.md",
+        text,
+        strip_code=True,
+        meta_slop_fatal=["not merely"],
+        meta_slop_minor=[],
+        allowed=[],
+    )
+    assert len(findings) == 1
+    assert findings[0].line == 2
+
+
+def test_prose_scan_fenced_code_lines_stay_unscanned_for_phrases():
+    # The decision is comments-only: a phrase inside actual fenced CODE
+    # (here a flag value, not authored prose) stays out of scope.
+    text = "```bash\ncliffordclock run --note 'rather than default'\n```\n"
+    findings = rc._scan_prose_text(
+        "fixture.md",
+        text,
+        strip_code=True,
+        meta_slop_fatal=["rather than"],
+        meta_slop_minor=[],
+        allowed=[],
+    )
+    assert findings == []
+
+
+def test_prose_scan_fenced_comment_with_cli_flag_fires_no_dash_finding():
+    # Fenced comments are scanned for phrases ONLY; a --flag mentioned in
+    # a comment must not trigger the dash-as-punctuation check.
+    text = "```yaml\n# pass --fast to skip the slow checks\nmode: secular\n```\n"
+    findings = rc._scan_prose_text(
+        "fixture.md", text, strip_code=True, meta_slop_fatal=[], meta_slop_minor=[], allowed=[]
+    )
+    assert findings == []
+
+
+def test_prose_scan_fenced_comment_allowlisted_by_raw_source_line():
+    # Allowlist entries match the file's raw line (with its "#" marker),
+    # not the extracted comment text.
+    text = "```yaml\n# choose the secular sampler rather than the default\n```\n"
+    findings = rc._scan_prose_text(
+        "fixture.md",
+        text,
+        strip_code=True,
+        meta_slop_fatal=[],
+        meta_slop_minor=["rather than"],
+        allowed=["# choose the secular sampler rather than the default"],
+    )
+    assert findings == []
+
+
+def test_wrapped_paragraphs_maps_offsets_to_source_lines():
+    lines = ["first line here", "second line here", "", "fourth line alone"]
+    paragraphs = rc._wrapped_paragraphs(lines)
+    assert [text for text, _ in paragraphs] == [
+        "first line here second line here",
+        "fourth line alone",
+    ]
+    assert paragraphs[0][1] == [(0, 1), (16, 2)]
+    assert paragraphs[1][1] == [(0, 4)]
+
+
+def test_fenced_comment_lines_preserve_line_positions():
+    text = "prose above\n```yaml\n# a comment\nkey: value\n```\nprose below\n"
+    assert rc._fenced_comment_lines(text) == ["", "", "a comment", "", "", "", ""]

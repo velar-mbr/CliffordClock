@@ -275,6 +275,153 @@ def _strip_markdown_code(text: str) -> str:
     return "\n".join(out)
 
 
+#: DECISION (prose-audit follow-up): fenced code itself stays out of every
+#: prose scan (flags like ``--fast`` and identifiers are code, not
+#: punctuation), but ``#``-style comment lines inside a fence (YAML/TOML/
+#: shell/Python examples) ARE authored prose -- the prose-audit round found
+#: a banned phrase hiding in a fenced YAML block's config comment that
+#: fence-stripping had removed from scanning. Their comment text is
+#: therefore scanned for meta-slop phrases, and ONLY for phrases: the
+#: dash/em-dash/honest checks stay off inside fences, where a ``--flag``
+#: mentioned in a comment is legitimate. Other comment syntaxes (``//``,
+#: ``%``, ``;``) are out of scope until a fence in this repo carries one.
+_FENCE_COMMENT_RE = re.compile(r"^\s*#+\s?(.*)$")
+
+
+def _fenced_comment_lines(text: str) -> list[str]:
+    """Same-length line list keeping only comment prose inside fenced blocks.
+
+    Every line outside a fence, every fence marker line, and every
+    non-comment code line inside a fence maps to ``""``; a ``#`` comment
+    line inside a fence maps to its text after the comment marker. Line
+    positions are preserved so findings report real line numbers.
+    """
+    lines = text.split("\n")
+    out: list[str] = []
+    in_fence = False
+    fence_marker = ""
+    for line in lines:
+        stripped = line.strip()
+        if not in_fence and stripped.startswith(FENCE_MARKERS):
+            in_fence = True
+            fence_marker = stripped[:3]
+            out.append("")
+            continue
+        if in_fence:
+            if stripped.startswith(fence_marker):
+                in_fence = False
+                out.append("")
+                continue
+            m = _FENCE_COMMENT_RE.match(line)
+            out.append(m.group(1) if m else "")
+            continue
+        out.append("")
+    return out
+
+
+#: A line that begins a new logical unit even without a blank line above it
+#: (ATX heading, list item): hard-wrap joining must not merge it with the
+#: previous line, or two unrelated lines could fabricate a banned phrase
+#: across the boundary ("- chosen, not" / "- merely defaulted").
+_PARAGRAPH_BREAK_RE = re.compile(r"^\s{0,3}(?:#{1,6}\s|[-*+]\s|\d+[.)]\s)")
+#: ATX headings additionally never absorb the body below them, so they end
+#: their paragraph on both sides.
+_HEADING_RE = re.compile(r"^\s{0,3}#{1,6}\s")
+#: Leading blockquote markers are markup, not prose: strip them before
+#: joining so a phrase wrapped inside a quoted paragraph still matches.
+_BLOCKQUOTE_PREFIX_RE = re.compile(r"^\s*(?:>\s*)+")
+
+
+def _wrapped_paragraphs(lines: list[str]) -> list[tuple[str, list[tuple[int, int]]]]:
+    """Join hard-wrapped source lines into whitespace-collapsed paragraphs.
+
+    A banned phrase split across a markdown hard line-wrap ("not" ending
+    one source line, "merely" starting the next -- the exact escape the
+    prose-audit round found twice) is invisible to a line-by-line scan;
+    joining a paragraph's lines with single spaces before matching closes
+    that hole. Returns one ``(joined_text, line_starts)`` pair per
+    paragraph, where ``line_starts`` maps each source line's start offset
+    inside ``joined_text`` to its 1-indexed line number, so a match is
+    reported at the line where the phrase begins. Blank lines, markdown
+    table-separator/rule rows, and paragraph-opening markup lines
+    (headings, list items) end the running paragraph.
+    """
+    paragraphs: list[tuple[str, list[tuple[int, int]]]] = []
+    pieces: list[str] = []
+    line_starts: list[tuple[int, int]] = []
+    offset = 0
+
+    def flush() -> None:
+        nonlocal pieces, line_starts, offset
+        if pieces:
+            paragraphs.append((" ".join(pieces), line_starts))
+        pieces, line_starts, offset = [], [], 0
+
+    for lineno, line in enumerate(lines, start=1):
+        collapsed = re.sub(r"\s+", " ", _BLOCKQUOTE_PREFIX_RE.sub("", line).strip())
+        if not collapsed or TABLE_OR_RULE_RE.match(line):
+            flush()
+            continue
+        if _PARAGRAPH_BREAK_RE.match(line):
+            flush()
+        line_starts.append((offset, lineno))
+        pieces.append(collapsed)
+        offset += len(collapsed) + 1
+        if _HEADING_RE.match(line):
+            flush()
+    flush()
+    return paragraphs
+
+
+def _scan_meta_slop_phrases(
+    relpath: str,
+    lines: list[str],
+    *,
+    meta_slop_fatal: list[str],
+    meta_slop_minor: list[str],
+    allowed: list[str],
+    snippet_lines: list[str] | None = None,
+    where: str = "prose",
+) -> list[Finding]:
+    """Match banned phrases against the wrap-joined paragraphs of ``lines``.
+
+    ``snippet_lines`` supplies the raw source lines for snippets and
+    allowlist matching when ``lines`` holds extracted text (fenced-block
+    comment prose, whose lines have had their ``#`` markers removed);
+    the allowlist thus keeps matching against what the file actually says.
+    """
+    src = snippet_lines if snippet_lines is not None else lines
+    findings: list[Finding] = []
+    seen: set[tuple[str, int]] = set()
+    phrases = [(p, "FAIL") for p in meta_slop_fatal] + [(p, "MINOR") for p in meta_slop_minor]
+    for joined, line_starts in _wrapped_paragraphs(lines):
+        low = joined.lower()
+        for phrase, severity in phrases:
+            needle = phrase.lower()
+            start = 0
+            while (idx := low.find(needle, start)) != -1:
+                start = idx + 1
+                lineno = line_starts[0][1]
+                for line_offset, ln in line_starts:
+                    if line_offset > idx:
+                        break
+                    lineno = ln
+                snippet = src[lineno - 1].strip()
+                if _is_allowed(snippet, allowed) or (needle, lineno) in seen:
+                    continue
+                seen.add((needle, lineno))
+                suffix = " (flagged, not fatal)" if severity == "MINOR" else ""
+                findings.append(
+                    Finding(
+                        relpath,
+                        lineno,
+                        f"meta-slop phrase {phrase!r}{suffix} in {where}: {snippet[:120]!r}",
+                        severity=severity,
+                    )
+                )
+    return findings
+
+
 def _scan_prose_text(
     relpath: str,
     raw_text: str,
@@ -285,8 +432,9 @@ def _scan_prose_text(
     allowed: list[str],
 ) -> list[Finding]:
     text = _strip_markdown_code(raw_text) if strip_code else raw_text
+    lines = text.split("\n")
     findings: list[Finding] = []
-    for lineno, line in enumerate(text.split("\n"), start=1):
+    for lineno, line in enumerate(lines, start=1):
         if TABLE_OR_RULE_RE.match(line):
             continue
         snippet = line.strip()
@@ -312,28 +460,29 @@ def _scan_prose_text(
             findings.append(
                 Finding(relpath, lineno, f"honest-family word in prose: {snippet[:120]!r}")
             )
-        low = line.lower()
-        for phrase in meta_slop_fatal:
-            if phrase.lower() in low:
-                findings.append(
-                    Finding(
-                        relpath,
-                        lineno,
-                        f"meta-slop phrase {phrase!r} in prose: {snippet[:120]!r}",
-                        severity="FAIL",
-                    )
-                )
-        for phrase in meta_slop_minor:
-            if phrase.lower() in low:
-                findings.append(
-                    Finding(
-                        relpath,
-                        lineno,
-                        f"meta-slop phrase {phrase!r} (flagged, not fatal) in prose: "
-                        f"{snippet[:120]!r}",
-                        severity="MINOR",
-                    )
-                )
+    # Meta-slop phrases match against wrap-joined paragraphs (not single
+    # lines), so a phrase split across a hard line-wrap cannot escape.
+    findings.extend(
+        _scan_meta_slop_phrases(
+            relpath,
+            lines,
+            meta_slop_fatal=meta_slop_fatal,
+            meta_slop_minor=meta_slop_minor,
+            allowed=allowed,
+        )
+    )
+    if strip_code:
+        findings.extend(
+            _scan_meta_slop_phrases(
+                relpath,
+                _fenced_comment_lines(raw_text),
+                meta_slop_fatal=meta_slop_fatal,
+                meta_slop_minor=meta_slop_minor,
+                allowed=allowed,
+                snippet_lines=raw_text.split("\n"),
+                where="fenced-block comment",
+            )
+        )
     return findings
 
 
@@ -341,7 +490,12 @@ def prose_scan(allowlist: dict[str, Any]) -> CheckResult:
     """Em dash / dash-as-punctuation / honest-family / meta-slop scan.
 
     Scans README.md, docs/**/*.md, benchmarks/**/*.md, notebook markdown
-    cells, and paper/main.tex prose (after LaTeX-comment stripping).
+    cells, and paper/main.tex prose (after LaTeX-comment stripping). The
+    dash and honest-family checks are line-local; meta-slop phrases match
+    against wrap-joined paragraphs (see :func:`_wrapped_paragraphs`) so a
+    phrase split across a markdown hard line-wrap is still caught, and
+    additionally against ``#`` comment prose inside fenced code blocks
+    (see :data:`_FENCE_COMMENT_RE` for the decision record).
     """
     meta_slop_cfg = allowlist.get("meta_slop", {})
     meta_slop_fatal = list(meta_slop_cfg.get("fatal", []))
