@@ -46,8 +46,18 @@ the orientation rules.
 - Sentences that lead with what something does not do, is not, or cannot do
   when describing a capability. Scope limits are stated after the capability,
   as facts with reasons, in their own sentences.
-- Trailing "not a X" appositive tails ("a validation, not a guarantee").
-  Either the distinction deserves its own sentence or it goes.
+- Trailing negated appositive tails: ", not a X", ", not Y", ", never Z"
+  hung on the end of a statement ("a validation, not a guarantee";
+  "classified as arithmetic reproduction, not reproducibility"). No
+  exception for tails that seem informative, and no appeal to existing
+  documents that still carry the pattern. If the ruled-out alternative
+  matters, it gets its own sentence stating what it is and why this
+  case is not it: "classified as arithmetic reproduction. The stronger
+  reproducibility class requires inputs measured independently of the
+  published result, which this case does not have." A tacked-on half
+  sentence is fine only when it adds positive content ("classified as
+  arithmetic reproduction, a total-level check against published
+  inputs"); a negation adds none. One sentence per idea worth having.
 
 ## Meta-commentary and throat-clearing (blocker on sight)
 
