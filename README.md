@@ -40,48 +40,42 @@ pipeline with zero fitted parameters.
 
 ## What it does today
 
-- [x] **Imports your field export**: plain CSV, or COMSOL's native
-  `File > Export > Data` spreadsheet format, straight into the config
-- [x] **Quadratic DC-Stark shift** with published differential
-  polarizabilities for Sr-87 and Yb-171 (or any coefficient you supply)
-- [x] **Second-order Doppler** (relativistic time dilation) carried
-  exactly
-- [x] **Blackbody-radiation shift** for a uniform radiation temperature,
-  with published coefficients, checked against JILA's published
-  evaluation by arithmetic reproduction (a weaker class than an
-  independent measurement; see
-  [`docs/validation.md`](https://github.com/velar-mbr/CliffordClock/blob/main/docs/validation.md))
+- [x] **Field import**: plain CSV or COMSOL's `File > Export > Data`
+  spreadsheet, straight into the config
+- [x] **DC-Stark shift** with published polarizabilities for Sr-87 and
+  Yb-171, or any coefficient you supply
+- [x] **Second-order Doppler** carried exactly
+- [x] **Blackbody radiation**: one temperature or a full multi-surface
+  environment (surfaces table, YAML, or `--radiation-surfaces`), checked
+  against PTB's published formula and position scan (notebook 12)
+- [x] **Trapped-ion motional time dilation** from measured mode
+  frequencies and phonon numbers, two-ion participation and micromotion
+  factors included; the published Al⁺ evaluation lands at 0.10 sigma
+  (notebook 13)
+- [x] **Ramsey fringe visibility** from the motional state, thermal,
+  coherent, or squeezed
+- [x] **Ion quadrupole shift** for Ca⁺/Sr⁺/Ba⁺/Yb⁺ D/F states, and
+  static-field DC Stark for Al⁺/In⁺, with the micromotion boundary
+  stated on every report
+- [x] **Millimetre-scale lattice samples** with per-site frequency maps,
+  checked against the published Bothwell mm-scale redshift measurement
 - [x] **Real interrogation times**: a 1-second run costs seconds of
   compute
-- [x] **More than the mean shift**: the per-atom shift distribution
-  across your cloud, the dephasing time T₂* it implies, and the clock
-  line's spectral profile
-- [x] **Your atoms where they actually are**: thermal Monte-Carlo
-  clouds or lattice motional states, sampled through your species and
-  trap geometry
-- [x] **Numerics built for 1×10⁻¹⁸**: a signal 8 orders of magnitude
-  below the baseline survives, and tests prove it
-- [x] **Machine-readable reports** (JSON + CSV) carrying the provenance
-  of every coefficient, which paper, which value, in the output
-- [x] **Checked against things you already know**: textbook Stark
-  formulas with literature polarizabilities, exact closed forms, and
-  five literature known-answer cases, plus two published-measurement
-  reproductions (NPL's Rydberg electrometry, and Bothwell et al.'s
-  mm-scale gravitational-redshift measurement); see
-  [`docs/validation.md`](https://github.com/velar-mbr/CliffordClock/blob/main/docs/validation.md)
-- [x] **Two independent formulations that must agree**: a direct scalar
-  calculation and a geometric-algebra (Cl(1,3) rotor) engine, verified
-  against each other to machine precision on every case shipped
-- [x] **Ion-clock systematics**: static-field DC Stark for Al⁺/In⁺, and
-  the electric-quadrupole shift from your field gradient for
-  Ca⁺/Sr⁺/Ba⁺/Yb⁺ D/F states, with every ion report carrying the same
-  boundary line: the stray field that produces this shift also drives
-  an RF-trapped ion into excess micromotion, a separate and larger
-  pathway this release does not model
-- [x] **Millimetre-scale extended-lattice samples** with per-site
-  frequency maps (mean shift, spread, T₂*, and gravitational redshift
-  all included), checked against the published Bothwell mm-scale
-  redshift measurement
+- [x] **Beyond the mean shift**: per-atom distributions, T₂*, and the
+  line profile
+- [x] **Numerics for 1×10⁻¹⁸**, with tests that prove it
+- [x] **Reports with provenance**: JSON and CSV naming the paper behind
+  every coefficient
+- [x] **Validated**: five literature known-answer cases, two
+  published-measurement reproductions, and two independent formulations
+  (scalar and Cl(1,3) rotor) agreeing to machine precision
+
+Every comparison carries its evidentiary class: a reproduction of a
+published evaluation from its own inputs is labeled arithmetic
+reproduction, a weaker class than agreement with an independent
+measurement.
+[`docs/validation.md`](https://github.com/velar-mbr/CliffordClock/blob/main/docs/validation.md)
+keeps the ledger.
 
 See [`docs/roadmap.md`](https://github.com/velar-mbr/CliffordClock/blob/main/docs/roadmap.md) for what's next, and why it's
 queued the way it is.
