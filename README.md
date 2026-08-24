@@ -42,11 +42,17 @@ pipeline with zero fitted parameters.
   polarizabilities for Sr-87 and Yb-171 (or any coefficient you supply)
 - [x] **Second-order Doppler** (relativistic time dilation) carried
   exactly
-- [x] **Blackbody-radiation shift** for a uniform radiation temperature,
-  with published coefficients, checked against JILA's published
-  evaluation by arithmetic reproduction (a weaker class than an
-  independent measurement; see
-  [`docs/validation.md`](https://github.com/velar-mbr/CliffordClock/blob/main/docs/validation.md))
+- [x] **Blackbody-radiation shift**, with published coefficients, for a
+  single uniform temperature or a multi-surface radiation environment. A
+  multi-surface run takes each surface's own temperature, sensor
+  uncertainty, and emissivity, entered as a plain-text surfaces table or
+  inline YAML, or swapped in with the `--radiation-surfaces` CLI flag.
+  That path reduces to PTB's own published enclosure-and-apertures
+  formula and reproduces PTB's own measured position-resolved shift scan
+  inside its quoted uncertainty (notebook 12). The single-temperature
+  path is checked against JILA's published evaluation by arithmetic
+  reproduction, a weaker class than an independent measurement; see
+  [`docs/validation.md`](https://github.com/velar-mbr/CliffordClock/blob/main/docs/validation.md)
 - [x] **Real interrogation times**: a 1-second run costs seconds of
   compute
 - [x] **More than the mean shift**: the per-atom shift distribution
@@ -74,6 +80,18 @@ pipeline with zero fitted parameters.
   boundary line: the stray field that produces this shift also drives
   an RF-trapped ion into excess micromotion, a separate and larger
   pathway this release does not model
+- [x] **Quantum-motional time dilation for trapped ions**, evaluated
+  from measured mode frequencies and mean phonon numbers. For a two-ion
+  crystal, per-mode participation factors are reconstructed from the
+  measured mode spectrum, and the per-axis intrinsic-micromotion
+  enhancement is solved from the published drive frequency. The
+  published Al+ evaluation (Marshall et al.) is checked by arithmetic
+  reproduction, and the total agrees at 0.10 sigma, with per-mode
+  agreement documented and a characterized residual on the trap's
+  smaller-a axis (notebook 13)
+- [x] **Ramsey fringe visibility**, computed from the ensemble's
+  motional state, thermal, coherent, or squeezed, and reported as the
+  `ramsey_visibility`/`ramsey_phase` report fields (E39)
 - [x] **Millimetre-scale extended-lattice samples** with per-site
   frequency maps (mean shift, spread, T₂*, and gravitational redshift
   all included), checked against the published Bothwell mm-scale
