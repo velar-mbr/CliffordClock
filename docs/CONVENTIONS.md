@@ -1,6 +1,6 @@
 # Physics & Numerical Conventions: CliffordClock
 
-**Version:** 1.5.1 · **Status: reviewed and approved** (2026-08-11, per
+**Version:** 1.7.0 · **Status: reviewed and approved** (2026-08-11, per
 the project's G9 theory sign-off record, following
 the owner's trigger after reviewing the Fortier/Luiten/Margolis survey
 (Optica 13, 143 (2026)): mm-scale extended samples and their gravitational
@@ -8,6 +8,12 @@ redshift observable), **plus §13's E37 addition (2026-08-22, WP29 Tier 1)**,
 a multi-surface generalization of the already-approved E32/E33 BBR term
 specified directly by the project owner following the project's internal
 BBR thermal-environment research dossier, not carrying its own separate
+formalism sign-off record, **plus §16's E38 addition (2026-08-22, WP30)**,
+the quantum-motional second-order-Doppler (time-dilation) pivot term
+specified directly by the project owner, likewise not carrying its own
+separate formalism sign-off record, **plus §8's E39 addition and §16's
+participation-factor extension (2026-08-22, WP31)**, both specified
+directly by the project owner, likewise not carrying their own separate
 formalism sign-off record. §15 (E36) was approved 2026-08-11
 conditional on the A1 computed-magnitude regression and the A4 extended-mode
 dispersion-labeling edit; see §15's sign-off note for the itemized record.
@@ -295,6 +301,90 @@ generalization for quadrature nodes; computed by Welford/two-pass, never
 **(E28) Line profile:** `I(ω)` = Fourier transform of `C(t)` over the
 interrogation window; reported as `(frequency offset in Hz, normalized
 amplitude)`.
+
+**(E39) Coherent (phase-resolved) rotor composition and Ramsey
+visibility (v1.7.0, WP31).** Each worldline `k` carries an accumulated
+perturbation phase `ΔΦ_k` (E22) and, via `exp(ΔΦ_k · B̂_C)` (E6, `B̂_C =
+e₁∧e₂` per E18), a unit rotor `R_k` confined to the engine's internal-
+circulation plane (`R_k R̃_k = 1`, even subalgebra): the rotor-algebra
+restatement of E26's own `exp(i ΔΦ_k)` phase factor under the
+identification `e₁₂ <-> i`. The ensemble's coherence object is the
+POPULATION-WEIGHTED COHERENT SUM of these per-worldline rotor phase
+factors:
+
+    M = Σ_k p_k R_k
+
+with `p_k` the ensemble's existing PROBABILITY weights (E23's own
+convention: uniform `1/M` for classical Monte-Carlo, quadrature weights
+for lattice motional nodes). `M` is **deliberately not a rotor**: its
+modulus, projected onto the `B̂_C` plane, IS the Ramsey fringe visibility
+`V`, and `1 − V` the decoherence:
+
+    V = sqrt(⟨M̃M⟩₀-like scalar norm, B̂_C-plane projection) <= 1
+    fringe phase = argument of M in the B̂_C plane
+
+**The combiner sums the group elements linearly and never renormalizes**
+(the central rule, with its reason). Two classic errors this rule
+guards against:
+
+(a) Summing the per-worldline PHASES and exponentiating the mean
+    (`|exp(i·Σ p_k ΔΦ_k)|`) gives modulus `1` identically, for ANY phase
+    spread: no visibility loss is representable at all, because the
+    spread information is discarded before the modulus is ever taken.
+(b) Renormalizing `M` back to a unit rotor (the "average of rotations
+    should itself be a rotation" instinct) erases exactly the signal E39
+    exists to report: a renormalized `M` has modulus `1` by construction,
+    regardless of the true spread.
+
+Both errors are encoded directly as kill tests
+(`tests/test_coherent_visibility.py`): a phase-averaging combiner and a
+renormalizing combiner must each be shown to disagree with the real
+combiner on a spread ensemble, landing at `V = 1` where the real
+combiner does not.
+
+**Gaussian closure (the validation identity).** For Gaussian-distributed
+accumulated phases, `ΔΦ_k ~ N(μ, σ_Φ²)`, the characteristic-function
+identity `E[exp(i·ΔΦ)] = exp(iμ − σ_Φ²/2)` (the SAME identity E27's own
+Gaussian inhomogeneous-dephasing derivation already uses) gives
+
+    V = exp(−σ_Φ²/2)   exactly.
+
+**Scope boundary (Gaussian motional states only, stated everywhere this
+module's output reaches a report).** Valid only for GAUSSIAN-distributed
+accumulated phases: thermal, coherent, and squeezed motional states,
+because those are genuine positive distributions over worldlines (a
+classical-ensemble sampler can draw real worldlines from them). Fock
+states with `n >= 1` and cat states are NOT Gaussian-distributed
+positive distributions over worldlines and are out of scope for this
+worldline-ensemble representation; they are flagged as such, not
+silently misreported.
+
+**Squeezed-motional-state sampling.** The classical ensemble sampler
+(`cliffordclock.ensemble.classical.sample_maxwell_boltzmann`) accepts an
+optional per-axis squeezing parameter `r` (config: `ensemble.squeezing_r`,
+absent by default: today's unsqueezed thermal sampling, reproduced
+bitwise): the trap-frame POSITION quadrature variance is scaled by
+`exp(-2r)` and the VELOCITY quadrature variance by `exp(+2r)` per axis
+(the engine's convention: positive `r` squeezes position and
+antisqueezes velocity, preserving the phase-space area exactly since
+`exp(-r)·exp(+r) = 1`). The SAME sampled `(positions, velocities)` draw
+feeds every downstream classical-ensemble observable: the pre-existing
+mean-shift/E23 pipeline and the new `ramsey_visibility`/`ramsey_phase`
+report fields both consume this one draw (class-`i` consistency: no
+separate, independently-resampled distribution for the two).
+
+**Implementation.** `cliffordclock.integrator.coherence.phase_to_rotor`
+builds each worldline's `R_k`; `coherent_rotor_composition` computes `M`
+(a plain population-weighted linear sum, no renormalization);
+`ramsey_visibility_and_phase` projects `M` onto `B̂_C` and returns
+`(V, phase)`. Wired into the worldline ensemble path
+(`cliffordclock.pipeline.run_pipeline_full`): a run whose resolved
+`integration.mode` is `"direct"` or `"worldline"` (the two modes that run
+a genuine per-worldline dynamical phase accumulation, as opposed to
+`"fast_path"`/`"secular"`'s closed-form expectations) reports
+`ramsey_visibility`/`ramsey_phase` (`MetrologyReport`,
+`REPORT_SCHEMA_VERSION` bumped to `"1.1"`), with the Gaussian-only scope
+note folded into `uncertainty_notes` whenever they are populated.
 
 ## 9. Closed-form validation cases (used by the integrator and pipeline test suites)
 
@@ -1153,8 +1243,220 @@ comparison, with the mapping stated explicitly in the script and its
 report, so the sign agreement with Bothwell's published gradient is
 deliberate, not coincidental.
 
+## 16. Quantum-motional second-order Doppler (time-dilation) pivot term (v1.6.0, WP30)
+
+Motivation (project owner): the second-order (quadratic) Doppler shift from
+an ion or atom's own residual motion in its trap is the DOMINANT systematic
+of trapped-ion optical clocks (e.g. the Al-27+ secular-motion budget line
+already carried in this project's ion-species report notes,
+`cliffordclock.ensemble.species.ION_MICROMOTION_NOTES["Al27+"]`: "-17.3(2.9)e-19",
+Brewer et al., Phys. Rev. Lett. 123, 033201 (2019)) and a real budget row
+for lattice clocks too. E32/E33's BBR term and E36's gravitational term are
+both scalar, position-dependent (or uniform) pivot contributions; E38 is
+the third scalar contribution this document adds, and the first driven by
+the atom's *motional quantum state* itself, not its field environment or
+height.
+
+**(E38) Motional time-dilation term.** For an atom/ion in harmonic
+confinement, near its motional ground state, with `N` normal modes indexed
+`i`, each having an ORDINARY (not angular) mode frequency `f_i` (hertz,
+e.g. as reported directly by resolved-sideband thermometry) and a mean
+vibrational occupation number `n_bar_i` (also from sideband thermometry, or
+an equivalent Doppler-limit statement), the mode ANGULAR frequency is
+
+    omega_i = 2 * pi * f_i
+
+and the velocity-variance expectation over the motional state is
+
+    <v^2> = sum_i (hbar * omega_i / m) * (n_bar_i + 1/2)
+
+with `m` the SPECIES mass (`cliffordclock.ensemble.species.Species.mass_kg`,
+resolved from the registry, never hand-typed) and `hbar`
+(`cliffordclock.constants.HBAR`) this document's `hbar = h/2pi` (§1). The
+fractional time-dilation shift is the second-order-Doppler form already
+used everywhere else in this document (E21's kinematic factor, `sqrt(1 -
+v^2/c^2) - 1 ~= -v^2/(2c^2)` for `v << c`), here evaluated as an
+EXPECTATION VALUE over the quantum motional state, in place of a classical
+instantaneous velocity:
+
+    (P-1)_motional = -<v^2> / (2 * c^2)
+
+**CAREFUL: mode frequencies are ordinary frequencies, not angular.** Sideband
+thermometry reports `f_i` in hertz (or MHz); supplying an already-angular
+value here would silently overstate `<v^2>`, and hence the shift, by a
+factor of `(2*pi)^2 ~= 39.5`. The explicit `omega_i = 2*pi*f_i` conversion
+above is mandatory at every call site; `cliffordclock.integrator.omega.MotionalMode.frequency_hz`'s
+docstring states this explicitly and
+`cliffordclock.integrator.omega.motional_mean_squared_velocity_m2_s2`/
+`motional_pivot_perturbation` perform the conversion internally so no
+caller ever multiplies by `2*pi` (or fails to) on its own.
+
+**Ground-state limit.** `n_bar_i = 0` for every mode does not make
+`(P-1)_motional` zero: the `+1/2` zero-point term alone still contributes
+`<v^2> = sum_i (hbar*omega_i/2m)`, the irreducible quantum-mechanical
+motional-Doppler floor even for an atom cooled exactly to its motional
+ground state.
+
+**Per-mode participation factors for multi-ion crystals (v1.7.0, WP31).**
+In a mixed-species crystal each normal mode's energy divides between the
+trapped ions by the squared components of the mass-weighted eigenvectors:
+the CLOCK ion does not carry a mode's ENTIRE `<v^2>` contribution unless
+it is the only ion sharing that mode. The formula generalizes to
+
+    <v^2> = sum_i (hbar * omega_i / m_clock) * participation_i * (n_bar_i + 1/2)
+
+with `participation_i` in `(0, 1]` the clock ion's squared mass-weighted
+eigenvector component in mode `i`
+(`cliffordclock.integrator.omega.MotionalMode.participation`), default
+`1.0`, reproducing today's single-species formula bitwise. For a
+TWO-ION crystal the eigenvector components are closed-form functions of
+the mass ratio `mu = m_partner/m_clock` for the AXIAL pair (the standard
+two-ion normal-mode solution: an in-phase and an out-of-phase mode; the
+equal-mass limit gives `participation = 1/2` for both modes, each ion
+carrying exactly half); `cliffordclock.integrator.omega.two_ion_participations`
+implements this closed form, applying it (as a documented approximation,
+not an additional exact result) to the two radial pairs too, since the
+full radial closed form additionally depends on trap RF/DC geometry
+parameters beyond the mass ratio alone; see that function's docstring
+for the derivation, its citation, and the radial scope caveat.
+`benchmarks/run_motional_al_ion.py` compares both the single-mass
+(`participation=1.0`) and participation-corrected variants against a
+published two-ion crystal's per-mode data.
+
+**Remaining scope boundary.** With the two-ion partition now consumed,
+what remains open is (i) `N > 2`-ion crystals, which need a numeric
+normal-mode eigensolver (no closed form in general), and (ii) the
+RF/micromotion dynamics package (unrelated to participation: see the EMM
+paragraph below).
+
+**Optional second input channel: excess micromotion (EMM).** Ion-trap
+clocks additionally accumulate a time-dilation shift from excess
+micromotion, the atom's forced oscillation at the trap's RF drive frequency
+when displaced from the RF null by a stray DC field (Berkeland, Miller,
+Bergquist, Itano, Wineland, J. Appl. Phys. 83, 5025 (1998), the canonical
+treatment already cited by this project's ion-species micromotion-boundary
+notes). This project does not model the RF trap dynamics that PRODUCE EMM
+(the stray-field-induced displacement from the RF null, the resulting
+time-varying velocity at the RF drive frequency); that treatment is a
+genuine roadmap package, not built here. Instead, `E38` accepts a lab's
+own MEASURED EMM characterization, already reduced by the lab to an
+equivalent rms velocity
+`v_rms_emm_m_s` (a common form published EMM characterizations already
+report, or one an equivalent published fractional shift can be converted
+to), adding its square directly to the motional-state `<v^2>`:
+
+    <v^2> = sum_i (hbar * omega_i / m) * (n_bar_i + 1/2) + v_rms_emm^2
+
+This is exactly the same "characterization taken as an input, not
+independently re-derived" pattern E37 already uses for a lab's own
+solid-angle/emissivity characterization (§13's "Surfaces and weights" note:
+"the fractions are an input, not a computed quantity"): `v_rms_emm_m_s`
+is the lab's own number, not something this tier computes from trap RF
+parameters.
+
+**No double-counting (the central argument).** The engine already carries
+second-order Doppler through the kinematic factor `sqrt(1 - v^2/c^2)` in
+E15/E21 along CLASSICAL trajectories: for `ensemble.regime="classical"`
+(the Monte-Carlo ensemble, real trajectories with real, nonzero sampled
+velocities), this kinematic factor is already the physically correct,
+complete second-order-Doppler shift for that ensemble's classical motion,
+and composing E38 there on top of it would double-count the same physics
+under two different accounting schemes. The trapped regimes
+(`ensemble.regime="lattice"`/`"lattice_extended"`) instead evaluate at
+STATIC quadrature nodes (`v = 0` exactly, E29's own scope statement: "every
+node has `v = 0`... [E29] omits the motional second-order Doppler... a
+real, separately-budgeted clock systematic"), which is precisely WHY the
+quantum-motional term is missing there and precisely why adding E38 in
+those regimes cannot double-count: the classical kinematic contribution
+`-v^2/(2c^2)` is IDENTICALLY zero at a static node (`v = 0` makes the
+kinematic term vanish exactly, an exact cancellation, not an approximate
+one), so E38 supplies genuinely new physics at that node, never a second
+accounting of physics already present. `cliffordclock.pipeline` enforces the
+complementary half of this argument mechanically:
+`environment.motional_state` paired with `ensemble.regime: classical`
+raises `PipelineConfigError` at config-parse time, naming this exact
+double-counting hazard; `ensemble.regime: lattice`/`lattice_extended` are
+the only regimes E38 may be configured for.
+
+**Composition (E33's pattern, spatially uniform).** Like E32's BBR term
+(a single radiation temperature/environment, not a `T(r)` map), E38's
+motional state is ONE motional state per run: every atom in the ensemble
+is assumed to share the identical set of normal-mode occupations, not a
+per-atom motional map (a genuine extension for future work, exactly
+analogous to E37's own per-atom-solid-angle-map scope boundary, §13's
+"Scope boundary" note). `E38` composes additively into `(P-1)` per E33:
+
+    P(r) - 1 = (P-1)_stark(r) + (P-1)_BBR + (P-1)_Q(r) + (P-1)_grav(r) + (P-1)_motional + ...
+
+Because `(P-1)_motional` is spatially uniform, its gradient is exactly
+zero, so it reaches `spin_connection_stark`'s `P` denominator exactly as
+BBR's/gravity's own "shifts the denominator only" composition note
+already describes, contributing nothing to that function's
+numerator/gradient term.
+Threading mirrors `bbr_pivot_perturbation`'s keyword-only composition
+pattern exactly: a new `motional_pivot_perturbation` parameter on
+`cliffordclock.integrator.omega.pivot_perturbation_stark`/
+`spin_connection_stark`/`scalar_rate_perturbation_stark`/
+`build_omega_stark`, default `0.0`, composed into every evaluation mode
+(`fast_path`/`worldline`, the only two modes `ensemble.regime:
+lattice`/`lattice_extended` support) via `cliffordclock.pipeline`'s
+`_make_stark_rate_fn`/`_stark_rotor_ensemble`, exactly as
+`bbr_pivot_perturbation` already is.
+
+**Uncertainty propagation.** Writing `omega_i = 2*pi*f_i`, the partial
+derivatives of `(P-1)_motional` with respect to each input are:
+
+    d(P-1)/d(n_bar_i)   = -(hbar * omega_i / m) / (2*c^2)
+    d(P-1)/d(f_i)       = -(hbar * 2*pi * (n_bar_i + 1/2) / m) / (2*c^2)
+    d(P-1)/d(v_rms_emm) = -v_rms_emm / c^2
+
+Each mode's `n_bar_i`/`f_i` 1-sigma uncertainty and `v_rms_emm`'s own
+1-sigma uncertainty propagate through these exact partials and combine in
+quadrature (independent-error assumption, the same "arithmetic-
+reproduction fidelity, not an independent physics-accuracy claim" caveat
+E32's uncertainty note already states for its own registry-coefficient
+propagation): this is the propagated uncertainty of the SUPPLIED mode/EMM
+inputs, not an independent assessment of the underlying trap physics.
+Implemented in `cliffordclock.integrator.omega.motional_pivot_uncertainty`.
+
+**Config surface.** `environment.motional_state` (a list of per-mode
+`name`/`frequency_Hz`/`n_bar`/`n_bar_uncertainty`/`frequency_uncertainty_Hz`
+entries plus an optional `v_rms_emm_m_s`/`v_rms_emm_uncertainty_m_s` pair,
+`cliffordclock.pipeline.MotionalStateConfig`), requiring
+`coupling.type: stark_dc` (mirrors E32/E36/E34's own cross-field
+requirement: the composition point is the E14b Stark rate function) and
+rejected for `ensemble.regime: classical` (the no-double-counting argument
+above). The pipeline report's `uncertainty_notes` states every configured
+mode by name with its frequency and `n_bar`, the resolved `<v^2>`, the
+resulting `(P-1)_motional` shift, the EMM input when present, the
+propagated uncertainty, and the excess-micromotion roadmap-boundary note
+verbatim (`cliffordclock.pipeline._resolve_motional_pivot_perturbation`).
+
 ---
 *Changelog:*
+*1.7.0 (2026-08-22): WP31, specified directly by the project owner (no
+separate formalism sign-off ceremony recorded for this entry): §8 added
+(E39 coherent/phase-resolved rotor composition and Ramsey visibility: the
+population-weighted linear-sum combiner and its no-renormalization rule,
+the two-classic-errors kill-test discussion, the `B̂_C`-plane projection
+convention, the Gaussian closure validation identity `V = exp(-sigma_Phi^2/2)`,
+the Gaussian-motional-state-only scope boundary, and the squeezed-thermal
+classical-sampler extension, `ensemble.squeezing_r`); §16 (E38) extended
+with the per-mode participation-factor generalization (multi-ion
+crystals), the closed-form two-ion axial eigenvector solution and its
+documented radial-approximation scope caveat, and the narrowed remaining
+scope boundary (N>2 crystals need a numeric eigensolver; RF/micromotion
+unchanged).*
+*1.6.0 (2026-08-22): WP30, specified directly by the project owner (no
+separate formalism sign-off ceremony recorded for this entry, mirroring
+1.5.0/E37's record): §16 added (E38 quantum-motional second-order-Doppler
+pivot term: the hbar/m/2pi-explicit `<v^2>` formula, the ground-state
+zero-point floor, the excess-micromotion optional input channel and its
+RF-dynamics roadmap-boundary scope statement, the no-double-counting
+argument against the existing E15/E21 classical kinematic term and its
+CONVENTIONS-level statement of the config-parse-time
+`ensemble.regime="classical"` rejection, E33-pattern spatially-uniform
+composition, and uncertainty-propagation partials).*
 *1.5.1 (2026-08-23): WP29 Tier 1 Part 1, tooling/input-format addition, no
 formalism change (no separate sign-off ceremony recorded, same basis as
 1.5.0): §13's E37 `environment.radiation_environment.surfaces` list gains

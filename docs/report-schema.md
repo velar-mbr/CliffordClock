@@ -8,7 +8,8 @@ companion line-profile CSV. Formulas are `docs/CONVENTIONS.md` E23
 
 ## `write_json` output
 
-Top-level object, schema version `"report_schema": "1.0"`. Key order is
+Top-level object, schema version `"report_schema": "1.1"` (bumped from
+`"1.0"` in WP31: `ramsey_visibility`/`ramsey_phase` added). Key order is
 stable (matches the field order below; do not rely on alphabetical
 order). Floats are written with full precision (`repr`-roundtrip safe;
 Python's `json` encoder already guarantees this for finite floats, so no
@@ -44,7 +45,7 @@ bit-identically; only those two can ever be `null`.
 
 | field | type | units | notes |
 |---|---|---|---|
-| `report_schema` | string | n/a | this schema's version, currently `"1.0"` |
+| `report_schema` | string | n/a | this schema's version, currently `"1.1"` |
 | `conventions_version` | string | n/a | `docs/CONVENTIONS.md` version the formulas trace to (currently `"1.1.0"`) |
 | `package_version` | string | n/a | `cliffordclock` package version (`importlib.metadata`) |
 | `generated_at_utc` | string | n/a | ISO-8601 UTC timestamp |
@@ -57,6 +58,8 @@ bit-identically; only those two can ever be `null`.
 | `shift_std_error` | float or `null` | dimensionless | standard error of `mean_fractional_shift`; `null` when undefined (M=1): see the null convention above |
 | `t2_star_s` | float or `null` | seconds | inhomogeneous dephasing time `T2*` (E27); `null` when undefined (M=1) or infinite (zero phase variance): see the null convention above |
 | `uncertainty_notes` | string | n/a | free-text systematic-uncertainty notes; no budget model (out of scope for this module) |
+| `ramsey_visibility` | float or `null` | dimensionless | Ramsey fringe visibility `V` (WP31, CONVENTIONS.md section 8 E39), `0 <= V <= 1`; `null` unless the run's `integration.mode` resolved to `"direct"`/`"worldline"` (a genuine per-worldline dynamical phase accumulation); valid only for Gaussian-distributed accumulated phases (see `uncertainty_notes`) |
+| `ramsey_phase` | float or `null` | radians | Ramsey fringe phase, in `(-pi, pi]` (E39); `null` under the same condition as `ramsey_visibility` (both populated, or neither) |
 
 ## `write_line_profile_csv` output
 

@@ -120,6 +120,35 @@ map in this tier) and its spin-connection contribution is exactly zero for
 the same reason WP20's is. See ``cliffordclock.pipeline``'s WP29
 module-docstring note for
 ``environment.radiation_environment``/:class:`RadiationEnvironmentConfig`.
+
+WP30 scope note (CONVENTIONS.md E38, quantum-motional second-order-Doppler
+pivot term): :func:`motional_pivot_perturbation` computes ``(P-1)_motional
+= -<v^2>/(2c^2)`` from a set of trapped-motion normal modes
+(:class:`MotionalMode`, each carrying a mode ORDINARY frequency ``f_i`` in
+hertz, converted internally via ``omega_i = 2*pi*f_i``, and a mean
+vibrational occupation ``n_bar_i``) plus an optional measured excess-
+micromotion rms velocity, evaluated against the species' registry mass
+(`~cliffordclock.ensemble.species.Species.mass_kg`, never hand-typed);
+:func:`motional_pivot_uncertainty` propagates the per-mode/EMM input
+uncertainties. Threading mirrors :func:`bbr_pivot_perturbation`'s
+keyword-only composition pattern exactly (a new
+``motional_pivot_perturbation`` parameter on
+:func:`pivot_perturbation_stark`/:func:`spin_connection_stark`/
+:func:`scalar_rate_perturbation_stark`/:func:`build_omega_stark`, default
+``0.0``): this project's motional state is one state per run, spatially
+uniform across the atom cloud exactly like BBR's single radiation
+temperature (a per-atom motional map is future work, CONVENTIONS.md E38's
+composition note), so it shifts :func:`spin_connection_stark`'s `P`
+denominator only, never its numerator/gradient term. **No double-counting
+with the existing kinematic second-order Doppler carried by E15/E21's**
+``sqrt(1-v^2/c^2)`` **factor:** every call site this parameter composes at
+evaluates STATIC (``v = 0`` exactly) lattice/lattice_extended quadrature
+nodes, so the classical kinematic contribution is identically zero there,
+which is precisely why the quantum-motional term is otherwise missing and
+precisely why adding it cannot double-count (CONVENTIONS.md E38's central
+argument, also why ``cliffordclock.pipeline`` rejects any
+`environment.motional_state` paired with `ensemble.regime: classical`,
+where velocities are real and sampled, at config-parse time).
 """
 
 from __future__ import annotations
@@ -131,7 +160,13 @@ from dataclasses import dataclass
 import jax.numpy as jnp
 
 from cliffordclock.cl13 import IDX_E01, IDX_E02, IDX_E03, IDX_E12
-from cliffordclock.constants import ELECTRON_MASS, LAMBDA_BAR_COMPTON, PLANCK_H, SPEED_OF_LIGHT
+from cliffordclock.constants import (
+    ELECTRON_MASS,
+    HBAR,
+    LAMBDA_BAR_COMPTON,
+    PLANCK_H,
+    SPEED_OF_LIGHT,
+)
 from cliffordclock.ensemble.species import (
     BBR_REFERENCE_TEMPERATURE_K,
     EA0_SQUARED_SI,
@@ -451,6 +486,7 @@ def pivot_perturbation_stark(
     bbr_pivot_perturbation: jnp.ndarray | float = 0.0,
     quadrupole_pivot_perturbation: jnp.ndarray | float = 0.0,
     grav_pivot_perturbation: jnp.ndarray | float = 0.0,
+    motional_pivot_perturbation: jnp.ndarray | float = 0.0,
 ) -> jnp.ndarray:
     """``P(r) − 1`` under the physical quadratic DC-Stark coupling (E14b).
 
@@ -460,10 +496,11 @@ def pivot_perturbation_stark(
     relies on, E10) plus `bbr_pivot_perturbation` (E33 additive scalar
     composition, WP20/CONVENTIONS.md E32-E33) plus
     `quadrupole_pivot_perturbation` (E35, WP21 Tier 2) plus
-    `grav_pivot_perturbation` (E36, WP22): ``P(r) − 1 = (P−1)_stark +
-    (P−1)_BBR + (P−1)_Q + (P−1)_grav``. All three default to ``0.0`` (an
+    `grav_pivot_perturbation` (E36, WP22) plus `motional_pivot_perturbation`
+    (E38, WP30): ``P(r) − 1 = (P−1)_stark + (P−1)_BBR + (P−1)_Q +
+    (P−1)_grav + (P−1)_motional``. All four default to ``0.0`` (an
     exact no-op: ``x + 0.0 == x`` in IEEE 754 for any finite `x`), so
-    every pre-WP20/WP21/WP22 call site is unaffected -- see
+    every pre-WP20/WP21/WP22/WP30 call site is unaffected -- see
     :func:`bbr_pivot_perturbation` for computing the BBR term from a
     registry species and radiation temperature, the module-level
     :func:`quadrupole_pivot_perturbation` (WP21, note the same name --
@@ -471,11 +508,15 @@ def pivot_perturbation_stark(
     computed by the caller from the local field-gradient tensor and
     passed in here, exactly mirroring how `bbr_pivot_perturbation` the
     parameter relates to `bbr_pivot_perturbation` the function) for
-    computing the quadrupole term itself, and the module-level
+    computing the quadrupole term itself, the module-level
     :func:`grav_pivot_perturbation` (WP22, same "parameter vs. function"
     naming pattern -- computed by the caller from each point's height via
     :func:`height_along_axis` and passed in here) for the gravitational
-    term.
+    term, and the module-level :func:`motional_pivot_perturbation` (WP30,
+    the same "parameter vs. function" naming pattern, computed by the
+    caller once per run from the configured motional modes and passed in
+    here, exactly like `bbr_pivot_perturbation`) for the quantum-motional
+    second-order-Doppler term.
 
     ``tests/test_stark_pivot.py`` (WP7 test contract item 3) verifies the
     `cross` term of :func:`stark_pivot_terms` against a 50-digit `decimal`
@@ -517,6 +558,14 @@ def pivot_perturbation_stark(
         (E36 composition, additive per E33's pattern; G9 sign-off A2:
         no cross term with the Stark/BBR terms at this project's working
         precision).
+    motional_pivot_perturbation : jax.Array | float, default 0.0
+        ``(P−1)_motional`` (E38, WP30), the already-evaluated quantum-
+        motional second-order-Doppler pivot term (module-level
+        :func:`motional_pivot_perturbation`), a single scalar (this
+        project's motional state is one state per run, spatially uniform
+        across `e0`/`delta_e`'s batch axes, exactly like
+        `bbr_pivot_perturbation`) added into the returned `P − 1` (E38
+        composition, E33's additive pattern).
 
     Returns
     -------
@@ -537,6 +586,7 @@ def pivot_perturbation_stark(
         + bbr_pivot_perturbation
         + quadrupole_pivot_perturbation
         + grav_pivot_perturbation
+        + motional_pivot_perturbation
     )
 
 
@@ -557,6 +607,7 @@ def spin_connection_stark(
     bbr_pivot_perturbation: jnp.ndarray | float = 0.0,
     quadrupole_pivot_perturbation: jnp.ndarray | float = 0.0,
     grav_pivot_perturbation: jnp.ndarray | float = 0.0,
+    motional_pivot_perturbation: jnp.ndarray | float = 0.0,
 ) -> jnp.ndarray:
     """Spin connection boost components ``ω_{0k}(r) = ∂_k ln P(r)`` (E16) under E14b.
 
@@ -597,6 +648,14 @@ def spin_connection_stark(
     threaded through the same `P`-denominator-only pattern as
     `bbr_pivot_perturbation`/`quadrupole_pivot_perturbation` above for API
     consistency rather than out of numerical necessity.
+
+    WP30 note (CONVENTIONS.md E38's composition note): `motional_pivot_perturbation`
+    shifts only this function's `P` denominator, never the numerator --
+    for the SAME reason as `bbr_pivot_perturbation`: this project's
+    motional state is one state per run, spatially uniform across the
+    atom cloud exactly like BBR's single radiation temperature (a per-atom
+    motional map is future work, CONVENTIONS.md E38's composition note),
+    so ``∇ln P_motional = 0`` exactly.
 
     E14b's pivot is ``P(r) − 1 = prefactor·|E(r)|²`` with ``prefactor =
     k_S/ν₀ = −Δα/(2hν₀)`` (:func:`stark_pivot_terms`). Differentiating,
@@ -641,6 +700,9 @@ def spin_connection_stark(
     grav_pivot_perturbation : jax.Array | float, default 0.0
         ``(P−1)_grav`` (E36, WP22); see :func:`pivot_perturbation_stark`.
         Affects only the ``P`` denominator here (see the WP22 note above).
+    motional_pivot_perturbation : jax.Array | float, default 0.0
+        ``(P−1)_motional`` (E38, WP30); see :func:`pivot_perturbation_stark`.
+        Affects only the ``P`` denominator here (see the WP30 note above).
 
     Returns
     -------
@@ -663,6 +725,7 @@ def spin_connection_stark(
         bbr_pivot_perturbation=bbr_pivot_perturbation,
         quadrupole_pivot_perturbation=quadrupole_pivot_perturbation,
         grav_pivot_perturbation=grav_pivot_perturbation,
+        motional_pivot_perturbation=motional_pivot_perturbation,
     )
 
     k_s = species_or_coeffs.resolve_stark_coefficient_hz_per_v2_m2()
@@ -685,6 +748,7 @@ def scalar_rate_perturbation_stark(
     bbr_pivot_perturbation: jnp.ndarray | float = 0.0,
     quadrupole_pivot_perturbation: jnp.ndarray | float = 0.0,
     grav_pivot_perturbation: jnp.ndarray | float = 0.0,
+    motional_pivot_perturbation: jnp.ndarray | float = 0.0,
 ) -> jnp.ndarray:
     """Instantaneous fractional rate perturbation ``δω̃(r, v)`` (E21) under E14b.
 
@@ -728,6 +792,18 @@ def scalar_rate_perturbation_stark(
         above (E36) -- this is the rotor's "scalar pivot" route the G9
         sign-off refers to (the coefficient of the `B̂_C` rotation plane in
         :func:`build_omega_stark`, below).
+    motional_pivot_perturbation : jax.Array | float, default 0.0
+        ``(P−1)_motional`` (E38, WP30); see :func:`pivot_perturbation_stark`.
+        Composed into `p_minus_1` the same way as `bbr_pivot_perturbation`
+        above (E38): this term is a *separate* physical mechanism from the
+        `kinematic`/`gamma_inv` term computed below. CONVENTIONS.md E38's
+        no-double-counting argument is that `gamma_inv` here is evaluated
+        at the CLASSICAL trajectory velocity `v` (identically zero at
+        every static lattice/lattice_extended node this parameter is ever
+        composed for), while `motional_pivot_perturbation` supplies the
+        QUANTUM motional-state expectation `-<v^2>/(2c^2)` that a `v=0`
+        classical velocity cannot see; the two never double-count the same
+        physics.
 
     Returns
     -------
@@ -742,6 +818,7 @@ def scalar_rate_perturbation_stark(
         bbr_pivot_perturbation=bbr_pivot_perturbation,
         quadrupole_pivot_perturbation=quadrupole_pivot_perturbation,
         grav_pivot_perturbation=grav_pivot_perturbation,
+        motional_pivot_perturbation=motional_pivot_perturbation,
     )
     v = jnp.asarray(v, dtype=jnp.float64)
     v2 = jnp.sum(v * v, axis=-1)
@@ -762,6 +839,7 @@ def build_omega_stark(
     bbr_pivot_perturbation: jnp.ndarray | float = 0.0,
     quadrupole_pivot_perturbation: jnp.ndarray | float = 0.0,
     grav_pivot_perturbation: jnp.ndarray | float = 0.0,
+    motional_pivot_perturbation: jnp.ndarray | float = 0.0,
 ) -> jnp.ndarray:
     """Interaction bivector ``Ω(r)`` (E18) under the E14b quadratic DC-Stark pivot.
 
@@ -811,6 +889,15 @@ def build_omega_stark(
         `ω_boost`'s numerator (see that function's WP22 docstring note:
         provably zero-effect for every `v = 0` static-node call site this
         project ships, not merely bounded).
+    motional_pivot_perturbation : jax.Array | float, default 0.0
+        ``(P−1)_motional`` (E38, WP30); see :func:`pivot_perturbation_stark`.
+        Reaches the rotation coefficient (the `B̂_C` plane) exactly as the
+        Stark/BBR/quadrupole/grav terms do; see
+        :func:`scalar_rate_perturbation_stark`'s WP30 docstring note for
+        why this never double-counts the classical kinematic term already
+        carried by `v`, and :func:`spin_connection_stark`'s `P`
+        denominator only (CONVENTIONS.md E38's composition note: spatially
+        uniform, exactly like `bbr_pivot_perturbation`).
 
     Returns
     -------
@@ -836,6 +923,7 @@ def build_omega_stark(
         bbr_pivot_perturbation=bbr_pivot_perturbation,
         quadrupole_pivot_perturbation=quadrupole_pivot_perturbation,
         grav_pivot_perturbation=grav_pivot_perturbation,
+        motional_pivot_perturbation=motional_pivot_perturbation,
     )  # (...,)
     omega_0k = spin_connection_stark(
         e_total,
@@ -844,6 +932,7 @@ def build_omega_stark(
         bbr_pivot_perturbation=bbr_pivot_perturbation,
         quadrupole_pivot_perturbation=quadrupole_pivot_perturbation,
         grav_pivot_perturbation=grav_pivot_perturbation,
+        motional_pivot_perturbation=motional_pivot_perturbation,
     )  # (..., 3), 1/m
     omega_tilde_0k = LAMBDA_BAR_COMPTON * omega_0k  # (..., 3), dimensionless (E18)
     boost_coeff = (v / SPEED_OF_LIGHT) * omega_tilde_0k  # (..., 3), coefficient of e_k ^ e_0
@@ -1800,3 +1889,374 @@ def grav_pivot_perturbation(
     """
     height_m = jnp.asarray(height_m, dtype=jnp.float64)
     return g_m_s2 * (height_m - reference_height_m) / SPEED_OF_LIGHT**2
+
+
+# ---------------------------------------------------------------------------
+# WP30: quantum-motional second-order-Doppler (time-dilation) pivot term
+# (CONVENTIONS.md section 16, E38). Pure Python float arithmetic (not
+# jax-batched), mirroring the WP20/WP29 BBR functions' style, not the
+# batched jax.Array style of the E14a/E14b/quadrupole/gravity functions
+# above: like BBR's radiation temperature, this project's motional state is
+# a per-run config-level scalar (one motional state, one species), not a
+# per-atom/per-node batched quantity.
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class MotionalMode:
+    """One normal (secular) motional mode contributing to E38's ``<v^2>``
+    (CONVENTIONS.md section 16).
+
+    Attributes
+    ----------
+    frequency_hz : float
+        This mode's ORDINARY frequency ``f_i``, hertz, e.g. as reported
+        directly by resolved-sideband thermometry, NOT the angular
+        frequency. `motional_pivot_perturbation`/
+        `motional_mean_squared_velocity_m2_s2` convert internally via
+        ``omega_i = 2*pi*f_i`` (CONVENTIONS.md E38's explicit hbar/m/2pi
+        convention: supplying an already-angular frequency here would
+        silently overstate the shift by ``(2*pi)^2 ~ 39.5x``). Must be
+        `> 0`.
+    n_bar : float
+        Mean vibrational occupation number of this mode (from sideband
+        thermometry, or an equivalent Doppler-limit statement). Must be
+        `>= 0`; `n_bar = 0` is the ground-state limit (the zero-point
+        `1/2` term alone still contributes).
+    n_bar_uncertainty : float
+        1-sigma uncertainty on `n_bar`. Default `0.0` (no uncertainty
+        contribution from this mode's occupation). Must be `>= 0`.
+    frequency_uncertainty_hz : float
+        1-sigma uncertainty on `frequency_hz`, hertz. Default `0.0`. Must
+        be `>= 0`.
+    name : str
+        Label for this mode (e.g. ``"axial"``, ``"radial_1"``), used only
+        in error messages and pipeline report notes, not a registry key.
+    participation : float
+        This mode's per-mode participation factor (WP31, CONVENTIONS.md
+        section 16's participation-factor extension): the CLOCK ion's
+        squared mass-weighted eigenvector component in this normal mode,
+        `0 < participation <= 1`. Default `1.0` -- today's single-species
+        behavior (the clock ion carries the mode's ENTIRE `<v^2>`
+        contribution), reproduced bitwise. For a multi-ion crystal, set
+        this to the clock ion's own participation in this mode (e.g. from
+        :func:`two_ion_participations` for a two-ion crystal); `1.0`
+        remains correct only when every mode's motion is carried entirely
+        by the clock species (a single-ion trap, or a mode the clock ion
+        does not share with any other trapped ion).
+    """
+
+    frequency_hz: float
+    n_bar: float
+    n_bar_uncertainty: float = 0.0
+    frequency_uncertainty_hz: float = 0.0
+    name: str = ""
+    participation: float = 1.0
+
+
+def _validate_motional_modes(modes: Sequence[MotionalMode], v_rms_emm_m_s: float) -> None:
+    """Raise `ValueError` if `modes`/`v_rms_emm_m_s` violates E38's input invariants.
+
+    Called by every public entry point below
+    (`motional_mean_squared_velocity_m2_s2`, `motional_pivot_perturbation`,
+    `motional_pivot_uncertainty`) so a direct caller (bypassing
+    `cliffordclock.pipeline`'s own parse-time checks entirely) still gets a
+    clear rejection instead of a silently wrong shift, mirroring
+    `_bbr_validate_environment`'s role for the E37 functions.
+    """
+    if not modes:
+        raise ValueError("motional_state must have at least one MotionalMode")
+    for mode in modes:
+        if mode.frequency_hz <= 0.0:
+            raise ValueError(
+                f"motional mode {mode.name!r}: frequency_hz={mode.frequency_hz!r} must be > 0"
+            )
+        if mode.n_bar < 0.0:
+            raise ValueError(f"motional mode {mode.name!r}: n_bar={mode.n_bar!r} must be >= 0")
+        if mode.n_bar_uncertainty < 0.0:
+            raise ValueError(
+                f"motional mode {mode.name!r}: n_bar_uncertainty="
+                f"{mode.n_bar_uncertainty!r} must be >= 0"
+            )
+        if mode.frequency_uncertainty_hz < 0.0:
+            raise ValueError(
+                f"motional mode {mode.name!r}: frequency_uncertainty_hz="
+                f"{mode.frequency_uncertainty_hz!r} must be >= 0"
+            )
+        if not (0.0 < mode.participation <= 1.0):
+            raise ValueError(
+                f"motional mode {mode.name!r}: participation={mode.participation!r} "
+                "must satisfy 0 < participation <= 1"
+            )
+    if v_rms_emm_m_s < 0.0:
+        raise ValueError(f"v_rms_emm_m_s={v_rms_emm_m_s!r} must be >= 0")
+
+
+def motional_mean_squared_velocity_m2_s2(
+    modes: Sequence[MotionalMode], species: Species, v_rms_emm_m_s: float = 0.0
+) -> float:
+    """``<v^2>`` (CONVENTIONS.md E38): the velocity-variance expectation over
+    the motional state, plus the optional excess-micromotion contribution.
+
+    ``<v^2> = sum_i (hbar*omega_i/m)*participation_i*(n_bar_i + 1/2) +
+    v_rms_emm_m_s^2`` with ``omega_i = 2*pi*frequency_hz`` (mode
+    frequencies are ORDINARY frequencies, e.g. from sideband thermometry,
+    not angular), ``m`` the species' registry mass (`species.mass_kg`,
+    never hand-typed), and `participation_i` (WP31,
+    :class:`MotionalMode`'s `participation` field, default `1.0`) the
+    CLOCK ion's squared mass-weighted eigenvector component in mode `i`
+    -- reproduces the pre-WP31 formula bitwise when every mode's
+    `participation` is left at its `1.0` default. `math.fsum` accumulates
+    the per-mode sum (E10-style precision discipline, mirroring
+    `_bbr_weighted_moments`'s use of the same compensated-summation
+    primitive).
+
+    Parameters
+    ----------
+    modes : Sequence[MotionalMode]
+        The trap's normal modes contributing to the motional state: one
+        motional state per run (CONVENTIONS.md E38's composition note: a
+        per-atom motional map is future work).
+    species : Species
+        Supplies `mass_kg`.
+    v_rms_emm_m_s : float, default 0.0
+        Optional measured rms excess-micromotion (EMM) velocity, m/s
+        (CONVENTIONS.md E38's EMM scope note: this project does not model
+        the trap RF dynamics that produce EMM, a genuine roadmap package;
+        this input takes the lab's own measured EMM characterization,
+        already reduced to an equivalent velocity, as given). Default
+        `0.0`: no EMM contribution. Must be `>= 0`.
+
+    Returns
+    -------
+    float
+        ``<v^2>``, m^2/s^2.
+
+    Raises
+    ------
+    ValueError
+        `modes` is empty, or any mode/`v_rms_emm_m_s` value is invalid
+        (`_validate_motional_modes`).
+    """
+    _validate_motional_modes(modes, v_rms_emm_m_s)
+    mass_kg = species.mass_kg
+    modal_sum = math.fsum(
+        (HBAR * 2.0 * math.pi * mode.frequency_hz / mass_kg)
+        * mode.participation
+        * (mode.n_bar + 0.5)
+        for mode in modes
+    )
+    return modal_sum + v_rms_emm_m_s**2
+
+
+def motional_pivot_perturbation(
+    modes: Sequence[MotionalMode], species: Species, v_rms_emm_m_s: float = 0.0
+) -> float:
+    """``(P-1)_motional`` (CONVENTIONS.md section 16, E38): the quantum-motional
+    second-order-Doppler (time-dilation) pivot term.
+
+    ``(P-1)_motional = -<v^2> / (2*c^2)``
+    (:func:`motional_mean_squared_velocity_m2_s2`), the same
+    second-order-Doppler form E15/E21's kinematic factor already carries
+    along classical trajectories, here evaluated as the EXPECTATION VALUE
+    of the atom's motional-state velocity-squared operator in place of a
+    classical instantaneous velocity. **No double-counting**: every call
+    site this function's result is composed at (via the
+    ``motional_pivot_perturbation`` keyword-only parameter on
+    :func:`pivot_perturbation_stark`/:func:`spin_connection_stark`/
+    :func:`scalar_rate_perturbation_stark`/:func:`build_omega_stark`)
+    evaluates STATIC (``v = 0`` exactly) lattice/lattice_extended
+    quadrature nodes, where E21's classical kinematic term is identically
+    zero, precisely why this term is otherwise missing there and precisely
+    why adding it here cannot double-count (CONVENTIONS.md E38's central
+    argument). `cliffordclock.pipeline` enforces the complementary half of
+    this argument (rejecting `environment.motional_state` under
+    `ensemble.regime: classical`, where velocities are real and sampled)
+    at config-parse time, not here: this function has no `regime` concept
+    of its own, by the same design as `bbr_pivot_perturbation`/
+    `grav_pivot_perturbation` above.
+
+    Parameters
+    ----------
+    modes, species, v_rms_emm_m_s : see :func:`motional_mean_squared_velocity_m2_s2`.
+
+    Returns
+    -------
+    float
+        ``(P-1)_motional``, dimensionless.
+
+    Raises
+    ------
+    ValueError
+        Propagated from :func:`motional_mean_squared_velocity_m2_s2`.
+    """
+    mean_v2 = motional_mean_squared_velocity_m2_s2(modes, species, v_rms_emm_m_s)
+    return -mean_v2 / (2.0 * SPEED_OF_LIGHT**2)
+
+
+def motional_pivot_uncertainty(
+    modes: Sequence[MotionalMode],
+    species: Species,
+    v_rms_emm_m_s: float = 0.0,
+    v_rms_emm_uncertainty_m_s: float = 0.0,
+) -> float:
+    """Propagated fractional uncertainty on `motional_pivot_perturbation`
+    (CONVENTIONS.md section 16, E38's uncertainty-propagation note).
+
+    Independent-error quadrature combination of every partial derivative
+    times its input's 1-sigma uncertainty, mirroring `bbr_pivot_uncertainty`'s
+    "arithmetic-reproduction fidelity, not an independent accuracy claim"
+    framing (CONVENTIONS.md section 13's uncertainty note): this propagates
+    the uncertainty of the *supplied* mode/EMM inputs through the formula,
+    not an independent assessment of the underlying trap physics. Writing
+    ``omega_i = 2*pi*f_i`` and `participation_i` for each mode's
+    `MotionalMode.participation` (WP31, default `1.0`):
+
+    - Each mode's `n_bar_i`: ``d(P-1)/d(n_bar_i) =
+      -(hbar*omega_i/m)*participation_i/(2c^2)``.
+    - Each mode's `f_i`: ``d(P-1)/d(f_i) =
+      -(hbar*2*pi*(n_bar_i+1/2)/m)*participation_i/(2c^2)``.
+    - `v_rms_emm_m_s`: ``d(P-1)/d(v_rms_emm) = -v_rms_emm/c^2``.
+
+    `participation_i` is treated as an exact input (no uncertainty
+    channel of its own) here, matching `MotionalMode`'s own field set --
+    the closed-form `two_ion_participations` output, or any other
+    externally-supplied participation value, carries no propagated
+    uncertainty at this tier.
+
+    Every term's contribution (`partial * sigma_input`) is squared and
+    summed via `math.fsum` before the final `sqrt` (E10-style compensated
+    summation, mirroring `bbr_environment_pivot_uncertainty`'s pattern).
+
+    Parameters
+    ----------
+    modes, species, v_rms_emm_m_s : see :func:`motional_mean_squared_velocity_m2_s2`.
+    v_rms_emm_uncertainty_m_s : float, default 0.0
+        1-sigma uncertainty on `v_rms_emm_m_s`, m/s. Must be `>= 0`.
+
+    Returns
+    -------
+    float
+        Propagated 1-sigma fractional uncertainty, dimensionless.
+
+    Raises
+    ------
+    ValueError
+        Propagated from :func:`motional_mean_squared_velocity_m2_s2`, or
+        `v_rms_emm_uncertainty_m_s` is negative.
+    """
+    _validate_motional_modes(modes, v_rms_emm_m_s)
+    if v_rms_emm_uncertainty_m_s < 0.0:
+        raise ValueError(f"v_rms_emm_uncertainty_m_s={v_rms_emm_uncertainty_m_s!r} must be >= 0")
+
+    mass_kg = species.mass_kg
+    two_c2 = 2.0 * SPEED_OF_LIGHT**2
+    terms_sq = []
+    for mode in modes:
+        omega_i = 2.0 * math.pi * mode.frequency_hz
+        d_dn_bar = -(HBAR * omega_i / mass_kg) * mode.participation / two_c2
+        d_df_hz = (
+            -(HBAR * 2.0 * math.pi * (mode.n_bar + 0.5) / mass_kg) * mode.participation / two_c2
+        )
+        terms_sq.append((d_dn_bar * mode.n_bar_uncertainty) ** 2)
+        terms_sq.append((d_df_hz * mode.frequency_uncertainty_hz) ** 2)
+    d_d_vrms = -v_rms_emm_m_s / SPEED_OF_LIGHT**2
+    terms_sq.append((d_d_vrms * v_rms_emm_uncertainty_m_s) ** 2)
+    return math.sqrt(math.fsum(terms_sq))
+
+
+# ---------------------------------------------------------------------------
+# WP31: per-mode participation factors for a two-ion mixed-species crystal
+# (CONVENTIONS.md section 16's participation-factor extension of E38).
+# ---------------------------------------------------------------------------
+
+
+def two_ion_participations(
+    m_clock: float, m_partner: float
+) -> tuple[float, float, float, float, float, float]:
+    """Closed-form clock-ion participation factors for a two-ion crystal's
+    six normal modes (CONVENTIONS.md section 16, WP31).
+
+    Standard mode ordering, matching
+    `benchmarks/loaders.MARSHALL_AL_ION_MODES_MHZ_NBAR`'s own six-mode
+    layout: ``(axial_com, axial_str, x_com, x_str, y_com, y_str)``.
+
+    **Derivation and its scope (axial exact, radial a documented
+    approximation).** For two ions of mass `m1` (the clock ion) and `m2`
+    (the partner/cooling ion) held in the SAME linear Paul trap and
+    coupled by their Coulomb repulsion, the coupled equations of motion
+    along a given axis have two normal modes -- an IN-PHASE mode (both
+    ions move the same direction) and an OUT-OF-PHASE mode (opposite
+    directions) -- whose eigenvector components depend only on the mass
+    ratio `mu = m2/m1` for the AXIAL direction (Wübbena, Amairi, Mandel,
+    Schmidt, "Sympathetic Cooling of Mixed Species Two-Ion Crystals for
+    Precision Spectroscopy," Phys. Rev. A 85, 043412 (2012),
+    arXiv:1202.2730, Eqs. 12-14). Writing `b1^2` for ion 1's (the clock
+    ion's) squared eigenvector component in the in-phase mode:
+
+        b1_sq = (1 - mu + sqrt(1 - mu + mu^2)) / (2*sqrt(1 - mu + mu^2))
+        b2_sq = 1 - b1_sq   (out-of-phase mode; Eq. 14's own "b2 = sqrt(1-b1^2)")
+
+    `b1_sq`/`b2_sq` are ENERGY (equivalently, `<v^2>`) participation
+    fractions, not just displacement-amplitude ratios: writing the modal
+    coordinates in MASS-WEIGHTED form (`Q_k = sqrt(m_k) q_k`) turns
+    Wübbena Eqs. 10-11's coordinate transformation into a genuine 2x2
+    orthogonal rotation with matrix ``[[b1, b2], [b2, -b1]]``, so ion 1's
+    quantum `<v^2>` contribution from a mode of occupation `n_bar` and
+    (ordinary) frequency `f` is exactly
+    ``b1_sq * (hbar*2*pi*f/m1)*(n_bar+1/2)`` -- the same
+    `participation_i * (hbar*omega_i/m)*(n_bar_i+1/2)` form
+    `motional_mean_squared_velocity_m2_s2` implements, confirming
+    `participation_i = b1_sq`/`b2_sq` is the correct quantity for
+    `MotionalMode.participation`, not merely a plausible-looking
+    substitute.
+
+    **RADIAL scope caveat (WP31, honestly disclosed, not silently
+    assumed).** The AXIAL closed form above depends on `mu` alone. The
+    full RADIAL two-ion eigenvector closed form (Wübbena Eqs. 15-18) is
+    NOT a function of `mu` alone -- it additionally depends on the trap's
+    own RF/DC geometry parameters (`alpha`, the DC-endcap asymmetry
+    factor, and `epsilon = omega_p/omega_z`, the RF-to-axial frequency
+    ratio), neither of which this function's `(m_clock, m_partner)`-only
+    signature can supply. This function applies the SAME `mu`-only axial
+    closed form to the two radial pairs as a documented approximation
+    (the mass-ratio-dependent PART of the radial physics, omitting the
+    trap-geometry-dependent part) -- exact for the axial pair, approximate
+    for the radial pairs. See `benchmarks/run_motional_al_ion.py`'s
+    participation-variant case for a direct, honest per-mode comparison
+    against a published two-ion crystal's real per-mode values, which
+    confirms the axial pair matches well and the radial pairs do not (the
+    disclosed radial approximation's real limitation, not a bug).
+
+    Parameters
+    ----------
+    m_clock : float
+        The clock ion's mass, kilograms (`Species.mass_kg`). Must be `> 0`.
+    m_partner : float
+        The partner (sympathetic-cooling) ion's mass, kilograms. Must be
+        `> 0`.
+
+    Returns
+    -------
+    tuple[float, float, float, float, float, float]
+        ``(axial_com, axial_str, x_com, x_str, y_com, y_str)``, each the
+        clock ion's participation factor for that mode, each in
+        `(0, 1)` for `m_clock != m_partner` and exactly `0.5` for every
+        mode when `m_clock == m_partner` (the equal-mass limit: each ion
+        carries exactly half of every mode).
+
+    Raises
+    ------
+    ValueError
+        `m_clock` or `m_partner` is not `> 0`.
+    """
+    if m_clock <= 0.0:
+        raise ValueError(f"m_clock={m_clock!r} must be > 0")
+    if m_partner <= 0.0:
+        raise ValueError(f"m_partner={m_partner!r} must be > 0")
+
+    mu = m_partner / m_clock
+    root = math.sqrt(1.0 - mu + mu * mu)
+    b1_sq = (1.0 - mu + root) / (2.0 * root)
+    b2_sq = 1.0 - b1_sq
+    return (b1_sq, b2_sq, b1_sq, b2_sq, b1_sq, b2_sq)

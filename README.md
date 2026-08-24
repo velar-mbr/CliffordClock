@@ -178,6 +178,15 @@ single number per point can't express; details in
   shield has engineered flat, quantifying live where a single effective
   temperature stops representing it and closing with a sensitivity band
   built from per-surface sensor readings and uncertainties.
+- [`notebooks/13_trapped_ion_quantum_motion.ipynb`](https://github.com/velar-mbr/CliffordClock/blob/main/notebooks/13_trapped_ion_quantum_motion.ipynb):
+  the trapped-ion walkthrough, quantum motional states throughout: a
+  ground-state ion's ~10 nm wavepacket sampled against a field with real
+  curvature, the Coulomb-crystal quadrupole case recapped from notebook 08,
+  the motional time-dilation row (E38) reproduced against a published Al+
+  evaluation and its per-mode participation-factor correction for the
+  two-ion crystal, and the coherent Ramsey fringe visibility a squeezed
+  motional state leaves behind (E39), closing with the excess-micromotion
+  input channel and a scope statement against the RF-dynamics roadmap.
 
 ## Documentation
 

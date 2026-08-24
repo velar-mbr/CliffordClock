@@ -45,7 +45,9 @@ __all__ = [
 #: `MetrologyReport` JSON schema version (WP5 spec: `"report_schema": "1.0"`).
 #: Bump on any `MetrologyReport` field/type/shape change -- independent of
 #: both the package version and `CONVENTIONS_VERSION` below.
-REPORT_SCHEMA_VERSION = "1.0"
+#: 1.1 (WP31, CONVENTIONS.md section 8 E39): added `ramsey_visibility`/
+#: `ramsey_phase`, both `float | None` (see docs/report-schema.md).
+REPORT_SCHEMA_VERSION = "1.1"
 
 #: `docs/CONVENTIONS.md` version this module's formulas (via
 #: `cliffordclock.analytics.stats`: E23, E25, E27) were transcribed
@@ -138,6 +140,21 @@ class MetrologyReport:
     uncertainty_notes : str
         Free-text systematic-uncertainty notes (WP5 non-goal: no budget
         modeling -- this field only, default ``""``).
+    ramsey_visibility : float or None
+        The Ramsey fringe visibility ``V`` (WP31, CONVENTIONS.md section 8
+        E39), `0 <= V <= 1`, dimensionless. `None` unless the run used a
+        genuine per-worldline dynamical phase accumulation
+        (`integration.mode` in ``("direct", "worldline")``,
+        `cliffordclock.pipeline.run_pipeline_full`'s mode table) --
+        `fast_path`/`secular` runs leave this `None`. Valid only for
+        Gaussian-distributed accumulated phases (thermal, coherent,
+        squeezed motional states); see `uncertainty_notes` for the
+        Gaussian-only scope note recorded whenever this field is
+        populated.
+    ramsey_phase : float or None
+        The Ramsey fringe phase, radians, in ``(-pi, pi]`` (E39). `None`
+        under the same condition as `ramsey_visibility` (both are
+        populated, or neither is).
     """
 
     report_schema: str
@@ -153,6 +170,8 @@ class MetrologyReport:
     shift_std_error: float
     t2_star_s: float
     uncertainty_notes: str
+    ramsey_visibility: float | None = None
+    ramsey_phase: float | None = None
 
 
 def build_report(
@@ -165,6 +184,8 @@ def build_report(
     config_hash: str | None = None,
     uncertainty_notes: str = "",
     generated_at_utc: str | None = None,
+    ramsey_visibility: float | None = None,
+    ramsey_phase: float | None = None,
 ) -> MetrologyReport:
     """Assemble a `MetrologyReport` from ensemble phases and run provenance.
 
@@ -201,6 +222,14 @@ def build_report(
     generated_at_utc : str, optional
         ISO-8601 UTC timestamp override (for reproducible tests); defaults
         to `datetime.now(UTC).isoformat()`.
+    ramsey_visibility : float, optional
+        The Ramsey fringe visibility (WP31, E39); see
+        `MetrologyReport.ramsey_visibility`. `None` by default -- this
+        module computes no rotor-composition physics itself (WP5 scope:
+        "No new physics is implemented in this module"), so the caller
+        (`cliffordclock.pipeline`) supplies the already-computed value.
+    ramsey_phase : float, optional
+        The Ramsey fringe phase (E39); see `MetrologyReport.ramsey_phase`.
 
     Returns
     -------
@@ -241,6 +270,8 @@ def build_report(
         shift_std_error=sem,
         t2_star_s=t2_star,
         uncertainty_notes=uncertainty_notes,
+        ramsey_visibility=ramsey_visibility,
+        ramsey_phase=ramsey_phase,
     )
 
 

@@ -957,21 +957,114 @@ def _normalize_notebook_cells(
     for cell in nb.get("cells", []):
         entry: dict[str, Any] = {"cell_type": cell.get("cell_type"), "source": cell.get("source")}
         if cell.get("cell_type") == "code":
-            outputs = []
+            outputs: list[dict[str, Any]] = []
             for out in cell.get("outputs", []):
                 o = dict(out)
                 o.pop("execution_count", None)
                 metadata = o.get("metadata")
                 if isinstance(metadata, dict):
                     o["metadata"] = {k: v for k, v in metadata.items() if k not in {"id"}}
-                if volatile_res and isinstance(o.get("text"), (str, list)):
-                    text = o["text"]
-                    joined = "".join(text) if isinstance(text, list) else text
-                    o["text"] = _normalize_volatile_text(joined, volatile_res)
+                if isinstance(o.get("text"), list):
+                    o["text"] = "".join(o["text"])
+                # The kernel splits one logical stdout/stderr stream into a
+                # version- and timing-dependent number of chunks (flush
+                # boundaries), so adjacent same-name stream outputs are one
+                # logical output: coalesce them before comparing.
+                if (
+                    o.get("output_type") == "stream"
+                    and outputs
+                    and outputs[-1].get("output_type") == "stream"
+                    and outputs[-1].get("name") == o.get("name")
+                    and isinstance(o.get("text"), str)
+                    and isinstance(outputs[-1].get("text"), str)
+                ):
+                    outputs[-1]["text"] += o["text"]
+                    continue
                 outputs.append(o)
+            if volatile_res:
+                for o in outputs:
+                    if isinstance(o.get("text"), str):
+                        o["text"] = _normalize_volatile_text(o["text"], volatile_res)
             entry["outputs"] = outputs
         cells.append(entry)
     return cells
+
+
+_NOTEBOOK_NUMBER_RE = re.compile(r"[-+]?\d+\.?\d*(?:[eE][-+]?\d+)?")
+
+
+def _numeric_tolerant_text_equal(a: str, b: str, rtol: float = 1e-9) -> bool:
+    """True when two output texts match structurally, with numbers at tolerance.
+
+    Non-numeric text must compare exactly; every numeric token must sit at the
+    same structural position and agree to ``rtol`` (relative only: an absolute
+    floor would mask genuine drift in the fractional shifts this project
+    prints, which live at 1e-15 to 1e-21; a machine-epsilon diagnostic whose
+    committed value is an exact zero belongs in ``volatile_patterns`` instead).
+    This is the same portability contract the test suite's generated-file
+    checks use: a different BLAS, XLA build, or CPU legitimately moves last
+    digits, and an exact byte-compare of freshly executed numerics is a
+    machine fingerprint.
+    """
+    if a == b:
+        return True
+    parts_a = _NOTEBOOK_NUMBER_RE.split(a)
+    parts_b = _NOTEBOOK_NUMBER_RE.split(b)
+    if parts_a != parts_b:
+        return False
+    nums_a = _NOTEBOOK_NUMBER_RE.findall(a)
+    nums_b = _NOTEBOOK_NUMBER_RE.findall(b)
+    if len(nums_a) != len(nums_b):
+        return False
+    for sa, sb in zip(nums_a, nums_b, strict=True):
+        if sa == sb:
+            continue
+        try:
+            fa, fb = float(sa), float(sb)
+        except ValueError:
+            return False
+        if abs(fa - fb) > rtol * max(abs(fa), abs(fb)):
+            return False
+    return True
+
+
+def _normalized_outputs_equal(oa: list[dict[str, Any]], ob: list[dict[str, Any]]) -> bool:
+    """Compare two cells' normalized output lists under the portability contract.
+
+    Stream/text payloads compare via ``_numeric_tolerant_text_equal``. Rendered
+    image payloads (``image/png`` and friends) compare by presence only: the
+    encoded bytes vary with matplotlib, font, and zlib versions even when the
+    figure is identical, so the contract is that the cell still renders the
+    same kind of figure, while every number that fed it is checked through the
+    text outputs around it.
+    """
+    if len(oa) != len(ob):
+        return False
+    for x, y in zip(oa, ob, strict=True):
+        if set(x) != set(y):
+            return False
+        for k in x:
+            if k == "text":
+                if not _numeric_tolerant_text_equal(str(x[k]), str(y[k])):
+                    return False
+            elif k == "data":
+                dx, dy = x[k], y[k]
+                if not (isinstance(dx, dict) and isinstance(dy, dict)):
+                    if dx != dy:
+                        return False
+                    continue
+                if set(dx) != set(dy):
+                    return False
+                for mime in dx:
+                    if mime.startswith("image/"):
+                        continue
+                    va = "".join(dx[mime]) if isinstance(dx[mime], list) else str(dx[mime])
+                    vb = "".join(dy[mime]) if isinstance(dy[mime], list) else str(dy[mime])
+                    if not _numeric_tolerant_text_equal(va, vb):
+                        return False
+            elif x[k] != y[k]:
+                return False
+    return True
 
 
 def _diff_notebook_outputs(
@@ -981,26 +1074,32 @@ def _diff_notebook_outputs(
 ) -> str | None:
     a = _normalize_notebook_cells(orig_nb, volatile_res)
     b = _normalize_notebook_cells(new_nb, volatile_res)
-    if a == b:
-        return None
     if len(a) != len(b):
         return f"cell count differs ({len(a)} vs {len(b)})"
     for i, (ca, cb) in enumerate(zip(a, b, strict=True)):
-        if ca != cb:
+        if ca.get("cell_type") != cb.get("cell_type") or ca.get("source") != cb.get("source"):
+            return f"cell {i} source differs after re-execution"
+        if not _normalized_outputs_equal(ca.get("outputs", []), cb.get("outputs", [])):
             return f"cell {i} outputs differ after re-execution"
-    return "notebook differs after re-execution (unlocalized)"
+    return None
 
 
 def notebooks_check(allowlist: dict[str, Any]) -> CheckResult:
-    """Re-execute each ``notebooks/*.ipynb`` and byte-compare (normalized)
-    outputs against the committed version; flag any notebook whose
-    re-execution runtime exceeds 180s.
+    """Re-execute each ``notebooks/*.ipynb`` and compare normalized outputs
+    against the committed version; flag any notebook whose re-execution
+    runtime exceeds 180s.
 
-    ``[notebooks_check] volatile_patterns`` in the allowlist is a list of
-    regexes; every match in an output's text (committed and re-executed
-    alike) is replaced with a fixed token before comparison, so prints
-    that legitimately differ on every run (wall-clock timings) do not
-    fail the byte-compare while the numbers around them still must match.
+    The comparison is structure-exact with numbers at tolerance (the same
+    portability contract as the suite's generated-file checks): adjacent
+    same-name stream chunks coalesce first, non-numeric text must match
+    exactly, numeric tokens compare at rtol=1e-9 with a small atol, and
+    rendered image payloads compare by presence (their encoded bytes are
+    matplotlib/font/zlib-version fingerprints). ``[notebooks_check]
+    volatile_patterns`` in the allowlist is a list of regexes; every match
+    in an output's text (committed and re-executed alike) is replaced with
+    a fixed token before comparison, so prints that legitimately differ on
+    every run (wall-clock timings) cannot fail the comparison while the
+    text around them still must match.
     """
     volatile_res = [
         re.compile(p) for p in allowlist.get("notebooks_check", {}).get("volatile_patterns", [])

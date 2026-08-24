@@ -115,6 +115,32 @@ environment:                           # optional section (WP20, CONVENTIONS.md 
     up_axis: [0.0, 0.0, 1.0]           # optional (default [0,0,1]); need not be pre-normalized
     reference_height_m: 0.0            # optional (default 0.0): height (along up_axis, from the
                                         #   coordinate origin) where (P-1)_grav = 0
+  # motional_state:                      # optional sub-section (WP30, CONVENTIONS.md section 16
+  #                                       #   E38); absent means the motional term is off,
+  #                                       #   byte-identical to a config with no motional_state
+  #                                       #   section at all. Requires coupling.type=stark_dc AND
+  #                                       #   ensemble.regime != classical (see the
+  #                                       #   "Quantum-motional time dilation" section below).
+  #   modes:
+  #     - name: axial                    # label only, used in error messages/report notes
+  #       frequency_Hz: 2.0e+06          # mode's ORDINARY frequency f_i, hertz (NOT angular;
+  #                                       #   converted internally via omega_i = 2*pi*f_i)
+  #       n_bar: 0.05                    # mean vibrational occupation (sideband thermometry)
+  #       n_bar_uncertainty: 0.01        # optional (default 0.0), 1-sigma
+  #       frequency_uncertainty_Hz: 1.0e+03  # optional (default 0.0), 1-sigma, hertz
+  #       participation: 1.0             # optional (default 1.0, WP31, CONVENTIONS.md section
+  #                                       #   16): the CLOCK ion's squared mass-weighted
+  #                                       #   eigenvector component in this mode, 0 < p <= 1;
+  #                                       #   1.0 reproduces single-species behavior bitwise --
+  #                                       #   see cliffordclock.integrator.omega.two_ion_participations
+  #                                       #   for the closed-form two-ion crystal source
+  #     - name: radial
+  #       frequency_Hz: 4.0e+06
+  #       n_bar: 0.05
+  #   v_rms_emm_m_s: 0.0                 # optional (default 0.0): measured rms excess-
+  #                                       #   micromotion velocity, m/s (a full RF-dynamics
+  #                                       #   treatment is a roadmap package, not modeled here)
+  #   v_rms_emm_uncertainty_m_s: 0.0     # optional (default 0.0), 1-sigma, m/s
 
 quadrupole:                            # optional section (WP21, CONVENTIONS.md E34/E35);
                                         #   absent means the quadrupole term is off,
@@ -155,6 +181,13 @@ ensemble:
                                         #   gaussian | uniform site-occupation weighting
   site_envelope_sigma_m: 4.0e-04       # lattice_extended + site_envelope=gaussian only
                                         #   (required then): envelope standard deviation, m
+  # squeezing_r: [0.0, 0.0, 0.5]       # optional (default null/None; WP31, CONVENTIONS.md
+                                        #   section 8 E39), regime=classical only: per-axis
+                                        #   squeezing parameter r, threaded into
+                                        #   sample_maxwell_boltzmann. Position quadrature
+                                        #   variance scales by exp(-2r), velocity quadrature
+                                        #   variance by exp(+2r); absent means today's
+                                        #   unsqueezed thermal sampling, byte-identical output.
 
 integration:
   mode: auto                           # optional (default "auto"): auto | fast_path | worldline
@@ -464,6 +497,73 @@ samples measure directly (Bothwell et al., Nature 602, 420 (2022);
   `benchmarks/run_bothwell_redshift.py` documents and applies that
   specific mapping explicitly when comparing against a published number;
   this schema itself makes no such external-convention assumption.
+
+### Quantum-motional time dilation (`environment.motional_state:`, WP30)
+
+`environment.motional_state` turns on the quantum-motional second-order-
+Doppler (time-dilation) pivot term (CONVENTIONS.md section 16, E38): the
+dominant systematic of trapped-ion optical clocks, and a real budget row
+for lattice clocks too.
+
+- **Absent by default.** No shipped example sets this section, so every
+  shipped example's output is byte-identical to a version of
+  `cliffordclock` without WP30 at all.
+- **Requires `coupling.type: stark_dc`.** Mirrors `radiation_temperature_K`'s
+  cross-field validation exactly: the term is composed at the same E14b
+  rate-function call sites as BBR/gravity/the quadrupole term.
+- **Requires `ensemble.regime` != `classical`.** `PipelineConfigError` at
+  config-load time otherwise, naming the double-counting hazard directly:
+  `ensemble.regime: classical` samples real, nonzero velocities along
+  classical trajectories, where E21's kinematic second-order Doppler
+  (`sqrt(1-v^2/c^2)`) already carries this physics; only `lattice`/
+  `lattice_extended` (static, `v=0` quadrature nodes, where that kinematic
+  term is identically zero) may set this section.
+- **`modes` is a non-empty list**, each entry requiring `name`,
+  `frequency_Hz` (the mode's ORDINARY frequency, hertz, NOT angular:
+  converted internally via `omega_i = 2*pi*f_i`, mandatory, see
+  CONVENTIONS.md E38), and `n_bar` (mean vibrational occupation, from
+  sideband thermometry); `n_bar_uncertainty`/`frequency_uncertainty_Hz`
+  (both default `0.0`) are optional per mode.
+- **`v_rms_emm_m_s`/`v_rms_emm_uncertainty_m_s`** (both optional, default
+  `0.0`) supply a lab's own measured excess-micromotion (EMM)
+  characterization, already reduced to an equivalent rms velocity; a full
+  RF-dynamics treatment of EMM is a roadmap package, not modeled here.
+- **The shift:** `(P-1)_motional = -<v^2>/(2c^2)` with `<v^2> = sum_i
+  (hbar*omega_i/m)*(n_bar_i + 1/2) + v_rms_emm^2`, `m` the `species:`
+  registry mass. `n_bar_i = 0` for every mode does NOT make the shift
+  zero: the `+1/2` zero-point term alone still contributes.
+- **Composed into every evaluation mode** `ensemble.regime: lattice`/
+  `lattice_extended` supports (`fast_path`, `worldline`), the same way as
+  BBR: a single per-run scalar (this MVP's motional state is one state per
+  run, spatially uniform across the atom cloud), added into `(P-1)`. For
+  `integration.mode: fast_path`, this term SUPERSEDES the usual "fast_path
+  omits the motional second-order Doppler shift" report note (`stark_dc`'s
+  section above): with `environment.motional_state` configured, the
+  reported `mean_fractional_shift` DOES include the motional term.
+- **The report's `uncertainty_notes`** lists every configured mode by
+  name/frequency/`n_bar`, the resolved `<v^2>`, the resulting
+  `(P-1)_motional` shift, the EMM input when present, the propagated
+  uncertainty, and the excess-micromotion roadmap-boundary note.
+- **Multi-ion crystals (WP31):** each mode's optional `participation`
+  (default `1.0`) generalizes `<v^2>`'s per-mode term to
+  `(hbar*omega_i/m)*participation_i*(n_bar_i+1/2)`; see
+  `cliffordclock.integrator.omega.two_ion_participations` for the
+  closed-form two-ion crystal source and CONVENTIONS.md section 16.
+
+### Ramsey visibility (`ramsey_visibility`/`ramsey_phase` report fields, WP31)
+
+No config section of its own: `ramsey_visibility`/`ramsey_phase`
+(CONVENTIONS.md section 8, E39) are automatically populated in
+`report.json`/`MetrologyReport` for any run whose resolved
+`integration.mode` is `direct` or `worldline` (the two modes with a
+genuine per-worldline dynamical phase accumulation; `fast_path`/`secular`
+leave both `null`). They report the population-weighted coherent rotor
+sum's modulus/phase in the `B_hat_C` plane, the Ramsey fringe
+visibility and phase for the ensemble's own accumulated-phase spread,
+and are valid only for Gaussian-distributed accumulated phases (the
+`uncertainty_notes` scope note states this whenever the fields are
+populated). `REPORT_SCHEMA_VERSION` is `"1.1"` as of WP31 (see
+docs/report-schema.md).
 
 ### Quadrupole shift (`quadrupole:`, WP21)
 

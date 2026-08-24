@@ -62,8 +62,15 @@ minor = [
 # still must compare equal. Today: notebook 02's wall-clock timing line
 # (the number IS the demonstration there, but its exact value is
 # machine-dependent by nature).
+# Notebook 05's rotor-vs-scalar identity residual is a machine-epsilon
+# diagnostic: an exact 0.0 on one CPU/XLA build prints as ~1e-16 on
+# another, and both mean "machine zero". The suite's WP16 identity tests
+# guard the actual bound, so the demo print is volatile the same way the
+# wall-clock lines are.
 volatile_patterns = [
     'wall time\s*:\s*[0-9][0-9.]* s',
+    'notebook runtime\s*:\s*[0-9][0-9.]* s',
+    'mean-shift relative difference\s*:\s*[-+0-9.e]+',
 ]
 
 [headline_check]

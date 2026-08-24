@@ -86,9 +86,11 @@ def test_write_json_schema_fields_complete_and_versioned(tmp_path):
         "shift_std_error",
         "t2_star_s",
         "uncertainty_notes",
+        "ramsey_visibility",
+        "ramsey_phase",
     }
     assert set(loaded.keys()) == expected_fields
-    assert loaded["report_schema"] == "1.0" == REPORT_SCHEMA_VERSION
+    assert loaded["report_schema"] == "1.1" == REPORT_SCHEMA_VERSION
     assert loaded["conventions_version"] == "1.1.0" == CONVENTIONS_VERSION
     assert loaded["package_version"] == package_version
 
