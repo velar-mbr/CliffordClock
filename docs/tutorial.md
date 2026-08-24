@@ -17,8 +17,8 @@ pip install cliffordclock
 ```
 
 This installs the library and the `cliffordclock` command-line tool.
-The examples and notebooks this tutorial runs live in the repository,
-so grab a clone alongside:
+The examples and notebooks this tutorial runs are stored in the
+repository, so grab a clone alongside:
 
 ```bash
 git clone https://github.com/velar-mbr/CliffordClock.git
@@ -88,7 +88,7 @@ polarizability: no fitting, no tuned parameters.
   flying around a trap), and the tool used its fast, exact evaluation
   path for that case: no time-stepping needed, so it costs the same
   whether you ask for a microsecond or an hour of interrogation.
-- **interrogation time**: how long the clock actually probes the atoms
+- **interrogation time**: how long the clock probes the atoms
   for, in seconds. `1.000000e+00 s` is a real, physically meaningful
   Ramsey/Rabi interrogation time, not a simulation artifact.
 - **mean fractional shift**: the predicted shift, `Δν/ν₀`
@@ -149,7 +149,7 @@ this number is statistical noise, not a real prediction).
 
 This example exists to exercise the tool's integrator directly, one
 Compton-scale step at a time (the fundamental timescale the underlying
-physics is formulated in), rather than to predict a real clock shift. It
+physics is formulated in). It
 is useful for development and cross-checking, not for citing a number.
 Whenever `cliffordclock run`'s resolved interrogation time is below one nanosecond,
 you'll see this note; treat it as a signal to check
@@ -210,7 +210,7 @@ format limitations (Spreadsheet text export only, no VTK/mesh formats).
 
 ## Where to go next
 
-- [`docs/validation.md`](validation.md): the full validation picture:
+- [`docs/validation.md`](validation.md): the full validation record:
   every case this tool has been checked against, with sources and
   measured agreement.
 - [`docs/coupling.md`](coupling.md): the DC-Stark physics in full, and

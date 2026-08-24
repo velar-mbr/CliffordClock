@@ -404,7 +404,8 @@ operating temperature, `293.282(4) K`) and
 `benchmarks/loaders.JILA_BBR_PUBLISHED_SHIFT` (Table I "BBR" row,
 `-4.84172(73)×10⁻¹⁵`) come from the *same* arXiv:2403.10664v2 source
 already fetched and checksummed for WP10 (`benchmarks/SOURCES.md` section
-1), extended rather than duplicated per the binding instruction. The
+1), reused and extended here per the binding instruction to avoid a
+duplicate fetch. The
 temperature value is additionally cross-checked against the primary text
 (Lisdat et al., PRR 3, L042036 (2021); Aeppli et al., PRL 133, 023401
 (2024)) (an independent
@@ -437,12 +438,13 @@ registry's Sr87 dynamic BBR polynomial is the PTB-2025 rescaling of
 Lisdat's fit shape, anchored to *this exact JILA row's* dynamic-term
 value (`-153.06(33) mHz`, arXiv:2507.14030). Close agreement between this
 engine's prediction and JILA's own published row is therefore expected
-almost by construction, not independent evidence the underlying BBR
-*physics* is correct; it is evidence the engine's arithmetic and
-citation/provenance chain correctly reproduce a formula and coefficients
-this project's own registry was built from. `benchmarks/RESULTS.md`
-states this explicitly rather than presenting the tight residual as if it
-were a NPL-style independent success.
+almost by construction. This agreement is evidence the engine's
+arithmetic and citation/provenance chain correctly reproduce a formula
+and coefficients this project's own registry was built from. It does
+not, on its own, independently confirm the underlying BBR *physics*.
+`benchmarks/RESULTS.md`
+states this explicitly: the tight residual is expected arithmetic
+agreement, distinct from NPL's independent-measurement success.
 
 ## Roos-benchmark addendum: Ca+:D5/2 two-ion quadrupole-slope case (2026-08-11)
 
@@ -507,11 +509,11 @@ NOT a precision validation of either the engine or the theory value (G8
 sign-off B4's first nuance, applied here as it was for Barwood).
 
 **Structural pin, computed not asserted:** the two-ion 24/5 enhancement
-Roos states (dossier section 6) is independently recovered from real
+Roos states (dossier section 6) is independently recomputed here,
+directly from real
 `quadrupole_shift_joules`/`quadrupole_mj_factor` calls
 (`benchmarks/run_roos_quadrupole_slope.py::structural_two_ion_enhancement_ratio`,
-pinned by `tests/test_roos_benchmark.py`), the case's structural spine,
-recomputed here rather than quoted from the dossier.
+pinned by `tests/test_roos_benchmark.py`), the case's structural spine.
 
 See `benchmarks/RESULTS.md`'s "Cross-vintage comparison: Roos et al.
 quadrupole slope" section for the full method, numbers, and
@@ -552,8 +554,8 @@ considered:
   the NIST M32206 dataset (Source 2) measures a different physical
   quantity (a scope mismatch, not a data gap) entirely.
 - **Source 6: not accessed, not classified**: a fourth, distinct
-  outcome category from the three above, reported as such rather than
-  forced into "not applicable" or silently dropped. See the Source 5
+  outcome category from the three above, reported as its own category,
+  never collapsed into "not applicable" or silently dropped. See the Source 5
   section's "Reference [30] follow-up" subsection above and
   `benchmarks/SOURCES.md` section 6 for the full access-attempt log.
 
@@ -579,9 +581,9 @@ reference gravity, van Westrum, NOAA Technical Memorandum NOS NGS-77
 citation/checksum-style record this document's own discipline expects;
 NOT YET fetched/checksummed independently by this WP22 pass (the dossier's
 own research sweep already read the preprint in full; this pass did not
-re-fetch it, matching the WP20 BBR addendum's "no new fetch, extended
-rather than duplicated" precedent where the same source was already
-authorized and read).
+re-fetch it, matching the WP20 BBR addendum's precedent: an
+already-authorized source gets reused and extended, not re-fetched,
+since the same source was already authorized and read).
 
 **Why this is `"reproducibility"`, with the caveat INVERTED from the
 BBR/JILA case's:** the WP20 BBR case is `"arithmetic_reproduction"`

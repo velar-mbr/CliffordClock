@@ -28,15 +28,14 @@ cliffordclock run config.yaml [--output-dir DIR] [--radiation-surfaces PATH]
   config file). If the config already sets
   `environment.radiation_temperature_K` or an inline
   `environment.radiation_environment.surfaces` list, the normal E37
-  mutual-exclusivity error fires instead of the flag silently overriding
-  it.
+  mutual-exclusivity error fires; the flag never silently overrides it.
 
 **Exit codes:**
 
 | Code | Meaning |
 |---|---|
 | `0` | Success. |
-| `1` | Physics-validation failure: the integrated result failed a basic sanity check (non-finite phase, or rotor-norm drift, E20, far beyond what a correctly configured run should show). Not a precision-grade check: see `cliffordclock.pipeline.PhysicsValidationError`. |
+| `1` | Physics-validation failure: the integrated result failed a basic sanity check (non-finite phase, or rotor-norm drift, E20, far beyond what a correctly configured run should show). This is a coarse sanity check aimed at gross integrator failures: see `cliffordclock.pipeline.PhysicsValidationError` for the exact bound. |
 | `2` | Bad input: a malformed/unreadable config file, an unknown species or synthetic-field kind, an invalid parameter value, or a bad CLI argument (the last handled by `argparse` itself, which also exits 2). |
 
 Errors are printed to stderr; the run summary goes to stdout.
@@ -302,8 +301,9 @@ section 5); see `docs/coupling.md` for the full physics/API.
   (e.g. for a species not in the registry, or a newer measurement).
   `stark_dc` works in every `integration.mode` (`fast_path`, `direct`,
   `secular`, `worldline`); for `direct` it runs through a coupling-
-  agnostic scalar phase accumulator rather than the rotor path (same
-  E21/E22 physics: see `cliffordclock.pipeline._stark_scalar_ensemble`).
+  agnostic scalar phase accumulator (same E21/E22 physics: see
+  `cliffordclock.pipeline._stark_scalar_ensemble`), separate from the
+  rotor path used by `worldline` below.
   For `worldline` it runs through the **true Cl(1,3) rotor** instantiated
   for E14b (`cliffordclock.integrator.omega.build_omega_stark`, via
   `cliffordclock.pipeline._stark_rotor_ensemble`), directly verified
@@ -337,8 +337,9 @@ for the config schema specifically:
 - **Requires `coupling.type: stark_dc`.** BBR needs the species' registry
   `BbrCoefficients` (a separately published static/dynamic fit, distinct
   from `delta_alpha_dc_si`), which `linear_mu` has no equivalent of;
-  setting `radiation_temperature_K` with `coupling.type: linear_mu` is a
-  `PipelineConfigError` at config-load time, not a silently ignored key.
+  setting `radiation_temperature_K` with `coupling.type: linear_mu` raises
+  `PipelineConfigError` at config-load time. The key is never silently
+  ignored.
 - **Hard-validated range.** `radiation_temperature_K` must lie in
   `[50, 350]` kelvin (the published fit's validity window):
   `PipelineConfigError` outside it, both edges.
@@ -357,10 +358,11 @@ for the config schema specifically:
 ### Multi-surface thermal environment (`environment.radiation_environment:`, WP29 Tier 1)
 
 `environment.radiation_environment` is a multi-surface alternative to
-`radiation_temperature_K` (CONVENTIONS.md E37): instead of one ambient
-temperature, the atoms sit in an enclosure of `N` named surfaces, each
-with its own solid-angle weight, temperature, optional temperature
-uncertainty, and optional emissivity. It resolves to the same `(P-1)_BBR`
+`radiation_temperature_K` (CONVENTIONS.md E37): the atoms sit in an
+enclosure of `N` named surfaces, each with its own solid-angle weight,
+temperature, optional temperature uncertainty, and optional emissivity,
+replacing the single ambient temperature `radiation_temperature_K`
+supplies. It resolves to the same `(P-1)_BBR`
 scalar `radiation_temperature_K` does and threads into every evaluation
 mode identically.
 
@@ -453,9 +455,10 @@ aperture     0.1     300.0          0.01                       -
   count, a non-numeric column, a blank/reserved-token name, a missing
   file) raises `PipelineConfigError` naming the file, the 1-based line
   number, and the offending token, matching `load_field_comsol`'s error
-  style (`docs/fields.md`). A duplicate surface name is instead caught by
-  the shared cross-form check above; its error names the surface's index
-  and value, not a file line number.
+  style (`docs/fields.md`). A duplicate surface name is caught by the
+  shared cross-form check above instead, since that check runs after
+  both input forms parse into the same structure; its error names the
+  surface's index and value.
 
 See `examples/radiation_environment_surfaces.txt` and
 `examples/radiation_environment_surfaces_sr87.yaml` for a complete

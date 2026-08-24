@@ -43,7 +43,7 @@ INDEPENDENT input, typically a different vintage/method's theory or
 measurement of the same quantity, checked against a published result
 that input was never combined with, but where the *other* ingredient of
 that published result (e.g. its own applied field or gradient) still
-traces to the source's own trap-model/apparatus calibration rather than a
+traces to the source's own trap-model/apparatus calibration, not a
 fully independent measurement, the Roos quadrupole-slope case below.
 Weaker than `"blind_prediction"` for that reason (a genuine
 blind-prediction case would need every ingredient on both sides to be
@@ -366,8 +366,8 @@ registry polynomial (per gate edit 8), instead of the earlier
 single-`T^6` quick estimate from this project's internal review (which
 found a `~0.04%`/`~2×10⁻¹⁸` residual), reduces the residual by
 roughly two orders of magnitude (~100×), to `~2.25×10⁻²⁰`, exactly the outcome
-expected once the full polynomial (rather than a truncated one-term
-scaling) is used, since the polynomial was rescaled against this same
+expected once the full polynomial, not a truncated one-term
+scaling, is used, since the polynomial was rescaled against this same
 JILA value in the first place. Had the residual instead *exceeded* the
 combined bands, that would have been reported here as a genuine finding
 (most likely the static-coefficient vintage or higher-order `T^8`/`T^10`
@@ -781,7 +781,7 @@ pass of this benchmark.
   the original scope note's prose seems to anticipate (see
   "Reproducibility case" above for why that distinction is binding). No
   JILA or USTC row maps at all (see Gap analysis / `benchmarks/MAPPING.md`).
-  Flagging for project review rather than silently declaring full victory
+  Flagging for project review, not silently declaring full victory
   or quietly deviating from the documented procedure.
 - **Resolved (was Open question, now investigated):** this benchmark's
   original pass left a reviewer-added transparency note that the PRL
@@ -796,7 +796,7 @@ pass of this benchmark.
 - **Deviation (documented, not silent)**: the DC-Stark illustrative field
   sweep in `benchmarks/run_benchmarks.py` (JILA context) is additional to
   what the original scope note (section 2) literally describes, added to give that in-scope
-  row *some* concrete engine output and physical context rather than a
+  row *some* concrete engine output and physical context, not a
   bare "cannot compare"; explicitly labeled non-comparison, non-KPI
   content throughout.
 - The two NIST CSVs are ingested (parsed, checksum-verified) per this benchmark
@@ -804,7 +804,7 @@ pass of this benchmark.
   ~2.2 MB files; see `benchmarks/SOURCES.md`'s "why only a 20-row
   excerpt" note (not a license restriction; the allowance for "fetch
   scripts if too large" is applied here for repo-hygiene reasons instead,
-  documented explicitly rather than silently).
+  documented explicitly, not silently).
 - **New, second follow-up (this pass):** NPL's arXiv:1706.01944 PDF/TeX
   source and USTC's Metrologia 63,025002 PDF (except a small, CC-BY-4.0-
   licensed excerpt, `benchmarks/fixtures/ustc_metrologia_63_025002_sec3_5_table3_excerpt.txt`)

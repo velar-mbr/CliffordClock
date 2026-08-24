@@ -78,8 +78,8 @@ grid = load_field_comsol("my_export.txt", expression_prefix="es")  # default
   `% Dimension:` line other than `3`, a column-header line
   containing an `@ param=value` tag (a parameter-sweep/multi-study
   export), or a complex-valued (frequency-domain) data cell all raise a
-  descriptive `ValueError` rather than being silently mis-parsed or
-  truncated. `docs/byof-guide.md`'s "COMSOL exports" section has the exact
+  descriptive `ValueError` naming the problem, so none of these get
+  silently mis-parsed or truncated. `docs/byof-guide.md`'s "COMSOL exports" section has the exact
   export-dialog settings that keep you in this supported scope.
 - **Header cross-checks:** if present, `% Nodes:` and `% Expressions:`
   are checked against the actual data-row and column counts and raise on

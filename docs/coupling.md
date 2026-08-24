@@ -9,7 +9,8 @@ linear validation coupling E14a
 Clock states carry no permanent dipole moment, so the physically meaningful
 stray-field systematic is quadratic in the field, not linear: E14a is a
 closed-form coupling used to validate the integrator/phase-accumulation
-pipeline (CONVENTIONS.md §5), not a claim about the real physics.
+pipeline (CONVENTIONS.md §5). It makes no claim about the real physics of
+a clock transition.
 `pivot_perturbation_stark` (E14b) is what makes a `cliffordclock` report a physically
 meaningful clock-shift number.
 
@@ -93,9 +94,9 @@ CONVENTIONS.md E14b's own suggestion.
 | `delta_alpha_dc_si` | C²·m²·J⁻¹ (= C·m²·V⁻¹) | `Δα`, literature-native units |
 | `stark_coefficient_hz_per_v2_m2` | Hz·m²·V⁻² | `k_S = -Δα/(2h)`, derived automatically from `delta_alpha_dc_si`, never independently transcribed |
 
-Both are `None` for a species with no DC-Stark data. Use
-`Species.resolve_stark_coefficient_hz_per_v2_m2()` rather than reading the
-fields directly: it prefers `stark_coefficient_hz_per_v2_m2` if set,
+Both are `None` for a species with no DC-Stark data. Read the resolved
+coefficient through
+`Species.resolve_stark_coefficient_hz_per_v2_m2()`: it prefers `stark_coefficient_hz_per_v2_m2` if set,
 falls back to deriving it from `delta_alpha_dc_si`, and raises a clear
 `ValueError` (citing E14b and the species name) if neither is populated.
 
@@ -185,10 +186,10 @@ p_minus_1 = pivot_perturbation_stark(e0, delta_e, species)
 ```
 
 **API note (documented, not silent):** this function takes the E11
-baseline/perturbation split `e0`/`delta_e` as two separate arguments
-(rather than a single combined field), matching the existing E14a
-functions' established convention at this module boundary and matching
-what the precision discipline below actually requires.
+baseline/perturbation split as two separate arguments, `e0` and
+`delta_e`, matching the existing E14a functions' established convention
+at this module boundary and matching what the precision discipline below
+requires.
 
 ### Precision discipline (E10)
 
@@ -214,16 +215,14 @@ reference, while the term-by-term form matches that reference to
 
 ## Blackbody-radiation shift (E32/E33, WP20)
 
-The vacuum chamber glows in the infrared; the atom's clock states shift in
-that glow. Every real optical-lattice clock sits inside a room-temperature
-(or actively temperature-controlled) enclosure, and that enclosure's
-thermal (blackbody) radiation field perturbs the clock transition by
-exactly the same second-order Stark mechanism as a stray DC field,
-just with the field's mean-square magnitude set by the Stefan-Boltzmann
-law instead of a lab electrode. It is, in practice, the dominant
-systematic in a real strontium or ytterbium lattice clock, which is why
-it is worth modeling explicitly rather than folding into a generic
-uncertainty budget line.
+Every real optical-lattice clock sits inside a room-temperature (or
+actively temperature-controlled) enclosure. That enclosure emits a
+thermal (blackbody) infrared radiation field, and this field perturbs
+the clock transition by exactly the same second-order Stark mechanism as
+a stray DC field, with the field's mean-square magnitude set by the
+Stefan-Boltzmann law. It is, in practice, the dominant systematic in a
+real strontium or ytterbium lattice clock, so this project gives it its
+own explicit model with a dedicated formula and coefficient provenance.
 
 `cliffordclock.integrator.omega.bbr_pivot_perturbation` computes the BBR
 pivot term (CONVENTIONS.md E32) for a given radiation temperature and
@@ -551,6 +550,6 @@ silent gap:
   trajectories are not this WP's target). `integration.mode:
   fast_path`/`secular` needed no change at all, then or now: both already
   consume the coupling-agnostic `fastpath.RateFn` seam.
-- **Provenance lives in `uncertainty_notes` (free text)**, not a
-  dedicated `report-schema.md` field: free text is already the
-  documented extension point for this kind of note.
+- **Provenance is recorded in `uncertainty_notes` (free text).** Free
+  text is already the documented extension point for this kind of note,
+  so no dedicated `report-schema.md` field exists for it.

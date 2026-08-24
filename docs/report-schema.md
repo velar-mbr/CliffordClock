@@ -30,7 +30,7 @@ invalid JSON. Two cases currently produce a `null`:
    exactly zero (every atom accumulated the identical phase, e.g. a
    lattice ensemble in a spatially uniform field), so E27's
    `sigma_Phi -> 0+` limit gives `T2* = +inf`, a *defined*, physically
-   meaningful value (no inhomogeneous dephasing) that JSON simply cannot
+   meaningful value (no inhomogeneous dephasing) that JSON cannot
    represent. In memory this is `float("inf")`
    (`cliffordclock.analytics.stats.dephasing_time_t2star`).
 

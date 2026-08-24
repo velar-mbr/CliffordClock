@@ -39,13 +39,13 @@ must not distribute a modified copy, per the license terms.
   corresponding to $T=300$~K, and the fractional deviation of $G_n(y)$
   from the full integral.
 
-This project's own registry (`cliffordclock.ensemble.species.SR87`) does
-not use this dataset's coefficients directly: the registry's dynamic-term
-polynomial is the PTB-2025 rescaling of this dataset's fit *shape* onto
+This project's own registry (`cliffordclock.ensemble.species.SR87`) uses
+a PTB-2025 rescaling of this dataset's fit *shape*, applied onto
 the more precise Aeppli et al. 2024 anchor (see
 Lisdat et al., PRR 3, L042036 (2021); Aeppli et al., PRL 133, 023401
 (2024), and
-`paper/main.tex` Sec. "The blackbody-radiation pivot term"). This
+`paper/main.tex` Sec. "The blackbody-radiation pivot term"); this
+dataset's own coefficients are not used directly. This
 dataset's own tabulated `BBR_shift.dat` values are used by
 `paper/figures/fig5_bbr_temperature.py` purely as a published-data
 overlay for comparison, not as an input to the registry.

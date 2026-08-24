@@ -8,7 +8,7 @@ level) caused by stray DC electric fields and by the atom's own motion.
 
 **Pre-beta research code.** See the top-level [README](../README.md)'s
 Status section for the two-sentence validation summary, and
-[`validation.md`](validation.md) for the full picture.
+[`validation.md`](validation.md) for the full record.
 
 ## Start here: Tutorial
 

@@ -48,7 +48,7 @@ exploits this, the accuracy study behind it, and when to use each tier.
 | Tier | Regime | Mode | Cost in `T` | What it computes |
 |---|---|---|---|---|
 | **A** | lattice (quantum motional state) | `fast_path` (default) | O(1): no time stepping | `ΔΦ_q = δω̃_q · T̃` per node (E29), exact |
-| **B(i)** | classical | `direct` (default) | O(steps), `dτ̃` auto-selected | The rotor integrator (E17-E24), stepped at trap-period resolution instead of Compton resolution |
+| **B(i)** | classical | `direct` (default) | O(steps), `dτ̃` auto-selected | The rotor integrator (E17-E24), stepped at auto-selected trap-period resolution (E31) |
 | **B(ii)** | classical, periodic (isotropic trap) | `secular` | O(1) sub-steps per orbit, independent of `T` | `ΔΦ = ⟨δω̃⟩_orb · T̃` (E30), one-orbit average × `T` |
 | **C** | either | `worldline` (lattice) / Compton-fine `direct` (classical) | O(T̃) | The full rotor integrator at Compton-scale `dτ̃ ~ 1`, the original Compton-scale validation mode |
 
@@ -131,7 +131,7 @@ unchanged (backward compatible with every earlier config).
 `select_dtau`'s rule above resolves *trap* dynamics only; it says
 nothing about the coupling strength (`coupling.mu`, E14a) or field
 magnitude, both of which set how large the per-step rotor generator
-(`-½ dτ̃ Ω`, E19) actually is. A large enough generator angle can push
+(`-½ dτ̃ Ω`, E19) is. A large enough generator angle can push
 `exp_bivector`'s fixed-order Taylor evaluation into badly wrong (or
 non-finite) rotor-diagnostic output, even though the primary scalar phase
 (E21/E22, which is what `mean_fractional_shift` reports) stays finite
@@ -149,7 +149,7 @@ throughout. Two layers guard against this (`cliffordclock.pipeline`):
    (`phase`, `phase_rotor`, `r_final`, `norm_error`, `max_norm_drift`) is
    checked for finiteness, so any run that still produces a non-finite
    rotor-diagnostic value raises `PhysicsValidationError` with a message
-   pointing at the likely cause, rather than silently returning a
+   pointing at the likely cause. The pipeline never silently returns a
    partially-`NaN` result.
 
 `examples/quadrupole_classical.yaml`'s explicit Compton-scale `dtau: 0.5`
@@ -184,7 +184,7 @@ trajectory and transient sampler/scan copies, see
   an explicit coarser `integration.dtau` (fewer steps), or switch to a
   mode that never materializes a dense trajectory: `secular`
   (Tier B(ii)) or the lattice `fast_path` (Tier A), both O(1) in
-  `integration.time_s`. Users who genuinely want a larger batched
+  `integration.time_s`. Users who want a larger batched
   allocation set `integration.max_trajectory_memory_gb` explicitly
   (`docs/cli.md`).
 - `ensemble.regime: classical` + `mode: direct` (both `coupling.type`
@@ -213,10 +213,9 @@ scope limit (below), not an oversight.
 **Chunked evaluation (WP19, bounds the smoother's `N × K` term
 independent of `N`).**
 `cliffordclock.fields.smoother.chunked_apply`/`FieldSmoother.evaluate_chunked`
-evaluate a `FieldSmoother`-backed field over fixed-size query chunks
-(default 4096 points) instead of one call over the whole query-point
-batch, bounding peak memory to `chunk_size × K × 3 × 8 × factor` bytes
-regardless of how many query points are ultimately evaluated. Verified
+evaluate a `FieldSmoother`-backed field in fixed-size query chunks
+(default 4096 points), bounding peak memory to `chunk_size × K × 3 × 8 × factor` bytes
+regardless of how many query points are evaluated in total. Verified
 bitwise-identical to the unchunked path for `chunk_size ≥ 2` (a `≤ 1`
 ulp difference at `chunk_size = 1`, a `jax.vmap`-batch-of-one XLA
 lowering detail, see `tests/test_fields_smoother.py`'s
@@ -323,8 +322,7 @@ tighten or relax it.
 
 At large auto-selected `dτ̃`, the per-step rotor-renormalization cadence
 matters more than it does at Compton scale: `cliffordclock.pipeline`
-auto-selects `renorm_every` (rather than leaving it at its coarser
-default) whenever `integration.dtau` is auto-selected and
+auto-selects a tighter `renorm_every` whenever `integration.dtau` is auto-selected and
 `integration.renorm_every` is left unset, targeting `max_norm_drift <
 1e-12` (E20). An explicit `integration.dtau` or explicit
 `integration.renorm_every` is always honored unchanged. This only affects
@@ -370,8 +368,8 @@ time-dependent fields; use `mode: direct` (Tier B(i)) there.
 - **Partial orbit** (`T = 4.37 T_orb`, the realistic case): the
   discrepancy (`5.8e-8`, absolute phase units) stays within E30's own
   documented remainder bound (`8.4e-7` for this case, ~14x looser than
-  the actual discrepancy, a meaningful, not vacuous, bound); this is
-  the test that actually exercises E30's approximation, not just
+  the actual discrepancy, a bound tight enough to be meaningful); this
+  is the test that exercises E30's approximation, beyond ordinary
   numerical noise.
 
 ## Tier C: the Compton-fine worldline integrator (validation mode)
@@ -383,7 +381,7 @@ unchanged (`tests/test_integrator_worldline.py`,
 It is what Tiers A/B(i)/B(ii) are validated against above, and remains
 the tool of record for regimes outside E29/E30's validity bounds
 (time-dependent fields, anisotropic-trap or non-periodic classical
-motion, or simply cross-checking a fast-path result from first
+motion, or cross-checking a fast-path result from first
 principles).
 
 ## Design history (historical, superseded narrative, kept for the record)
@@ -398,7 +396,7 @@ above for that.
 
 `select_dtau`'s step-size rule resolves *trap* dynamics only; it says
 nothing about coupling strength or field magnitude, both of which set how
-large the per-step rotor generator actually is. At a realistic E14a `mu`
+large the per-step rotor generator is. At a realistic E14a `mu`
 (`~1e-25`) combined with a large auto-selected `dτ̃`, the per-step
 generator angle can reach thousands of radians, far past the rotor
 exponential's fixed-order (12-term Taylor, 10-halving) convergence range.
@@ -410,7 +408,7 @@ fields (`norm_error`/`max_norm_drift`/`phase_rotor`/`r_final`) go bad.
 Before the fix, `cliffordclock.pipeline._validate_physics` only checked
 the primary `phase` for finiteness, so a `NaN`-contaminated
 `max_norm_drift` silently passed the sanity check (`NaN` compares `False`
-against anything in NumPy) instead of raising, a garbage-in-garbage-out
+against anything in NumPy) without raising: a garbage-in-garbage-out
 failure mode with no error at all. The fix added two layers: a pre-flight
 check on the estimated worst-case per-step generator angle (threshold
 `MAX_PER_STEP_ROTOR_ANGLE_RAD = 0.5` rad, four orders of magnitude below
@@ -446,8 +444,8 @@ inside the rotor exponential's convergence range at large `dτ̃`) with
 ~20x margin under the pipeline's coarse sanity threshold. That framing
 undercounted the realistic-coupling case: a longer run at realistic
 coupling can push drift past `1e-12` comfortably at the coarser cadence.
-The fix: the pipeline auto-selects `renorm_every` (rather than leaving it
-at the coarser default) whenever `dτ̃` is auto-selected and
+The fix: the pipeline auto-selects a tighter `renorm_every` whenever
+`dτ̃` is auto-selected and
 `renorm_every` is left unset, targeting `max_norm_drift < 1e-12` against
 a documented per-call drift floor (`renorm_every = max(1, floor(1e-12 /
 2e-13)) = 5`). Measured with the fix: a moderate-coupling classical

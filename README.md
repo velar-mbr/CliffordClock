@@ -28,7 +28,7 @@ budget runs through numerics proven at 1×10⁻¹⁸ against adversarial
 tests, cross-checked by two independent formulations, a direct scalar
 calculation and a Cl(1,3) geometric-algebra rotor engine, that agree to
 the last digit on every case shipped, with every coefficient carrying
-its source, which paper, which value, in the output itself. A
+its source, which paper, which value, in the output. A
 millimetre-scale extended-lattice sample runs on a laptop. And it reproduces the real world: two
 published measurements, NPL's stray-field reconstruction and Bothwell et
 al.'s mm-scale gravitational-redshift measurement, come out of this
@@ -58,7 +58,7 @@ pipeline with zero fitted parameters.
 - [x] **Numerics built for 1×10⁻¹⁸**: a signal 8 orders of magnitude
   below the baseline survives, and tests prove it
 - [x] **Machine-readable reports** (JSON + CSV) carrying the provenance
-  of every coefficient, which paper, which value, in the output itself
+  of every coefficient, which paper, which value, in the output
 - [x] **Checked against things you already know**: textbook Stark
   formulas with literature polarizabilities, exact closed forms, and
   five literature known-answer cases, plus two published-measurement
@@ -138,7 +138,7 @@ full case-by-case record, with formulas and sources, is
 At every point along an atom's path, the local fractional clock-rate
 shift comes from the field (quadratic Stark) and the atom's speed (time
 dilation), then integrates over where your atoms actually are: that
-simple picture fully handles spatially varying fields. The same physics
+approach fully handles spatially varying fields. The same physics
 also runs through a general geometric-algebra engine, a Cl(1,3) "rotor"
 representing the atom's internal clock, which agrees with the simple
 calculation to machine precision today and exists for the physics a

@@ -32,8 +32,8 @@ x,y,z,Ex,Ey,Ez
   path; anything else is accepted as a scattered point cloud
   (`grid.regular == False`). `FieldSmoother.fit` handles both
   identically, since the RBF fit does not require a regular grid, but a
-  scattered cloud makes it harder to eyeball whether your export actually
-  resolves the field's structure (see "Grid spacing" below).
+  scattered cloud makes it harder to eyeball whether your export resolves
+  the field's structure (see "Grid spacing" below).
 - Rejected outright (`ValueError`, not silently coerced): missing/empty
   file, missing required column(s), a non-numeric cell, a short/malformed
   data row, a non-finite (NaN/Inf) coordinate or field value, or two rows
@@ -54,8 +54,8 @@ format directly, with no manual CSV conversion needed.
 **Export dialog settings.** In COMSOL, `Results > Export > Data`:
 
 1. **Data format: "Spreadsheet"** (not "Sectionwise", a
-   different, unsupported format; this loader detects and rejects it with
-   a clear error rather than silently mis-parsing it). File extension
+   different, unsupported format; this loader detects it and raises a
+   clear error naming the mismatch). File extension
    `.txt`, `.csv`, or `.dat` all work; comma- and whitespace-delimited
    variants are both accepted.
 2. **Expressions:** the three Cartesian components of your field, e.g.
@@ -66,8 +66,8 @@ format directly, with no manual CSV conversion needed.
    has a parameter sweep (frequency, voltage, geometry, ...), export one
    parameter value at a time: a header carrying an `@ param=value` tag is
    explicitly out of scope (out of scope: no parameter-sweep/multi-
-   dataset files) and raises a clear error rather than picking one
-   dataset arbitrarily.
+   dataset files); the loader raises a clear error naming the sweep tag
+   when it finds one.
 4. **A 3D model/study.** 2D exports (`% Dimension: 2`) are rejected; this
    tool's whole physics stack (CONVENTIONS.md) is 3D.
 5. **Units:** the loader converts length (`m`, `mm`, `cm`) and field
@@ -75,7 +75,8 @@ format directly, with no manual CSV conversion needed.
    dialog writes into the header, so pick whichever of these your model
    uses natively; no manual conversion needed. Any other unit (a
    different physical quantity, an unsupported unit string) raises a
-   `ValueError` naming it, rather than a silent wrong-factor conversion.
+   `ValueError` naming it. This catches a wrong-factor conversion before
+   it silently corrupts a report.
 
 **`.mphtxt` is a different format.** COMSOL's `File > Export > Mesh`
 (`.mphtxt`) and `Results > Export > Image/Animation` outputs are *not*
@@ -83,7 +84,7 @@ what this loader reads: only `Results > Export > Data` with the
 Spreadsheet format above works. Pointing `load_field_comsol` at a
 `.mphtxt` mesh file (or any file whose first line does not start with
 `%`) raises a clear "does not look like a COMSOL Spreadsheet export"
-error rather than attempting to parse mesh topology as field data.
+error, without attempting to parse mesh topology as field data.
 
 **Config usage (`field.comsol`).** Point `field.comsol` at your export
 path (`docs/cli.md`'s "Field sources" section has the full schema); it
@@ -124,7 +125,7 @@ E, grad_E = smoother.evaluate(pos)
 `FieldSmoother.fit` (CONVENTIONS.md E11-E13) splits your field into a
 degree-1 (uniform + linear) analytical baseline plus a thin-plate-spline
 RBF residual fitted through every point in your CSV. The RBF can only
-resolve field structure your grid actually samples: if your field has a
+resolve field structure your grid samples: if your field has a
 real feature (a patch potential, an electrode edge, a sharp gradient near
 a boundary) with characteristic length scale `L`, your grid spacing should
 be a fraction of `L`: as a rule of thumb, several samples across the
@@ -144,15 +145,14 @@ Two practical constraints on grid size:
 
 - **`FieldSmoother.MAX_FIT_POINTS` (20,000).** The RBF fit solves a dense
   `(N, N)` linear system, an `O(N^3)` operation. Larger point clouds
-  raise `ValueError` outright; downsample (or subsample a region of
-  interest) rather than exporting your entire mesh.
+  raise `ValueError` outright; downsample, or subsample a region of
+  interest, to stay under the cap.
 - **Fit wall time in practice.** `examples/patch_field_sr87.csv`'s 4913
   points fit and evaluate in a couple of seconds; larger grids (several
   thousand points) can start to dominate a `cliffordclock run`'s wall time well
   before `MAX_FIT_POINTS`'s hard cap. If your own export is large, export
-  only the region around the trap you actually need (see "Scope today"
-  below on the ~mm-to-cm domain this tool targets) rather
-  than a whole chamber's mesh.
+  only the region around the trap you need (see "Scope today"
+  below on the ~mm-to-cm domain this tool targets).
 
 ## `smoothing`: guidance for noisy exports
 
@@ -179,9 +179,9 @@ Tikhonov regularization to the RBF linear system:
 
 | Warning | Module | Cause | What to do |
 |---|---|---|---|
-| `NearDuplicatePointsWarning` | `cliffordclock.fields.io` | Two sample points sit far closer together (default: within `1e-9` times the bounding-box diagonal) than the domain scale suggests any two *distinct* points should. Common cause: mesh refinement placed two nodes almost on top of each other, or export tooling round-tripped coordinates through single precision. | Usually harmless to the physics (if the two points also report matching field values) but a sign your export has redundant/degenerate sampling; consider deduplicating. If the two near-duplicate points report **disagreeing** field values, `load_field_csv`/`FieldSmoother.fit` raise `ValueError` instead of warning, since that is corrupted or inconsistent input, not noise. |
-| `IllConditionedFitWarning` | `cliffordclock.fields.smoother` | The RBF kernel matrix's estimated reciprocal condition number (`rcond`) has dropped below `1e-12`. fp64 has ~15-16 decimal digits, so a system this poorly conditioned returns fitted coefficients dominated by numerical noise, not your actual field data, even though the linear solve "succeeds" with no exception. Near-duplicate points are the most common cause (two RBF basis functions become nearly linearly dependent). | Increase `smoothing` (see above), or clean up near-duplicate points in your export. |
-| `OutOfBoundsWarning` | `cliffordclock.fields.smoother` | `FieldSmoother.evaluate` was queried outside your CSV's bounding box. The fit is still evaluated (extrapolated, not interpolated) and a value is still returned, but nothing constrains the RBF/baseline sum's behavior outside the convex hull of your data, so it should not be trusted the way an interior value is. | Make sure your CSV's domain actually covers where your ensemble's atoms/quadrature nodes sit: notebook 04's section 1 prints the bounding box; compare it against your trap's motional extent (`docs/timescales.md` has typical numbers). |
+| `NearDuplicatePointsWarning` | `cliffordclock.fields.io` | Two sample points sit far closer together (default: within `1e-9` times the bounding-box diagonal) than the domain scale suggests any two *distinct* points should. Common cause: mesh refinement placed two nodes almost on top of each other, or export tooling round-tripped coordinates through single precision. | Usually harmless to the physics (if the two points also report matching field values) but a sign your export has redundant/degenerate sampling; consider deduplicating. If the two near-duplicate points report **disagreeing** field values, `load_field_csv`/`FieldSmoother.fit` raise `ValueError`: disagreement between near-duplicate points signals corrupted or inconsistent input. |
+| `IllConditionedFitWarning` | `cliffordclock.fields.smoother` | The RBF kernel matrix's estimated reciprocal condition number (`rcond`) has dropped below `1e-12`. fp64 has ~15-16 decimal digits, so a system this poorly conditioned returns fitted coefficients dominated by numerical noise. Those coefficients no longer reflect your actual field data, even though the linear solve "succeeds" with no exception. Near-duplicate points are the most common cause (two RBF basis functions become nearly linearly dependent). | Increase `smoothing` (see above), or clean up near-duplicate points in your export. |
+| `OutOfBoundsWarning` | `cliffordclock.fields.smoother` | `FieldSmoother.evaluate` was queried outside your CSV's bounding box. The fit is still evaluated (extrapolated, not interpolated) and a value is still returned, but nothing constrains the RBF/baseline sum's behavior outside the convex hull of your data, so it should not be trusted the way an interior value is. | Make sure your CSV's domain covers where your ensemble's atoms/quadrature nodes sit: notebook 04's section 1 prints the bounding box; compare it against your trap's motional extent (`docs/timescales.md` has typical numbers). |
 
 `notebooks/04_bring_your_own_field.ipynb`'s section 6 reproduces the first
 two warnings live on a small synthetic example, including the
@@ -225,8 +225,7 @@ comes next (VTK and native-FEA import, AC-Stark and magnetic-field
 systematics, tensor-polarizability species like `Al27+`, and a modeled
 uncertainty budget beyond `uncertainty_notes`' free-text provenance).
 
-One scope boundary is worth keeping in view while reading results: the
-lattice fast path (E29, the default for `ensemble.regime: lattice`)
+The lattice fast path (E29, the default for `ensemble.regime: lattice`)
 reports the Stark/field shift from its static (`v=0`) quadrature nodes,
 which by construction carry no motional second-order Doppler
 contribution. `docs/validation.md`'s KA4 case computes that

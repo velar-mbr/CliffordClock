@@ -48,7 +48,7 @@ polarizabilities, the textbook DC-Stark formula, and the standard
 equipartition second-order-Doppler result, at realistic (not
 femtosecond) interrogation times, via the physical E14b coupling and the
 fast-path architecture (`docs/timescales.md`). **KA5** extends this to
-the E32 BBR pivot term's closed-form polynomial itself (a formula check,
+the E32 BBR pivot term's closed-form polynomial (a formula check,
 not yet a check against a published *row*; see the arithmetic-
 reproduction case below for that).
 
@@ -262,8 +262,7 @@ virial theorem for a harmonic oscillator this time-average equals half the
 atom's total mechanical energy, and, because the ensemble draws both
 positions and velocities from the correct thermal (Boltzmann) distributions,
 the ensemble mean of that time-average converges to *exactly* the same
-`3k_BT/(2mc²)` value as the naive instantaneous-equipartition formula, not
-merely an approximation to it.
+`3k_BT/(2mc²)` value as the naive instantaneous-equipartition formula.
 
 **Test:**
 `tests/test_known_answers.py::test_ka4_second_order_doppler_matches_equipartition`,
@@ -357,12 +356,12 @@ spacing) at their surveyed local gravity, and compares the fitted
 per-site slope against BOTH their corrected measurements, MET at
 0.48-sigma and 0.70-sigma respectively, both bracketing the prediction.
 Labeled **`"reproducibility"`, with the caveat INVERTED from the BBR
-case's**: unlike NPL's genuinely nontrivial reconstruction, the `g/c^2`
+case's**: unlike NPL's nontrivial reconstruction, the `g/c^2`
 arithmetic here is textbook and the authors computed it themselves;
-what this case actually validates is the extended-sample MACHINERY
+what this case validates is the extended-sample MACHINERY
 (per-site geometry, envelope weighting, map assembly) producing the right
-measured-map slope end-to-end, with zero adjustable inputs. Does not
-change the blind-prediction count. **This is the project's second
+measured-map slope end-to-end, with zero adjustable inputs. The
+blind-prediction count stays unchanged. **This is the project's second
 reproducibility case (owner-ratified 2026-08-11), alongside NPL's above**:
 the project headline is now two reproducibility cases, zero blind
 predictions. See `benchmarks/RESULTS.md`'s "Reproducibility case:

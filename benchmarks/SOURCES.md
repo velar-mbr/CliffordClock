@@ -64,7 +64,7 @@ scholarly-citation practice already established in this repo (e.g.
 transcribed number carries an exact table/section/page citation, see
 `benchmarks/MAPPING.md`.
 
-**What the paper actually contains (relevant to this benchmark):** Table I, "Fractional
+**What the paper contains (relevant to this benchmark):** Table I, "Fractional
 frequency shifts and uncertainties for the JILA 1D Sr optical lattice
 clock": 9 systematic-shift line items + total (BBR, lattice light,
 second-order Zeeman, density, first-order Zeeman, background gas, DC
@@ -83,8 +83,8 @@ transcribed into `benchmarks/fixtures/jila_2403_10664_table1.csv` for
 WP10, above: restated as `benchmarks/loaders.JILA_BBR_PUBLISHED_SHIFT`)
 and the main-text in-vacuum-RTD operating-temperature statement
 (`T = 20.132(4) °C = 293.282(4) K`, `benchmarks/loaders.JILA_BBR_TEMPERATURE_K`).
-Per the binding instruction to extend this logged source rather than
-duplicate it, this WP20 pass did not re-fetch or re-read the PDF itself;
+Per the binding instruction to reuse and extend this logged source, this
+WP20 pass did not re-fetch or re-read the PDF;
 the temperature value was independently verified against Aeppli et
 al.'s primary text in this project's internal review sweep (2026-08-11,
 prior session). No new checksum, license question, or access attempt
@@ -130,8 +130,8 @@ vs time.csv` = "Time, Phase(rad)"; `10GHz_phase(mrad) vs time.csv` =
 **License / redistribution.** `accessLevel: "public"`, license
 `https://www.nist.gov/open/license`: "works of NIST employees are not
 subject to copyright protection in the United States" (17 U.S.C. § 105);
-freely redistributable with attribution to NIST. Redistribution is **not**
-the reason these files are excerpted rather than committed in full:
+freely redistributable with attribution to NIST. These files are
+excerpted to 20 rows for a different reason than redistribution rights:
 see the next paragraph.
 
 **Why only a 20-row excerpt is committed (not a license issue).** Unlike
@@ -173,7 +173,7 @@ credentials, prohibited regardless of any authorization):**
 |---|---|---|
 | Article abstract page | `https://journals.aps.org/prl/abstract/10.1103/PhysRevLett.133.023401` | Loads (after a Cloudflare bot-check the browser tool passed automatically); page text explicitly reads "Supplemental Material (Subscription Required)" and "Authorization Required -- We need you to provide your credentials before accessing this content." |
 | Supplemental-material anchor/link | `https://journals.aps.org/prl/abstract/10.1103/PhysRevLett.133.023401#supplemental` | In-page anchor only (`<a name="supplemental">`), not a distinct downloadable file; the one labeled link that reads "Supplemental Material (Subscription Required)" resolves to the same paywalled article-PDF endpoint, confirmed by inspecting the page's DOM directly (`<a href="https://journals.aps.org/prl/pdf/10.1103/PhysRevLett.133.023401">`), not a separate SM file URL. |
-| CHORUS public-access accepted manuscript | `https://link.aps.org/accepted/10.1103/PhysRevLett.133.023401` | A legitimately public route (CHORUS is a funder public-access mechanism, no login prompt shown), but the endpoint serves a file download rather than a page; the download could not be captured through any available fetch mechanism (`curl`/`WebFetch`: HTTP 403 from Cloudflare bot-detection even with a browser-like User-Agent; the interactive browser tool triggered a native OS save dialog it cannot read the bytes of, and explicitly refuses a retry of that URL). No file bytes and no checksum were obtained. |
+| CHORUS public-access accepted manuscript | `https://link.aps.org/accepted/10.1103/PhysRevLett.133.023401` | A legitimately public route (CHORUS is a funder public-access mechanism, no login prompt shown), but the endpoint serves a raw file download with no HTML page at that URL; the download could not be captured through any available fetch mechanism (`curl`/`WebFetch`: HTTP 403 from Cloudflare bot-detection even with a browser-like User-Agent; the interactive browser tool triggered a native OS save dialog it cannot read the bytes of, and explicitly refuses a retry of that URL). No file bytes and no checksum were obtained. |
 | ResearchGate mirror | `https://www.researchgate.net/publication/382168376` | HTTP 403 (scraper-blocked). |
 
 None of these were pursued further (no credential entry, no institutional
@@ -219,17 +219,17 @@ evidence found by re-reading the extracted text end to end (not assumed):
 
 **Conclusion:** the Supplemental Material has exactly five sections (I-V
 above), none of them about DC Stark, and the DC-Stark discussion's total
-absence of any supplemental-material citation is itself evidence (not
-merely an absence of evidence) that the officially separate PRL
+absence of any supplemental-material citation counts as positive
+evidence that the officially separate PRL
 Supplemental Material (which this session could not access directly)
-does not contain additional DC-Stark quantitative data either. See
+contains no additional DC-Stark quantitative data either. See
 `benchmarks/MAPPING.md` for how this affects (does not change) this
 benchmark's outcome.
 
 **Checksums:** none recorded for this source: no file bytes were
 successfully retrieved from `journals.aps.org` or `link.aps.org` in this
-session (see the access-attempts table above). This is disclosed
-explicitly rather than fabricated.
+session (see the access-attempts table above). This gap is disclosed
+explicitly, with no fabricated checksum standing in its place.
 
 ## 4. arXiv:1706.01944: NPL Rydberg electrometry (follow-up, authorized 2026-08-10)
 
@@ -261,7 +261,7 @@ demand. The two numeric values transcribed into
 as every other transcribed value in this project, each with an exact
 section/page citation (`benchmarks/MAPPING.md`).
 
-**What the paper actually contains (relevant to this benchmark),
+**What the paper contains (relevant to this benchmark),
 independently verified from the fetched, `pdftotext`-extracted full text
 (not trusted from an internal research dossier that first flagged this
 source, which explicitly called for independent re-verification):**
@@ -328,7 +328,7 @@ owner-provided PDF itself (3.8 MB) is not committed to this repository
 (large, and the excerpt already contains everything this benchmark uses from it);
 its SHA-256 above is the provenance record.
 
-**What the paper actually contains (relevant to this benchmark, own independent
+**What the paper contains (relevant to this benchmark, own independent
 read of the owner-provided PDF, not trusted from the dossier):**
 
 - Section 3.5 "Other minor systematic shifts," subsection "Residual DC
@@ -419,7 +419,7 @@ owner-supplied PDF's own title page in review.)
 
 **Provenance: owner-supplied primary text, recorded as such; no fetch
 checksum table here.** Unlike sections 1-6 above, this session did not
-itself retrieve this file (no `curl`/`WebFetch` request was made for it),
+retrieve this file (no `curl`/`WebFetch` request was made for it),
 so there is no fetch log or byte-checksum for this session to accurately
 report; performing one anyway (hashing a file this session never
 downloaded) would misrepresent the provenance as a fresh, independently
@@ -429,8 +429,8 @@ two-ion entangled-state Theta = (5/12)*h*a relation) was already
 performed and independently reviewed against the primary text
 (Roos et al., Nature 443, 316 (2006), quant-ph/0701215v1, Eq. 1/Fig. 4a)
 in this project's internal review (2026-08-11, "PRIMARY
-VERIFIED"): this benchmark extends that already-logged extraction
-rather than re-reading the PDF a second time, the same "extend, do not
+VERIFIED"): this benchmark reuses and extends that already-logged
+extraction, the same "extend, do not
 duplicate" pattern `benchmarks/loaders.py`'s `JILA_BBR_TEMPERATURE_K`
 addendum uses for the already-fetched arXiv:2403.10664 source (section 1
 above).
