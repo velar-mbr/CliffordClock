@@ -50,6 +50,8 @@ _SCRIPTS = [
     "fig7_bothwell_sitemap.py",
     "fig3_step_size_accuracy.py",
     "fig4_showcase_gradient_dispersion.py",
+    "thermal_environment_values.py",
+    "fig8_motional_progression.py",
     "table_validation.py",
     "table_budget_slice.py",
 ]

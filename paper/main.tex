@@ -46,6 +46,8 @@
 \input{generated/bothwell_values.tex}
 \input{generated/roos_values.tex}
 \input{generated/budget_slice_values.tex}
+\input{generated/thermal_environment_values.tex}
+\input{generated/motional_values.tex}
 
 \usepackage{orcidlink}
 
@@ -92,7 +94,19 @@ known-answer cases ($^{87}$Sr, $^{171}$Yb DC-Stark and second-order-Doppler
 formulas, $\mathrm{rtol}=10^{-10}$ or better), a direct rotor/scalar
 cross-check, and two zero-free-parameter \emph{reproducibility}
 cases: NPL's published DC-Stark shift band, and Bothwell et al.'s
-published mm-scale redshift slope. A blind prediction, against data the
+published mm-scale redshift slope. A multi-surface thermal-environment
+extension and a quantum-motional systematics package for trapped ions,
+second-order Doppler from the atom's own motional state, per-mode
+participation and intrinsic-micromotion corrections for a two-ion crystal,
+and coherent Ramsey visibility under motional squeezing, extend the
+physical model. Four further cases validate these additions: an arithmetic
+reproduction of a published trapped-ion secular-motion total, a per-mode
+closure against that same paper's own published row built from published
+trap-drive-frequency geometry alone, a position-resolved reproduction of a
+published blackbody-radiation-shield scan, and a formula check against a
+second lab's own published exchange-factor table. Each carries its own
+evidentiary class, weaker than this paper's two reproducibility cases,
+stated in full where it is discussed. A blind prediction, against data the
 pipeline's inputs did not already combine, would be the stronger claim;
 the project currently reports zero blind-prediction cases, and
 producing one is the concrete next validation goal.
@@ -453,6 +467,92 @@ committed dataset fixture
 \label{fig:bbr-temperature}
 \end{figure}
 
+\subsection{The multi-surface thermal environment}
+\label{sec:bbr-environment}
+
+A shielded laboratory clock sees a chamber interior held to a fraction of a
+kelvin of uniformity, so Eq.~\eqref{eq:e32}'s single temperature $T$ already
+matches every surface the atoms see. A clock deployed outside that kind of
+enclosure, riding in a vehicle, sitting behind a viewport a diurnal cycle can
+warm, or standing near a heat source, has no such guarantee, and its visible
+surfaces can differ by tens of kelvin. Eq.~\eqref{eq:e32}'s single $T$ is, in
+general, the $\langle T^4\rangle$-matched effective temperature of a real,
+non-uniform environment, exact for the static term by construction; the
+dynamic term's higher powers of $T$ carry no matching guarantee, so a $T$
+chosen to reproduce the static shift can still miss the dynamic one. The
+mismatch between the exact multi-surface shift and the best
+single-temperature approximation crosses $10^{-18}$, close to a modern
+lattice clock's total systematic budget, at roughly an $11$~K spread across
+two comparably sized surfaces and at roughly $19$~K for a small warm
+viewport against a larger chamber body.
+
+E37 replaces the single temperature with an explicit description of $N$
+surfaces, each carrying an effective solid-angle fraction $w_i=\Omega_i/4\pi$,
+a temperature $T_i$, an optional temperature uncertainty $\sigma_{T_i}$, and
+an optional interior emissivity $\epsilon_i$. The fractions $w_i$ are a
+lab-supplied input, from geometry, an FEA model, or a ray-traced
+exchange-factor calculation, and they are enforced to sum to one at parse
+time and again at evaluation time. Writing $T_0$ for E32's $300$~K reference
+temperature and $M_n=\sum_i w_i\,(T_i/T_0)^n$ for the environment's $n$-th
+weighted moment, E32's static and dynamic terms are evaluated against these
+moments in place of a single power of $T/T_0$:
+\begin{equation}
+  (P-1)_{\rm BBR} = \frac{\Delta\nu_{\rm stat}\,M_4 + \sum_n c_n\,M_n}{\nu_0} ,
+  \label{eq:e37}
+\end{equation}
+with $c_n$ the same per-species dynamic-term coefficients Eq.~\eqref{eq:e32}
+already uses (E37). $M_4$ matches the environment's true static shift
+exactly by construction, a weighted power mean of the surface temperatures;
+the higher moments $M_6$, $M_8$, $M_{10}$ generally do not equal
+$M_4^{n/4}$ for a non-uniform environment, and that divergence is what a $T$
+chosen only to match the static shift misses. Each moment defines its own
+per-moment effective temperature $T_{{\rm eff},n}=T_0\,M_n^{1/n}$, and every
+pipeline report prints all of them, so a user reads the divergence from the
+report text without recomputing it from the shift alone. A uniform
+environment (one surface, $w_1=1$) makes every $M_n$ equal to $(T_1/T_0)^n$
+exactly, so Eq.~\eqref{eq:e37} reduces to Eq.~\eqref{eq:e32} term for term,
+and the two paths agree bit for bit by construction.
+
+A reflective enclosure changes how a lab's own raw solid-angle fractions
+convert to effective weights. Nosske et al.\ model their transportable
+strontium clock's atoms as sitting inside one reflective enclosure of
+interior emissivity $\epsilon$, pierced by one or more apertures leaking in
+a different temperature; the enclosure's own reflections give that leaked-in
+radiation more chances to reach the atoms than its raw geometric solid angle
+alone suggests, so their published closed form for one aperture of raw
+fraction $w$ is $w_{\rm eff}=w/(w+(1-w)\epsilon)$~\cite{Nosske2025},
+reducing to $w_{\rm eff}=w$ at $\epsilon=1$ and growing past $w$ as the
+interior becomes more reflective. E37 carries this topology: at
+most one surface in an environment may set an emissivity, that surface is
+the enclosure, and every other surface is a direct-view aperture. Writing
+$W$ for the apertures' combined raw fraction, each aperture's effective
+fraction is $w_{i,\rm eff}=w_i/(W+(1-W)\epsilon)$, the published formula
+applied to the combined $W$ and split across the individual apertures in
+proportion to their own share of it. The enclosure's own effective fraction
+is the complement $1-\sum_i w_{i,\rm eff}$ of the apertures' fractions,
+fixed by the same two-temperature derivation that fixes the aperture
+fractions themselves; for a single aperture this reduces to the published
+formula exactly, and Sec.~\ref{sec:ptb-position} checks that reduction
+against the paper's own numbers.
+
+Per-surface temperature uncertainties $\sigma_{T_i}$ propagate through the
+same analytic-derivative pattern Eq.~\eqref{eq:e32}'s own uncertainty note
+uses, scaled by each surface's effective weight, in two combination modes.
+The independent mode, the default, treats the surfaces' temperature errors
+as uncorrelated and combines them in quadrature. The correlated mode treats
+them as moving together, a single shared calibration-chain error affecting
+every sensor coherently, the motivation Aeppli's 2025 JILA thesis gives for
+combining its own several correlated temperature estimates by linear
+pooling; every registry coefficient here carries the same sign, so the
+correlated band is never narrower than the independent one. Every surface's
+own temperature must lie in the $50$--$350$~K window Eq.~\eqref{eq:e32}
+already validates against, enforced individually so a composite result
+draws only on temperatures the underlying fit was checked against. A
+surfaces list is given inline in the pipeline configuration or,
+equivalently, as a path to a plain-text surfaces table via the
+\texttt{-{}-radiation-surfaces} CLI flag, and the two forms parse to the
+identical structure.
+
 \subsection{The gravitational-redshift pivot term and extended samples}
 \label{sec:grav-pivot}
 
@@ -608,6 +708,179 @@ never presented as a stray-field budget
 (Sec.~\ref{sec:limitations} places the tensor-polarizability and
 micromotion package on the roadmap together for exactly this reason).
 
+\subsection{Quantum-motional second-order Doppler}
+\label{sec:motional}
+
+Eq.~\eqref{eq:e21}'s kinematic term carries the second-order Doppler shift
+along a classical trajectory's own real, nonzero velocity, but a lattice or
+trapped-ion atom evaluated at a static quadrature node (Sec.~\ref{sec:model-modes},
+$v=0$ exactly) has no classical velocity for that term to act on. The atom
+still moves: its own zero-point and thermal motional-state population gives
+it a nonzero velocity \emph{expectation}, and the second-order-Doppler shift
+from that motion is frequently the largest single systematic in a published
+trapped-ion clock budget. For an atom or ion held near its motional ground
+state in $N$ normal modes indexed $i$, each with an ordinary (not angular)
+mode frequency $f_i$, as reported by resolved-sideband thermometry,
+and a mean vibrational occupation number $\bar n_i$, the mode angular
+frequency is $\omega_i=2\pi f_i$ and the velocity-variance expectation over
+the motional state is
+\begin{equation}
+  \langle v^2\rangle = \sum_i \frac{\hbar\omega_i}{m}\,p_i\Bigl(\bar n_i+\tfrac12\Bigr) ,
+  \label{eq:e38}
+\end{equation}
+with $m$ the species mass resolved from the same registry Eq.~\eqref{eq:e14b}
+uses and $p_i\in(0,1]$ a per-mode participation factor (default $1$,
+discussed below). The fractional shift is Eq.~\eqref{eq:e21}'s same
+second-order-Doppler form, here evaluated as an expectation value over the
+quantum motional state in place of a classical instantaneous velocity,
+$(P-1)_{\rm motional}=-\langle v^2\rangle/(2c^2)$ (E38). The $+\tfrac12$
+zero-point term keeps this shift nonzero even at $\bar n_i=0$ for every
+mode: an atom cooled exactly to its motional ground state still carries the
+irreducible quantum-mechanical motional-Doppler floor Eq.~\eqref{eq:e38}
+predicts.
+
+This term composes into the pivot without double-counting the classical
+kinematic term Eq.~\eqref{eq:e21} already carries. A classical Monte Carlo
+ensemble's trajectories already sample a real, nonzero velocity at every
+point, and $\sqrt{1-v^2/c^2}-1$ along that trajectory is already the
+complete second-order-Doppler shift for that ensemble's own motion;
+composing Eq.~\eqref{eq:e38} on top of it there would add the same physics
+twice, and the pipeline rejects a motional-state configuration paired with a
+classical ensemble at config-parse time for exactly this reason. The
+lattice and extended-lattice regimes instead evaluate at static quadrature
+nodes with $v=0$ exactly, where the classical kinematic term is zero
+identically, so Eq.~\eqref{eq:e38} supplies new physics at those nodes and
+nothing already counted there gets counted again. The motional state is spatially uniform across the ensemble, one state per
+run, matching Eq.~\eqref{eq:e32}'s own single-temperature convention: its
+spatial gradient is zero, it reaches the pivot's denominator only, and it
+composes additively alongside every other pivot term with no cross term at
+this order.
+
+A two-ion crystal divides a shared normal mode's motion between its two ions
+by the squared components of the mass-weighted eigenvectors, so the clock
+ion does not carry a mode's entire $\langle v^2\rangle$ contribution when it
+shares that mode with a different-mass partner; $p_i$ above is exactly that
+squared eigenvector component. For a two-ion crystal's axial pair, the
+standard normal-mode solution gives $p_i$ in closed form as a function of
+the mass ratio $\mu=m_{\rm partner}/m_{\rm clock}$ alone
+(W\"ubbena et al.~\cite{Wubbena2012}), an in-phase and an out-of-phase mode
+whose equal-mass limit gives $p=1/2$ for both, each ion carrying exactly
+half. The two radial pairs additionally depend on trap RF/DC geometry
+parameters this closed form does not take as input; a caller who has the
+trap's own measured radial mode frequencies instead reconstructs the clock
+ion's radial participation by inverting the coupled two-ion radial
+eigenproblem against those frequencies. The Coulomb curvature that
+eigenproblem needs comes from the axial confinement alone: the two ions
+share one axial spring constant $k_z$ (the same DC field gradient sets a
+mass-independent per-ion spring constant), and expanding the inter-ion
+Coulomb repulsion to second order about the equilibrium spacing gives a
+transverse curvature exactly half the axial one in magnitude and opposite in
+sign, so $c=k_z/2$ with no permittivity constant surviving
+(W\"ubbena et al.~\cite{Wubbena2012}, Eq.~7). The resulting quadratic
+eigenproblem's branch ambiguity is resolved by the rule that the lighter ion
+carries the higher bare radial frequency, since the RF pseudopotential that
+confines both ions scales as $1/m$ at fixed trap drive.
+
+A radial pair's own intrinsic micromotion, the RF-driven oscillation that
+accompanies ordinary secular motion at any nonzero trap RF drive, is
+distinct from excess micromotion (the paragraph below) and multiplies the
+participation-weighted term above through a per-axis leading-order
+enhancement factor
+\begin{equation*}
+  F_{\rm axis} = 1 + \frac{q^2}{2a_{\rm axis}+q^2}
+\end{equation*}
+(Berkeland et al.~\cite{Berkeland1998}, Eq.~10), equal to $2$ exactly when the trap's
+Mathieu $a$ parameter vanishes for that axis and departing from $2$ as the
+trap's DC asymmetry splits $a_x$ from $a_y$. The clock ion's own
+leading-order Mathieu parameters $q$, $a_x$, $a_y$, $a_z$ solve from the
+trap's published RF drive frequency together with the axial Coulomb
+curvature and the two reconstructed clock-ion bare radial frequencies, via
+$\omega_i=(\Omega/2)\sqrt{a_i+q_i^2/2}$ (Berkeland et al.~\cite{Berkeland1998},
+Eq.~9, with $q_z=0$ along the axial direction) and the Laplace constraint
+$a_x+a_y=-a_z$ that holds for any static quadrupole DC potential: two
+equations in two unknowns, zero degrees of freedom, with no separate
+trap-geometry parameter supplied by hand. Because $a_i$ and $q_i$ are each
+linear in $1/m$ at fixed drive voltage, geometry, and charge, the clock
+ion's solved parameters mass-scale to predict the partner ion's own bare
+radial frequencies, an independent, falsifiable check whose result
+Sec.~\ref{sec:al-ion-participation} reports.
+
+A lab's own measured characterization of excess micromotion, the ion's
+forced oscillation at the trap's RF drive frequency when a stray DC field
+displaces it from the RF null, enters as a second, independent input
+channel: already reduced by the lab to an equivalent rms velocity
+$v_{\rm rms,emm}$, it adds in quadrature to Eq.~\eqref{eq:e38}'s
+$\langle v^2\rangle$ sum. The RF trap dynamics that produce excess
+micromotion, the stray-field-induced displacement from the RF null and the
+resulting time-varying velocity at the drive frequency, remain a roadmap
+package (Sec.~\ref{sec:limitations}); this channel consumes a lab's own
+characterization exactly as Sec.~\ref{sec:bbr-environment} consumes a lab's
+own solid-angle fractions.
+
+\subsection{Coherent Ramsey visibility}
+\label{sec:coherent-visibility}
+
+Each worldline's accumulated perturbation phase $\Delta\Phi_k$
+(Sec.~\ref{sec:showcase}) composes with the rotor formalism of
+Sec.~\ref{sec:rotor-verification}: identifying the engine's internal-circulation
+plane bivector $\hat B_C$ with the imaginary unit, $\exp(\Delta\Phi_k\,\hat B_C)$
+builds a unit rotor $R_k$ carrying that worldline's phase, the rotor-algebra
+restatement of the ordinary complex phase factor $e^{i\Delta\Phi_k}$ every
+standard treatment of Ramsey fringes already uses. This construction builds
+$R_k$ from the full accumulated phase $\Delta\Phi_k$, the same phase Sec.~\ref{sec:showcase}
+already accumulates and reports. The composed dynamical rotor Eq.~\eqref{eq:e17}'s
+stepper produces along the way carries a different angle: its own rotor
+factor advances at half the physical rate, the same spinor convention that
+lets a double-sided sandwich $R\,v\,\tilde R$ recover the full rotation for
+an ordinary vector, so reading a phase off that rotor's own angle would
+understate the true Ramsey phase by a factor of two.
+
+An ensemble's coherence is the population-weighted coherent sum of these
+per-worldline rotors,
+\begin{equation*}
+  M = \sum_k p_k\,R_k ,
+\end{equation*}
+with $p_k$ the ensemble's existing probability weights (uniform for a
+classical Monte Carlo sample, quadrature weights for a lattice
+motional-state ensemble); writing $c$ and $s$ for $M$'s scalar and
+$\hat B_C$-plane components, the ensemble's fringe visibility and phase are
+$V=\sqrt{c^2+s^2}$ and ${\rm phase}=\arg(c+is)$. $M$ is deliberately never
+renormalized back to a unit rotor: summing the group elements linearly and
+taking the modulus afterward is what lets $V<1$ represent genuine
+decoherence. Two alternative constructions erase that signal outright.
+Averaging the per-worldline phases before exponentiating the mean,
+$|\exp(i\sum_k p_k\Delta\Phi_k)|$, gives modulus $1$ for any phase spread,
+because the spread information is discarded before the modulus is taken.
+Renormalizing $M$ to a unit rotor forces modulus $1$ by construction
+regardless of the ensemble's true spread; both constructions are encoded as
+kill tests that must disagree with the real combiner on a spread ensemble.
+
+For Gaussian-distributed accumulated phases, $\Delta\Phi_k\sim\mathcal
+N(\mu,\sigma_\Phi^2)$, the characteristic-function identity
+$\mathbb E[e^{i\Delta\Phi}]=e^{i\mu-\sigma_\Phi^2/2}$, the same identity
+behind this project's own inhomogeneous-dephasing-time definition
+(Sec.~\ref{sec:showcase}), gives the closed form
+\begin{equation}
+  V = \exp\bigl(-\sigma_\Phi^2/2\bigr)
+  \label{eq:e39}
+\end{equation}
+exactly, the validation identity a live pipeline run confirms
+(\path{tests/test_coherent_visibility.py}; a squeezing sweep in
+\path{notebooks/13_trapped_ion_quantum_motion.ipynb}, Sec.~5). Thermal,
+coherent, and squeezed motional states are the Gaussian-distributed
+accumulated-phase states a classical-ensemble sampler can draw real
+worldlines from. Fock states with $n\ge1$ and cat states sit outside that
+class, since a classical sampler cannot draw a positive-probability
+worldline ensemble from either; this worldline-ensemble representation
+stops at Gaussian motional states, and no report from this module quotes a
+visibility for a non-Gaussian one. The classical ensemble sampler accepts an optional
+per-axis squeezing parameter $r$ (\texttt{ensemble.squeezing\_r}), scaling
+the trap-frame position-quadrature variance by $e^{-2r}$ and the
+velocity-quadrature variance by $e^{+2r}$, the engine's own sign convention
+for which quadrature squeezing narrows; the same sampled draw feeds both
+the pre-existing mean-shift pipeline and the visibility calculation here, so
+the two never see independently resampled ensembles.
+
 \subsection{Scope: what is and is not modeled}
 
 \begin{table*}[htbp]
@@ -623,9 +896,12 @@ Modeled & Not modeled \\
 \midrule
 DC-Stark shift, scalar $\Delta\alpha$ (Eq.~\eqref{eq:e14b}) & AC lattice-light (magic-wavelength) shift \\
 Second-order (kinematic) Doppler (Eq.~\eqref{eq:e21}) & Zeeman shifts (1st or 2nd order) \\
-Blackbody radiation, uniform $T$ (Eq.~\eqref{eq:e32}, $50$--$350$~K) & BBR spatial $T(\mathbf{r})$ maps, solid-angle effective temperature \\
+Blackbody radiation, uniform $T$ (Eq.~\eqref{eq:e32}, $50$--$350$~K) & Per-atom BBR solid-angle map across an extended cloud \\
+Multi-surface BBR thermal environment (Eq.~\eqref{eq:e37}) & \\
 Gravitational redshift across an extended sample (Eq.~\eqref{eq:e36}) & BBR M1/E2 multipoles ($\sim6\times10^{-20}$), hyperpolarizability \\
-Ion electric-quadrupole shift, $D$/$F$-state ions (Eq.~\eqref{eq:e34}) & Tensor polarizability and RF/micromotion dynamics \\
+Ion electric-quadrupole shift, $D$/$F$-state ions (Eq.~\eqref{eq:e34}) & Tensor polarizability and excess-micromotion dynamics \\
+Quantum-motional 2nd-order Doppler (Eq.~\eqref{eq:e38}) & \\
+Coherent Ramsey visibility, Gaussian motional states (Eq.~\eqref{eq:e39}) & Non-Gaussian visibility (Fock $n\ge1$, cat states) \\
 Field-gradient inhomogeneous dephasing ($T_2^*$) & Atom-atom collisional / density shifts \\
 Classical (Monte Carlo) motional ensembles & Lattice band-structure / tunneling \\
 Lattice and extended-lattice (Hermite--Gauss quadrature) ensembles & Probe (clock-laser) AC Stark shift \\
@@ -1219,6 +1495,230 @@ is \texttt{notebooks/11\_real\_budget\_slice.ipynb}.}
 \input{generated/budget_slice_table.tex}
 \end{table*}
 
+\subsection{The Al-ion secular-motion arithmetic reproduction}
+\label{sec:al-ion-arithmetic}
+
+Trapped-ion clocks carry a second-order-Doppler systematic from the ion's
+own residual secular motion that is frequently the largest single line in a
+published budget, and Eq.~\eqref{eq:e38} is this project's first
+quantitative check of that term against a real trapped-ion evaluation.
+Marshall et al.\ report a $^{27}$Al$^+$/$^{25}$Mg$^+$ two-ion crystal's six
+normal-mode frequencies and their sideband-thermometry-measured
+occupations~\cite{Marshall2025}, and separately publish the secular-motion
+budget row those same inputs combine to. Running Eq.~\eqref{eq:e38} at
+those six modes, with the Al$^+$ registry mass carried through every mode
+($p_i=1$ throughout, the single-species-mass form), gives
+$(P-1)_{\rm motional}=\AlIonWpThirtyCompact\times10^{-19}$, the propagated
+uncertainty coming from the published per-mode occupation uncertainties
+alone (Marshall et al.\ publish no per-mode frequency uncertainty), against
+their own published $\AlIonPublishedCompact\times10^{-19}$. The two bands
+overlap at $\AlIonWpThirtySigma\sigma$, verdict \textit{\AlIonWpThirtyVerdict}.
+
+This agreement is a total-level check: Marshall et al.'s six modes are
+two-ion normal modes, and the physically complete per-mode evaluation would
+divide each mode's motion between the two ions by their own normal-mode
+amplitudes, a quantity the single-species-mass formula above does not
+consume. Summed over the complete six-mode set, the
+naive per-mode terms still reproduce the published total inside both
+uncertainty bands, even though the individual per-mode terms differ from
+Marshall et al.'s own published per-mode row by up to several-fold.
+Following this project's binding labeling discipline
+(Sec.~\ref{sec:validation}'s labeling rules), that makes this an
+\textbf{arithmetic reproduction of a published standard-formula
+evaluation}: it validates Eq.~\eqref{eq:e38}'s formula and unit chain end to
+end against a published six-mode input set and a published total. This
+case carries its own class, and the project's headline count stays at two
+reproducibility cases and zero blind predictions
+(Sec.~\ref{sec:validation}). Sec.~\ref{sec:al-ion-participation} checks the
+same six modes one at a time against Marshall et al.'s own published
+per-mode row and closes most of the gap this total-level check leaves open.
+
+\subsection{Per-mode participation and the intrinsic-micromotion enhancement}
+\label{sec:al-ion-participation}
+
+A close total-level agreement can hide compensating per-mode errors as
+easily as it can confirm the underlying formula mode by mode, so this
+project checks Sec.~\ref{sec:al-ion-arithmetic}'s same six modes one at a
+time against Marshall et al.'s own published per-mode row before treating
+the total as settled. Applying the two-ion participation factors of
+Sec.~\ref{sec:motional} moves the two axial modes to within a few tenths of
+a percent of Marshall et al.'s own published per-mode values, confirming
+the closed form's own derivation, but the four radial modes land
+at roughly half their published magnitude, ratios $\AlIonParticipationOnlyXcom$,
+$\AlIonParticipationOnlyXstr$, $\AlIonParticipationOnlyYcom$, and
+$\AlIonParticipationOnlyYstr$ (predicted over published, X-COM/X-STR/Y-COM/Y-STR).
+Reconstructing the radial participation from the measured X and Y
+mode-frequency pairs, inverting the coupled two-ion radial eigenproblem
+against the Coulomb curvature Sec.~\ref{sec:motional} recovers from the
+axial spring constant, reaches essentially the same near-half ratios: each
+mode pair's two participations sum to one exactly regardless of how the
+pair's total splits between its COM and STR members, so a correctly
+reconstructed split moves the per-mode ratios without moving either mode
+pair's own total by much.
+
+The identified reason for the near-half shortfall is a physics omission.
+Brewer et al.'s predecessor evaluation of the same $^{27}$Al$^+$/$^{25}$Mg$^+$
+species pair states in a table footnote that its own published transverse
+per-mode values already include the shift from intrinsic micromotion, the
+RF-driven oscillation that accompanies ordinary secular motion at any
+nonzero trap drive~\cite{Brewer2019}, and Marshall et al.'s radial rows
+carry the same physics. A correction that supplies only the clock ion's
+participation share therefore predicts close to half of the published
+radial shift, because Berkeland's leading-order enhancement factor
+$F_{\rm axis}=1+q^2/(2a_{\rm axis}+q^2)$ (Sec.~\ref{sec:motional}) equals
+two exactly when the trap's Mathieu $a$ parameter vanishes along that axis
+and stays close to two whenever $a$ stays small, the regime both of this
+crystal's radial branches occupy.
+
+Solving for the clock ion's own Mathieu parameters from the trap's
+published $\AlIonRfDriveMhz$~MHz RF drive frequency, the axial Coulomb
+curvature, and the two reconstructed clock-ion bare radial frequencies
+gives $q=\AlIonMathieuQ$, $a_x=\AlIonMathieuAx$, $a_y=\AlIonMathieuAy$,
+sitting inside Berkeland's own stated leading-order regime. Before using
+these parameters for anything, they meet an independent, falsifiable test:
+mass-scaling them to the partner ion predicts its own bare radial
+frequencies, a quantity nothing in the clock-ion solve's own inputs ever
+touches, at $\AlIonPartnerDevX\%$ (X) and $\AlIonPartnerDevY\%$ (Y) against
+the separately reconstructed values, both comfortably inside the
+few-percent band the published mode frequencies' own three-significant-figure
+reporting precision supports. Multiplying the reconstructed radial
+participations by the resulting per-axis enhancement factors,
+$F_x=\AlIonEnhancementX$ and $F_y=\AlIonEnhancementY$, moves the four
+radial per-mode ratios to $\AlIonFinalXcom$, $\AlIonFinalXstr$,
+$\AlIonFinalYcom$, and $\AlIonFinalYstr$, an improvement on every
+individual mode, and moves the corrected total to
+$(P-1)_{\rm motional}=\AlIonWpThirtyThreeTotal$ with a propagated
+uncertainty of $\pm\AlIonWpThirtyThreeUnc$, landing at
+$\AlIonWpThirtyThreeSigma\sigma$ from Marshall et al.'s published band,
+bands that nearly touch without quite overlapping
+(\textit{\AlIonWpThirtyThreeVerdict}). Figure~\ref{fig:motional-progression}
+shows all four totals side by side against the published band. The residual
+that remains is consistent with the next-order Mathieu correction
+Berkeland's leading-order treatment omits, of order $q^2$ and a few
+percent, amplified on the X axis by its own $a_x$ sitting smaller in
+magnitude than $a_y$, which makes the enhancement factor more sensitive to
+$a$ there.
+
+The same construction closes an independent second dataset. Applying it to
+Brewer et al.'s own published trap, a different RF drive frequency
+($\AlIonBrewerRfDriveMhz$~MHz) and different mode frequencies on the same
+species pair~\cite{Brewer2019}, moves the four radial per-mode ratios
+against Brewer et al.'s own published row (already including the
+transverse intrinsic-micromotion shift, per that paper's own table
+footnote) into a range between $\AlIonBrewerRatioLo$ and $\AlIonBrewerRatioHi$, the
+same qualitative closure a second, independent trap confirms; the
+over-determination check passes there too, at $\AlIonBrewerPartnerDevX\%$
+(X) and $\AlIonBrewerPartnerDevY\%$ (Y). Brewer et al.'s Table S2 publishes
+a confidence-interval bound on the zero-point occupation combined with a
+per-mode heating rate through a time-dependent model, an input shape
+Eq.~\eqref{eq:e38}'s static-occupation formula cannot consume.
+Reproducing Brewer et al.'s own total-level secular-motion row would need
+that time-dependent model re-implemented, the same missing-input reason
+that leads Sec.~\ref{sec:al-ion-arithmetic} to build its own total-level
+case from Marshall et al.'s inputs.
+
+Sec.~\ref{sec:al-ion-arithmetic}'s single-mass total already landed inside
+Marshall et al.'s published band, at $\AlIonWpThirtySigma\sigma$, without
+either correction this section develops. That agreement is a
+near-cancellation of two omissions moving in opposite directions: a plain
+participation split alone under-predicts the radial modes by close to a
+factor of two, an intrinsic-micromotion enhancement factor near two applied
+on its own over-predicts by close to the same factor, and the single-mass
+formula implicitly sets both factors to one, a product of exactly one that
+happens to sit close to the true combined value.
+Figure~\ref{fig:motional-progression}'s four bars trace this cancellation:
+the single-mass total sits
+inside the published band by construction, the participation-only totals
+(the mass-ratio closed form and the spectrum-reconstructed inversion alike)
+undershoot it by the same near-factor-of-two the per-mode ratios above
+show, and the participation-times-enhancement total recovers most of the
+distance the participation-only step gives up. This progression carries its
+own arithmetic-reproduction class throughout
+(Sec.~\ref{sec:al-ion-arithmetic}); none of its four totals joins this
+paper's reproducibility or blind-prediction headline count.
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.48\linewidth]{figures/fig8_motional_progression.pdf}
+\caption{The Al$^+$ secular-motion progression (Secs.~\ref{sec:al-ion-arithmetic}
+and~\ref{sec:al-ion-participation}): four successive corrections to the same
+six-mode total, computed by the real engine against Marshall et al.'s
+published mode frequencies and occupations~\cite{Marshall2025}, plotted
+against Marshall et al.'s own published secular-motion band (shaded). WP30:
+one species mass carried through every mode. WP31: the two-ion participation
+factor from the Al$^+$/Mg$^{25+}$ mass ratio alone (W\"ubbena et
+al.~\cite{Wubbena2012}). WP32: the axial participation factor unchanged from
+WP31, with the radial pairs reconstructed from the measured X/Y mode
+spectrum. WP33: WP32's
+participation multiplied by Berkeland's mode-specific intrinsic-micromotion
+enhancement~\cite{Berkeland1998}. Error bars are each case's own propagated
+1-sigma uncertainty. Regenerated by
+\texttt{paper/figures/fig8\_motional\_progression.py} against the real
+\texttt{benchmarks/run\_motional\_al\_ion.py} case objects.}
+\label{fig:motional-progression}
+\end{figure}
+
+\subsection{The PTB position-resolved thermal-environment validation}
+\label{sec:ptb-position}
+
+Eq.~\eqref{eq:e37}'s enclosure-and-apertures topology reduces to Nosske et
+al.'s own published two-surface formula exactly, character for character,
+for a single aperture (Sec.~\ref{sec:bbr-environment}). The strongest test
+of that reduction is the paper's own position-resolved scan, which measures
+a differential shift as the atoms move from the shield's center out through
+one of its two end apertures and compares it against their own closed-form
+prediction at every scanned position, going beyond a check at one fixed
+operating point. Nosske et al.\ publish enough apparatus geometry to replay that
+scan from the paper alone: both aperture radii to six micrometers, the
+shield's $20$~mm length, the interior coating emissivity
+$\epsilon_{\rm in}=0.926(43)$, and the shield and room temperatures during
+the scan~\cite{Nosske2025}. Feeding the paper's own solid-angle formula for
+the atom's axial position between the two apertures through
+Eq.~\eqref{eq:e37}'s enclosure-and-apertures path at the shield center, and
+the pure single-temperature reduction of Eq.~\eqref{eq:e32} for the
+far-outside limit where the aperture's effective weight saturates at one,
+gives a predicted differential shift of $\PtbPositionEngineDifferential$.
+
+Nosske et al.'s own closed-form model predicts $\PtbPositionModelCompact$
+for the same differential, and their measurement gives
+$\PtbPositionMeasuredCompact$; the engine's prediction, built from nothing
+but the paper's own published geometry and temperatures, lands within
+$\PtbPositionDiffModel$ of their model and $\PtbPositionDiffMeasured$ of
+their measurement, comfortably inside either one's own quoted uncertainty.
+This is a position-resolved formula validation: it checks the same
+$\Omega(z)/4\pi$ solid-angle formula, the enclosure-and-apertures reflection
+correction, and the per-surface engine evaluation against a real measured
+shift curve as the atoms move through many positions, going beyond the
+single-operating-point formula-transcription check the two-surface
+reduction alone provides. A complete shift reproduction from independently
+published inputs would additionally need a full shield-temperature
+reconstruction this project's own inputs do not attempt, so this case
+carries its own class in this project's benchmark taxonomy, weaker than the
+reproducibility class Secs.~\ref{sec:npl} and~\ref{sec:bothwell} carry: it
+joins neither headline count.
+
+A second, independent check runs the same E37 machinery on a real lab's own
+published exchange-factor table. Bothwell's PhD thesis derives the
+exchange-factor formalism $T_i^4=\sum_j F_{i\to j}T_j^4$ from first
+principles and ray-traces it across a real strontium-clock chamber,
+publishing the resulting factor for seven named
+surfaces~\cite{Bothwell2022thesis}. Feeding the six controlled surfaces
+through Eq.~\eqref{eq:e37} at the thesis's own $22^\circ$C setpoint gives
+$(P-1)_{\rm BBR}=\BothwellExchangeEngineShift$, agreeing with the thesis's
+own bookkeeping at that same setpoint, $\BothwellExchangeThesisShift$, to
+$\BothwellExchangeAgreement$; every included surface sitting at the
+thesis's own single assumed temperature collapses the six-surface
+environment to that one temperature exactly, so this agreement checks the
+engine's arithmetic against the thesis's own numbers more than it tests
+genuine spatial non-uniformity. The seventh surface, an oven nozzle at
+$848$~K, sits far outside Eq.~\eqref{eq:e32}'s validated $50$--$350$~K
+window, and Eq.~\eqref{eq:e37}'s per-surface check correctly rejects it;
+its own static-term bound, $\BothwellNozzleStaticBound$, sets the precision
+either number in this comparison can claim, larger than the agreement
+itself. Notebook 12 carries the full chamber diagram, the position-resolved
+extension of this same exchange-factor table, and every input this
+paragraph's numbers draw from.
+
 \FloatBarrier
 \section{Showcase: a chamber-scale field's inhomogeneous shift budget}
 \label{sec:showcase}
@@ -1418,11 +1918,35 @@ physics and excitation-fraction dependence, where this project's
 ensembles are independent particles by construction; some labs manage
 this systematic entirely through density control and extrapolation, in
 which case it may stay outside this tool's scope indefinitely.
-Blackbody radiation's spatial refinement, a $T(\mathbf{r})$ map
-reduced to a solid-angle effective temperature, is a natural next step
-once a partner lab wants to hand over thermal FEA output directly
-instead of pre-reducing it to the single number the uniform-$T$ term
-takes today.
+Blackbody radiation's remaining spatial refinement is a per-atom solid-angle
+map across an extended cloud (Sec.~\ref{sec:bbr-environment}'s own scope
+boundary), letting each atom's own position within the ensemble see a
+different mix of a lab's surfaces. E37 already turns a lab's own per-surface
+solid-angle weights, geometric, FEA-derived, or ray-traced, into an exact
+per-moment shift and uncertainty band (Sec.~\ref{sec:bbr-environment}); a
+partner lab's own position-resolved exchange-factor output, the same
+extension Sec.~\ref{sec:ptb-position} demonstrates on a real published
+chamber, is what turns that single-environment description into the
+per-atom map.
+
+The multi-surface thermal environment and the quantum-motional systematics
+package (Secs.~\ref{sec:bbr-environment} and~\ref{sec:motional}) bring two
+systematics into the modeled column of Table~\ref{tab:scope}: a
+field-deployed clock's non-uniform surroundings, and a trapped ion's own
+motional-state contribution to second-order Doppler, including the two-ion
+intrinsic-micromotion correction Sec.~\ref{sec:al-ion-participation}
+validates. A per-atom solid-angle map across an extended thermal
+environment remains open (Sec.~\ref{sec:bbr-environment}'s own scope
+boundary): every atom in an ensemble still sees the identical environment
+description, unlike the extended-lattice regime's own per-site treatment of
+Eq.~\eqref{eq:e36}'s gravitational term. Crystals with more than two
+ions need a numeric normal-mode eigensolver, with no closed form in
+general. The excess-micromotion RF dynamics that produce a trapped ion's
+stray-field-driven displacement remain future work; Sec.~\ref{sec:motional}'s
+EMM channel takes their measured consequence as a lab-supplied input today.
+Non-Gaussian motional-state Ramsey visibility, Fock states with $n\ge1$ and
+cat states, sits outside the worldline-ensemble representation
+Sec.~\ref{sec:coherent-visibility} builds on.
 
 The rotor engine implements the physical DC-Stark coupling directly (the
 $\Omega$-bivector construction \texttt{build\_omega\_stark},
