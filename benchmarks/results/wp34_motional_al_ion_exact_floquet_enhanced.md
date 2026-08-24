@@ -1,6 +1,6 @@
 # WP34 motional Al+ ion exact-Floquet-enhanced benchmark case (generated)
 
-Generated: 2026-08-24T14:24:08.305356+00:00
+Generated: 2026-08-24T17:19:55.090691+00:00
 
 ## WP34: exact-Floquet-enhanced variant (clock_ion_mathieu_parameters_exact/radial_micromotion_enhancement_exact, Al27+/Mg25+, Marshall)
 

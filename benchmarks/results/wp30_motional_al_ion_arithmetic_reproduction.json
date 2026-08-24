@@ -1,6 +1,6 @@
 {
   "wp30_motional_al_ion_benchmark_schema": "1.1",
-  "generated_at_utc": "2026-08-24T14:24:08.284872+00:00",
+  "generated_at_utc": "2026-08-24T17:19:55.070545+00:00",
   "case_label": "arithmetic reproduction of a published standard-formula evaluation (arithmetic-reproduction fidelity, validates the engine's E38 implementation and unit chain, NOT an independent motional-Doppler physics prediction; Marshall et al.'s secular-motion row is computed from their own measured inputs through the same standard formula)",
   "case_class": "arithmetic_reproduction",
   "marshall_2504_13071_secular_motion_arithmetic_reproduction_case": {

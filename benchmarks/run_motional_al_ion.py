@@ -275,10 +275,17 @@ from cliffordclock.constants import ATOMIC_MASS_UNIT, HBAR, SPEED_OF_LIGHT  # no
 from cliffordclock.ensemble.species import get_species  # noqa: E402
 from cliffordclock.integrator.omega import (  # noqa: E402
     ClockIonMathieuParameters,
+    ConstrainedTwoIonMathieuFit,
+    CoupledAxisMathieuParameters,
+    CoupledTwoIonFloquetMode,
     MotionalMode,
     axial_coulomb_curvature,
     clock_ion_mathieu_parameters,
     clock_ion_mathieu_parameters_exact,
+    constrained_two_ion_mathieu_fit,
+    coupled_two_ion_floquet_modes,
+    coupled_two_ion_mathieu_parameters,
+    mathieu_forced_oscillator_enhancement,
     motional_mean_squared_velocity_m2_s2,
     motional_pivot_perturbation,
     motional_pivot_uncertainty,
@@ -2621,6 +2628,1490 @@ def render_wp34_markdown(report: dict[str, Any]) -> str:
     return "\n".join(lines) + "\n"
 
 
+# ---------------------------------------------------------------------------
+# WP35: the coupled two-ion Floquet solve, the most complete treatment in
+# this lineage (CONVENTIONS.md section 16's WP35 addition;
+# `cliffordclock.integrator.omega.coupled_two_ion_floquet_modes`/
+# `coupled_two_ion_mathieu_parameters`/`constrained_two_ion_mathieu_fit`/
+# `mathieu_forced_oscillator_enhancement`). WP30-34's own cases and
+# artifacts are left completely untouched; this adds two new cases (the
+# CONSTRAINED fit, this WP's own headline, and the per-axis solve kept as
+# a labeled diagnostic variant), plus the Brewer consistency check for
+# both, and a labeled comparison column from the reviewer's cheap
+# forced-oscillator estimate.
+#
+# G17 gate record: the per-axis solve fits each axis's own two unknowns
+# from that SAME axis's own two measured frequencies, two equations for
+# two unknowns, zero residual by construction, so its near-unity ratios
+# alone carry no independent evidence the underlying model is right. The
+# constrained fit below is the response: ONE shared `q` (Berkeland Eq. 6)
+# and a DC-split fraction across BOTH axes, predicting all FOUR measured
+# radial frequencies from two unknowns, a genuine over-determination with
+# real, reported, nonzero residuals -- see
+# `cliffordclock.integrator.omega`'s own WP35 Part 2 comment block.
+# ---------------------------------------------------------------------------
+
+COUPLED_FLOQUET_CAVEAT = (
+    "WP35 DIAGNOSTIC VARIANT: this case fits EACH axis's own two unknowns (q, a_axis) from "
+    "that SAME axis's own two measured frequencies alone: two equations, two unknowns, zero "
+    "residual by construction, so its near-unity per-mode ratios carry no independent evidence "
+    "that the underlying model is right (a perfect fit here is guaranteed regardless of the "
+    "physics). This case's OWN scope note: it replaces WP33/WP34's participation*enhancement "
+    "factorization (a single per-axis F_axis applied identically to a pair's COM and STR "
+    "members) with the coupled two-ion Floquet solve: the two ions' time-periodic equations "
+    "of motion, coupled by the SAME Coulomb curvature WP32 uses, are integrated directly "
+    "(cliffordclock.integrator.omega.coupled_two_ion_floquet_modes), and each mode's clock-ion "
+    "participation AND micromotion enhancement are both read from the SAME per-mode Fourier "
+    "decomposition of the coupled solution, no per-ion F factorization anywhere. The clock "
+    "ion's own (q, a_axis) are solved fully self-consistently per axis: the coupled system's "
+    "own two quasi-frequencies are matched directly to the two measured mode frequencies "
+    "(coupled_two_ion_mathieu_parameters), with no WP32 bare-frequency reconstruction consumed "
+    "as an intermediate step. Verified this session against two exact limits: c -> 0 reproduces "
+    "WP34's own single-ion exact Floquet result for each ion separately, and q -> 0 (RF -> 0) "
+    "reproduces WP32's own static secular participation decomposition exactly; both checks are "
+    "in this WP's own test suite. A second, cheap comparison column "
+    "(mathieu_forced_oscillator_enhancement) evaluates a reviewer's forced-oscillator estimate "
+    "at each mode's own exact quasi-frequency, using the leading nearest-neighbor sideband "
+    "approximation in place of the full coupled solve; it is reported alongside the rigorous "
+    "result, its own labeled column. Reported per-mode and total-level agreement below is "
+    "whatever this reconstruction gives against Marshall's own published per-mode and total "
+    "rows, with no tuning. See the CONSTRAINED fit case for this WP's own headline result and "
+    "its genuine over-determination check."
+)
+
+
+@dataclass(frozen=True)
+class CoupledFloquetModeComparison:
+    """One mode's coupled-Floquet-solved prediction vs. Marshall et al.'s
+    own published per-mode "Frequency shift per quantum" value (WP35).
+
+    Attributes
+    ----------
+    name : str
+        Mode name (`_MODE_NAMES` order).
+    is_axial : bool
+        Whether this is one of the two axial modes (unchanged from
+        WP31's exact closed form: axial has no RF component, `q_z=0`
+        makes the coupled-Floquet treatment reduce to it identically).
+    mode_frequency_hz : float
+        This mode's own frequency, hertz -- for the four radial modes,
+        the COUPLED system's own solved quasi-frequency (which need not
+        equal the published value exactly at the finite-difference
+        rounding-uncertainty sample points; at the nominal point it
+        matches the published value by construction, since the inversion
+        solves for it).
+    participation_clock, enhancement_clock : float
+        The clock ion's participation and exact micromotion enhancement
+        for this mode, both read from the SAME coupled Fourier
+        decomposition (`1.0`/`1.0` for axial modes).
+    enhancement_clock_reviewer_estimate : float
+        The reviewer's cheap forced-oscillator comparison estimate
+        (`mathieu_forced_oscillator_enhancement`) for this SAME mode's own
+        quasi-frequency (`1.0` for axial modes, matching the rigorous
+        value there: `q=0` makes both formulas agree trivially).
+    predicted_shift_per_quantum, predicted_shift_per_quantum_reviewer_estimate : float
+        ``-(hbar*omega_mode/m_Al)*participation_clock*enhancement/(2*c^2)``,
+        using the rigorous and reviewer-estimate enhancement respectively
+        (same participation and mode frequency in both).
+    published_shift_per_quantum : float
+        Marshall et al.'s own published value for this mode.
+    ratio_predicted_over_published, ratio_predicted_over_published_reviewer_estimate : float
+        ``predicted/published`` for each variant.
+    predicted_shift_per_quantum_rounding_uncertainty : float
+        This mode's own 1-sigma contribution from the input-rounding
+        uncertainty channel (Part 2 of WP34, reused unchanged here).
+    """
+
+    name: str
+    is_axial: bool
+    mode_frequency_hz: float
+    participation_clock: float
+    enhancement_clock: float
+    enhancement_clock_reviewer_estimate: float
+    predicted_shift_per_quantum: float
+    predicted_shift_per_quantum_reviewer_estimate: float
+    published_shift_per_quantum: float
+    ratio_predicted_over_published: float
+    ratio_predicted_over_published_reviewer_estimate: float
+    predicted_shift_per_quantum_rounding_uncertainty: float
+
+
+@dataclass(frozen=True)
+class MotionalAlIonCoupledFloquetCase:
+    """The WP35 coupled-two-ion-Floquet variant of the WP30-34 Al+
+    secular-motion case.
+
+    Attributes
+    ----------
+    case_class : str
+        Always ``"arithmetic_reproduction"``.
+    coupled_mathieu_x, coupled_mathieu_y : dict[str, float]
+        The clock ion's own solved `(q, a_axis)` for the X and Y axes
+        respectively (`asdict(CoupledAxisMathieuParameters)`), solved
+        INDEPENDENTLY per axis (this WP's own per-axis solve needs no
+        cross-axis constraint); the two `q` values need not be identical,
+        and their closeness is itself a self-consistency check, reported
+        in `self_consistency_note`.
+    mathieu_exact : dict[str, float]
+        WP34's own exact single-ion solve for the SAME dataset (one shared
+        `q` for both axes), reported alongside for direct comparison
+        (`asdict(ClockIonMathieuParameters)`).
+    per_mode : tuple[CoupledFloquetModeComparison, ...]
+        One entry per mode, `_MODE_NAMES` order.
+    predicted_total_nominal : float
+        The coupled-Floquet total `(P-1)_motional`.
+    predicted_total_uncertainty_nbar_fractional,
+    predicted_total_uncertainty_rounding_fractional,
+    predicted_total_uncertainty_combined_fractional : float
+        The two SEPARATELY labeled uncertainty components (WP34 Part 2's
+        channel, reused unchanged) and their quadrature combination.
+    predicted_total_band_lo, predicted_total_band_hi : float
+        `predicted_total_nominal +/- predicted_total_uncertainty_combined_fractional`.
+    total_bands_overlap : bool
+        Whether this band overlaps Marshall et al.'s own published band.
+    total_kpi_verdict : str
+        ``"MET"`` if `total_bands_overlap` else ``"NOT MET"``.
+    per_mode_citation, enhancement_caveat, enhancement_note,
+    self_consistency_note, rounding_uncertainty_note : str
+        Citations plus plain-language summaries of this case's own
+        results, stated in full.
+    """
+
+    case_class: str
+    coupled_mathieu_x: dict[str, float]
+    coupled_mathieu_y: dict[str, float]
+    mathieu_exact: dict[str, float]
+    per_mode: tuple[CoupledFloquetModeComparison, ...]
+    predicted_total_nominal: float
+    predicted_total_uncertainty_nbar_fractional: float
+    predicted_total_uncertainty_rounding_fractional: float
+    predicted_total_uncertainty_combined_fractional: float
+    predicted_total_band_lo: float
+    predicted_total_band_hi: float
+    total_bands_overlap: bool
+    total_kpi_verdict: str
+    per_mode_citation: str
+    enhancement_caveat: str
+    enhancement_note: str
+    self_consistency_note: str
+    rounding_uncertainty_note: str
+
+
+def _wp35_case_from_frequencies_hz(
+    frequencies_hz: tuple[float, float, float, float, float, float],
+    rf_drive_frequency_hz: float,
+    m_al: float,
+    m_mg: float,
+) -> tuple[
+    float,
+    tuple[float, float, float, float, float, float],
+    tuple[float, float, float, float, float, float],
+    CoupledAxisMathieuParameters,
+    CoupledAxisMathieuParameters,
+]:
+    """Recompute the WHOLE WP35 reconstruction chain (Coulomb curvature,
+    the per-axis coupled-Floquet self-consistent inversion, the coupled
+    modes' own participations/enhancements/frequencies, per-mode predicted
+    values, and the total) as a pure function of the six Marshall mode
+    frequencies (`_MODE_NAMES` order) and the RF drive frequency, holding
+    `n_bar` fixed -- shared by the nominal case build and the WP35
+    input-rounding finite-difference uncertainty channel (reusing WP34
+    Part 2's channel unchanged), so both run the exact same code path.
+
+    Returns
+    -------
+    tuple
+        ``(predicted_total, predicted_pq, mode_frequencies_hz,
+        coupled_mathieu_x, coupled_mathieu_y)``.
+    """
+    axial_com_hz, _axial_str_hz, x_com_hz, x_str_hz, y_com_hz, y_str_hz = frequencies_hz
+    c, _c_unc = axial_coulomb_curvature(m_al, m_mg, axial_com_hz)
+    axial_participations = two_ion_participations(m_al, m_mg)
+
+    coupled_x = coupled_two_ion_mathieu_parameters(
+        m_al, m_mg, c, rf_drive_frequency_hz, x_com_hz, x_str_hz
+    )
+    coupled_y = coupled_two_ion_mathieu_parameters(
+        m_al, m_mg, c, rf_drive_frequency_hz, y_com_hz, y_str_hz
+    )
+    x_com_mode, x_str_mode = coupled_two_ion_floquet_modes(
+        m_al, m_mg, coupled_x.mathieu_a_axis, coupled_x.mathieu_q, c, rf_drive_frequency_hz
+    )
+    y_com_mode, y_str_mode = coupled_two_ion_floquet_modes(
+        m_al, m_mg, coupled_y.mathieu_a_axis, coupled_y.mathieu_q, c, rf_drive_frequency_hz
+    )
+
+    participations = (
+        axial_participations[0],
+        axial_participations[1],
+        x_com_mode.participation_clock,
+        x_str_mode.participation_clock,
+        y_com_mode.participation_clock,
+        y_str_mode.participation_clock,
+    )
+    enhancements = (
+        1.0,
+        1.0,
+        x_com_mode.enhancement_clock,
+        x_str_mode.enhancement_clock,
+        y_com_mode.enhancement_clock,
+        y_str_mode.enhancement_clock,
+    )
+    mode_frequencies_hz = (
+        axial_com_hz,
+        frequencies_hz[1],
+        x_com_mode.beta * rf_drive_frequency_hz / 2.0,
+        x_str_mode.beta * rf_drive_frequency_hz / 2.0,
+        y_com_mode.beta * rf_drive_frequency_hz / 2.0,
+        y_str_mode.beta * rf_drive_frequency_hz / 2.0,
+    )
+
+    predicted_pq = []
+    v2_terms = []
+    for freq_hz, participation, enhancement, (_name, _f_mhz, n_bar, _n_bar_unc) in zip(
+        mode_frequencies_hz,
+        participations,
+        enhancements,
+        loaders.MARSHALL_AL_ION_MODES_MHZ_NBAR,
+        strict=True,
+    ):
+        omega_i = 2.0 * math.pi * freq_hz
+        weight = (HBAR * omega_i / m_al) * participation * enhancement
+        predicted_pq.append(-weight / (2.0 * SPEED_OF_LIGHT**2))
+        v2_terms.append(weight * (n_bar + 0.5))
+
+    predicted_total = -math.fsum(v2_terms) / (2.0 * SPEED_OF_LIGHT**2)
+    return (
+        predicted_total,
+        tuple(predicted_pq),  # type: ignore[return-value]
+        mode_frequencies_hz,
+        coupled_x,
+        coupled_y,
+    )
+
+
+def run_motional_al_ion_coupled_floquet_case() -> MotionalAlIonCoupledFloquetCase:
+    """Build the WP35 coupled-two-ion-Floquet variant (this module's WP35
+    section header comment for the method).
+
+    Returns
+    -------
+    MotionalAlIonCoupledFloquetCase
+    """
+    species = get_species("Al27+")
+    m_al = species.mass_kg
+    m_mg = loaders.MG25_ATOMIC_MASS_AMU * ATOMIC_MASS_UNIT
+    rf_drive_frequency_hz = loaders.MARSHALL_AL_ION_RF_DRIVE_FREQUENCY_HZ
+
+    nominal_frequencies_hz = tuple(
+        mode[1] * 1.0e6 for mode in loaders.MARSHALL_AL_ION_MODES_MHZ_NBAR
+    )
+
+    (
+        predicted_total,
+        predicted_pq,
+        mode_frequencies_hz,
+        coupled_x,
+        coupled_y,
+    ) = _wp35_case_from_frequencies_hz(
+        nominal_frequencies_hz,
+        rf_drive_frequency_hz,
+        m_al,
+        m_mg,  # type: ignore[arg-type]
+    )
+
+    # WP34's own exact single-ion solve for the SAME dataset, reported
+    # alongside for a direct comparison (re-derived here, not imported
+    # from a separately-run WP34 case, so this is the SAME radial-spectrum
+    # reconstruction as the coupled solve above).
+    axial_com_hz = nominal_frequencies_hz[0]
+    c, _c_unc = axial_coulomb_curvature(m_al, m_mg, axial_com_hz)
+    x_bare = two_ion_radial_participations(
+        m_al, m_mg, c, nominal_frequencies_hz[2], nominal_frequencies_hz[3]
+    )
+    y_bare = two_ion_radial_participations(
+        m_al, m_mg, c, nominal_frequencies_hz[4], nominal_frequencies_hz[5]
+    )
+    mathieu_exact = clock_ion_mathieu_parameters_exact(
+        m_al,
+        c,
+        rf_drive_frequency_hz,
+        x_bare.bare_frequency_clock_hz,
+        y_bare.bare_frequency_clock_hz,
+    )
+
+    # Input-rounding uncertainty channel: reuses WP34 Part 2's channel
+    # unchanged, propagated through THIS chain instead
+    # (_wp34_rounding_uncertainty is generic in the case-builder function
+    # it calls; WP35 supplies its own).
+    total_rounding_uncertainty, per_mode_rounding_uncertainty = _wp35_rounding_uncertainty(
+        nominal_frequencies_hz,  # type: ignore[arg-type]
+        rf_drive_frequency_hz,
+        m_al,
+        m_mg,
+    )
+
+    axial_participations = two_ion_participations(m_al, m_mg)
+    x_com_mode, x_str_mode = coupled_two_ion_floquet_modes(
+        m_al, m_mg, coupled_x.mathieu_a_axis, coupled_x.mathieu_q, c, rf_drive_frequency_hz
+    )
+    y_com_mode, y_str_mode = coupled_two_ion_floquet_modes(
+        m_al, m_mg, coupled_y.mathieu_a_axis, coupled_y.mathieu_q, c, rf_drive_frequency_hz
+    )
+    modes_by_index = (None, None, x_com_mode, x_str_mode, y_com_mode, y_str_mode)
+    participations = (
+        axial_participations[0],
+        axial_participations[1],
+        x_com_mode.participation_clock,
+        x_str_mode.participation_clock,
+        y_com_mode.participation_clock,
+        y_str_mode.participation_clock,
+    )
+
+    per_mode = []
+    nbar_terms = []
+    for i, (
+        (name, _frequency_mhz, _n_bar, n_bar_uncertainty),
+        participation,
+        published_pq,
+        predicted_this_mode,
+        rounding_unc_this_mode,
+        mode_freq_hz,
+    ) in enumerate(
+        zip(
+            loaders.MARSHALL_AL_ION_MODES_MHZ_NBAR,
+            participations,
+            loaders.MARSHALL_AL_ION_FREQUENCY_SHIFT_PER_QUANTUM,
+            predicted_pq,
+            per_mode_rounding_uncertainty,
+            mode_frequencies_hz,
+            strict=True,
+        )
+    ):
+        is_axial = name in _AXIAL_MODE_NAMES
+        mode = modes_by_index[i]
+        if mode is None:
+            enhancement = 1.0
+            enhancement_reviewer = 1.0
+        else:
+            enhancement = mode.enhancement_clock
+            enhancement_reviewer = mathieu_forced_oscillator_enhancement(
+                coupled_x.mathieu_a_axis if i in (2, 3) else coupled_y.mathieu_a_axis,
+                coupled_x.mathieu_q if i in (2, 3) else coupled_y.mathieu_q,
+                mode.beta,
+            )
+        omega_i = 2.0 * math.pi * mode_freq_hz
+        weight_reviewer = (HBAR * omega_i / m_al) * participation * enhancement_reviewer
+        predicted_reviewer = -weight_reviewer / (2.0 * SPEED_OF_LIGHT**2)
+
+        per_mode.append(
+            CoupledFloquetModeComparison(
+                name=name,
+                is_axial=is_axial,
+                mode_frequency_hz=mode_freq_hz,
+                participation_clock=participation,
+                enhancement_clock=enhancement,
+                enhancement_clock_reviewer_estimate=enhancement_reviewer,
+                predicted_shift_per_quantum=predicted_this_mode,
+                predicted_shift_per_quantum_reviewer_estimate=predicted_reviewer,
+                published_shift_per_quantum=published_pq,
+                ratio_predicted_over_published=predicted_this_mode / published_pq,
+                ratio_predicted_over_published_reviewer_estimate=predicted_reviewer / published_pq,
+                predicted_shift_per_quantum_rounding_uncertainty=rounding_unc_this_mode,
+            )
+        )
+        nbar_terms.append(predicted_this_mode * n_bar_uncertainty)
+
+    predicted_sigma_nbar = math.sqrt(math.fsum(t * t for t in nbar_terms))
+    predicted_sigma_combined = math.sqrt(predicted_sigma_nbar**2 + total_rounding_uncertainty**2)
+
+    published = loaders.MARSHALL_AL_ION_SECULAR_MOTION_SHIFT
+    band_lo = predicted_total - predicted_sigma_combined
+    band_hi = predicted_total + predicted_sigma_combined
+    overlap = run_benchmarks._bands_overlap(  # noqa: SLF001 (reusing the tested helper)
+        band_lo, band_hi, published.lo, published.hi
+    )
+    combined_sigma = math.sqrt(
+        predicted_sigma_combined**2 + (published.hi - published.nominal) ** 2
+    )
+    deviation_sigma = abs(predicted_total - published.nominal) / combined_sigma
+
+    self_consistency_note = (
+        f"Fully self-consistent per-axis solve: X axis gives q={coupled_x.mathieu_q:.6f}, "
+        f"a_x={coupled_x.mathieu_a_axis:+.6e}; Y axis gives q={coupled_y.mathieu_q:.6f}, "
+        f"a_y={coupled_y.mathieu_a_axis:+.6e}. Each axis is solved INDEPENDENTLY from that "
+        "axis's own two measured mode frequencies alone, with no cross-axis constraint used in "
+        f"the solve itself. The two independently-solved q values differ by "
+        f"{abs(coupled_x.mathieu_q - coupled_y.mathieu_q) / coupled_x.mathieu_q:+.2%} "
+        "relative, a genuine self-consistency check on the whole reconstruction chain. WP34's "
+        f"own single shared exact solve for this dataset gives q={mathieu_exact.mathieu_q:.6f}, "
+        f"a_x={mathieu_exact.mathieu_a_x:+.6e}, a_y={mathieu_exact.mathieu_a_y:+.6e}, reported "
+        "alongside for direct comparison."
+    )
+    enhancement_note = (
+        "Per-mode comparison against Marshall et al.'s own published 'Frequency shift per "
+        "quantum' row (Table S2), coupled two-ion Floquet solve: the two AXIAL modes are "
+        "unchanged (enhancement=1.0 identically, q_z=0). The four RADIAL modes use the "
+        "COUPLED solve's own participation and enhancement, both read from the SAME per-mode "
+        f"Fourier decomposition. The resulting total lands at {deviation_sigma:.2f} sigma from "
+        f"the published total ({'MET' if overlap else 'NOT MET'}). Reported as run, no tuning."
+    )
+    _rounding_ratio = (
+        predicted_sigma_nbar / total_rounding_uncertainty
+        if total_rounding_uncertainty
+        else float("inf")
+    )
+    rounding_uncertainty_note = (
+        "Input-rounding uncertainty channel (WP34 Part 2, reused unchanged here): propagating "
+        "each published frequency's half-last-digit rounding bound through this WP's own full "
+        f"reconstruction chain gives a total-level rounding uncertainty of "
+        f"+/-{total_rounding_uncertainty:.3e} (fractional), against the thermometry (n_bar) "
+        f"channel's own +/-{predicted_sigma_nbar:.3e}, roughly {_rounding_ratio:.0f}x larger. "
+        "This channel is a BOUND on rounding, distinct from a measured uncertainty, and is "
+        "labeled as such throughout this case's own record."
+    )
+
+    return MotionalAlIonCoupledFloquetCase(
+        case_class="arithmetic_reproduction",
+        coupled_mathieu_x=asdict(coupled_x),
+        coupled_mathieu_y=asdict(coupled_y),
+        mathieu_exact=asdict(mathieu_exact),
+        per_mode=tuple(per_mode),
+        predicted_total_nominal=predicted_total,
+        predicted_total_uncertainty_nbar_fractional=predicted_sigma_nbar,
+        predicted_total_uncertainty_rounding_fractional=total_rounding_uncertainty,
+        predicted_total_uncertainty_combined_fractional=predicted_sigma_combined,
+        predicted_total_band_lo=band_lo,
+        predicted_total_band_hi=band_hi,
+        total_bands_overlap=overlap,
+        total_kpi_verdict="MET" if overlap else "NOT MET",
+        per_mode_citation=loaders.MARSHALL_AL_ION_FREQUENCY_SHIFT_PER_QUANTUM_CITATION,
+        enhancement_caveat=COUPLED_FLOQUET_CAVEAT,
+        enhancement_note=enhancement_note,
+        self_consistency_note=self_consistency_note,
+        rounding_uncertainty_note=rounding_uncertainty_note,
+    )
+
+
+def _wp35_rounding_uncertainty(
+    nominal_frequencies_hz: tuple[float, float, float, float, float, float],
+    rf_drive_frequency_hz: float,
+    m_al: float,
+    m_mg: float,
+) -> tuple[float, tuple[float, float, float, float, float, float]]:
+    """WP35's own input-rounding finite-difference propagation (WP34
+    Part 2's channel, propagated through WP35's OWN reconstruction chain,
+    :func:`_wp35_case_from_frequencies_hz`, instead of WP34's).
+
+    Returns
+    -------
+    tuple[float, tuple[float, float, float, float, float, float]]
+        ``(total_rounding_uncertainty, per_mode_rounding_uncertainty)``.
+    """
+    freq_bound_hz = loaders.MARSHALL_AL_ION_MODES_ROUNDING_BOUND_HZ
+    rf_bound_hz = loaders.MARSHALL_AL_ION_RF_DRIVE_FREQUENCY_ROUNDING_BOUND_HZ
+
+    total_terms = []
+    per_mode_terms: list[list[float]] = [[] for _ in range(6)]
+    for i in range(6):
+        plus = list(nominal_frequencies_hz)
+        plus[i] += freq_bound_hz
+        minus = list(nominal_frequencies_hz)
+        minus[i] -= freq_bound_hz
+        total_plus, pq_plus, *_ = _wp35_case_from_frequencies_hz(
+            tuple(plus),
+            rf_drive_frequency_hz,
+            m_al,
+            m_mg,  # type: ignore[arg-type]
+        )
+        total_minus, pq_minus, *_ = _wp35_case_from_frequencies_hz(
+            tuple(minus),
+            rf_drive_frequency_hz,
+            m_al,
+            m_mg,  # type: ignore[arg-type]
+        )
+        total_terms.append(((total_plus - total_minus) / 2.0) ** 2)
+        for j in range(6):
+            per_mode_terms[j].append(((pq_plus[j] - pq_minus[j]) / 2.0) ** 2)
+
+    total_plus, pq_plus, *_ = _wp35_case_from_frequencies_hz(
+        nominal_frequencies_hz, rf_drive_frequency_hz + rf_bound_hz, m_al, m_mg
+    )
+    total_minus, pq_minus, *_ = _wp35_case_from_frequencies_hz(
+        nominal_frequencies_hz, rf_drive_frequency_hz - rf_bound_hz, m_al, m_mg
+    )
+    total_terms.append(((total_plus - total_minus) / 2.0) ** 2)
+    for j in range(6):
+        per_mode_terms[j].append(((pq_plus[j] - pq_minus[j]) / 2.0) ** 2)
+
+    total_rounding_uncertainty = math.sqrt(math.fsum(total_terms))
+    per_mode_rounding_uncertainty = tuple(math.sqrt(math.fsum(terms)) for terms in per_mode_terms)
+    return total_rounding_uncertainty, per_mode_rounding_uncertainty  # type: ignore[return-value]
+
+
+@dataclass(frozen=True)
+class Wp35BrewerConsistencyCheck:
+    """A SECOND, independent consistency case for WP35's coupled-Floquet
+    solve, built from Brewer et al.'s (arXiv:1902.07694) own published
+    trap parameters -- mirrors `Wp33BrewerConsistencyCheck`/
+    `Wp34BrewerConsistencyCheck`.
+
+    Attributes
+    ----------
+    coupled_mathieu_x, coupled_mathieu_y : dict[str, float]
+        The clock ion's own solved `(q, a_axis)` for Brewer's trap.
+    per_mode_ratio_x_com, per_mode_ratio_x_str, per_mode_ratio_y_com,
+    per_mode_ratio_y_str : float
+        ``predicted/published`` for each radial mode, against Brewer's own
+        `TDS/quantum` row, using the coupled solve.
+    missing_input_note : str
+        States why this case does not attempt Brewer's own total-level
+        `-17.3(2.9)e-19` row (unchanged reason from WP33/WP34).
+    """
+
+    coupled_mathieu_x: dict[str, float]
+    coupled_mathieu_y: dict[str, float]
+    per_mode_ratio_x_com: float
+    per_mode_ratio_x_str: float
+    per_mode_ratio_y_com: float
+    per_mode_ratio_y_str: float
+    missing_input_note: str
+
+
+def run_wp35_brewer_consistency_check() -> Wp35BrewerConsistencyCheck:
+    """Build the WP35 Brewer et al. consistency check (coupled two-ion
+    Floquet treatment).
+
+    Returns
+    -------
+    Wp35BrewerConsistencyCheck
+    """
+    species = get_species("Al27+")
+    m_al = species.mass_kg
+    m_mg = loaders.MG25_ATOMIC_MASS_AMU * ATOMIC_MASS_UNIT
+    rf_drive_frequency_hz = loaders.BREWER_AL_ION_RF_DRIVE_FREQUENCY_HZ
+
+    modes_by_name = dict(loaders.BREWER_AL_ION_MODES_MHZ)
+    axial_com_hz = modes_by_name["axial_com"] * 1.0e6
+    x_com_hz = modes_by_name["x_com"] * 1.0e6
+    x_str_hz = modes_by_name["x_str"] * 1.0e6
+    y_com_hz = modes_by_name["y_com"] * 1.0e6
+    y_str_hz = modes_by_name["y_str"] * 1.0e6
+
+    c, _c_unc = axial_coulomb_curvature(m_al, m_mg, axial_com_hz)
+    coupled_x = coupled_two_ion_mathieu_parameters(
+        m_al, m_mg, c, rf_drive_frequency_hz, x_com_hz, x_str_hz
+    )
+    coupled_y = coupled_two_ion_mathieu_parameters(
+        m_al, m_mg, c, rf_drive_frequency_hz, y_com_hz, y_str_hz
+    )
+    x_com_mode, x_str_mode = coupled_two_ion_floquet_modes(
+        m_al, m_mg, coupled_x.mathieu_a_axis, coupled_x.mathieu_q, c, rf_drive_frequency_hz
+    )
+    y_com_mode, y_str_mode = coupled_two_ion_floquet_modes(
+        m_al, m_mg, coupled_y.mathieu_a_axis, coupled_y.mathieu_q, c, rf_drive_frequency_hz
+    )
+
+    published_by_name = dict(
+        zip(
+            (n for n, _ in loaders.BREWER_AL_ION_MODES_MHZ),
+            loaders.BREWER_AL_ION_TDS_PER_QUANTUM,
+            strict=True,
+        )
+    )
+
+    def _ratio(name: str, mode: CoupledTwoIonFloquetMode) -> float:
+        freq_hz = mode.beta * rf_drive_frequency_hz / 2.0
+        omega_i = 2.0 * math.pi * freq_hz
+        predicted_pq = (
+            -(HBAR * omega_i / m_al)
+            * mode.participation_clock
+            * mode.enhancement_clock
+            / (2.0 * SPEED_OF_LIGHT**2)
+        )
+        return predicted_pq / published_by_name[name]
+
+    ratio_x_com = _ratio("x_com", x_com_mode)
+    ratio_x_str = _ratio("x_str", x_str_mode)
+    ratio_y_com = _ratio("y_com", y_com_mode)
+    ratio_y_str = _ratio("y_str", y_str_mode)
+
+    missing_input_note = (
+        "Brewer et al.'s own total-level secular-motion row (-17.3(2.9)e-19) is NOT reproduced "
+        "here, unchanged reason from WP33/WP34's own Brewer checks: Table S2 publishes a "
+        "95%-CI BOUND on n_bar_0 combined with a per-mode heating rate through Brewer's own "
+        "time-dependent Eq. 3, a different input shape from the static n_bar point estimate "
+        "this project's formula consumes. What IS available, the RF drive frequency, all six "
+        "mode frequencies, and a per-mode TDS/quantum row that already includes the transverse "
+        "intrinsic-micromotion shift (footnote a), is what this consistency check uses: the "
+        "coupled-Floquet per-mode ratios above, independent of n_bar."
+    )
+
+    return Wp35BrewerConsistencyCheck(
+        coupled_mathieu_x=asdict(coupled_x),
+        coupled_mathieu_y=asdict(coupled_y),
+        per_mode_ratio_x_com=ratio_x_com,
+        per_mode_ratio_x_str=ratio_x_str,
+        per_mode_ratio_y_com=ratio_y_com,
+        per_mode_ratio_y_str=ratio_y_str,
+        missing_input_note=missing_input_note,
+    )
+
+
+# ---------------------------------------------------------------------------
+# WP35 Part 2: the constrained two-ion Mathieu fit, this WP's own headline
+# result (G17 gate fix loop; CONVENTIONS.md section 16's WP35 addition;
+# `cliffordclock.integrator.omega.constrained_two_ion_mathieu_fit`). The
+# per-axis case above (`run_motional_al_ion_coupled_floquet_case`) stays
+# exactly as written, a labeled diagnostic variant; THIS case is what WP35
+# reports as its own result, since it is the one carrying a genuine,
+# falsifiable over-determination check (four measured frequencies, two
+# fit parameters, nonzero residuals reported in full).
+# ---------------------------------------------------------------------------
+
+CONSTRAINED_FLOQUET_CAVEAT = (
+    "WP35 HEADLINE (G17 gate fix loop): this case fits a SINGLE shared Mathieu RF parameter "
+    "magnitude q (Berkeland Eq. 6, q_x=-q_y) and a DC-split fraction alpha (a_x=-alpha*a_z, "
+    "a_y=-(1-alpha)*a_z, satisfying the Laplace constraint a_x+a_y=-a_z for any alpha) against "
+    "ALL FOUR measured radial mode frequencies at once, with a_z fixed exactly from the measured "
+    "axial frequency (the same relation WP34 uses). Four equations, two unknowns: a genuine "
+    "over-determination, solved by Gauss-Newton least squares "
+    "(cliffordclock.integrator.omega.constrained_two_ion_mathieu_fit), with real, nonzero "
+    "frequency residuals reported in full as this case's own falsifiable output, the same "
+    "epistemic shape as WP32/WP33/WP34's own over-determination checks. This replaces the "
+    "per-axis diagnostic case's own two-equations-two-unknowns-per-axis solve, which fits each "
+    "axis exactly by construction, so it alone provides no independent evidence the underlying "
+    "model is correct. Reported per-mode and total-level agreement below is whatever this fit "
+    "gives against Marshall's own published per-mode and total rows, with no tuning; the fit's "
+    "own residuals, and a model-structure uncertainty component derived from them, are reported "
+    "alongside so a reader can see exactly how much of the agreement is forced and how much is "
+    "earned. A note on energy bookkeeping: WP31/WP32's plain participations sum to 1.0 across "
+    "the two ions sharing a mode, correct for secular motion alone; once enhancement multiplies "
+    "participation, the two ions' participation*enhancement shares add to something larger than "
+    "1.0 in general, because the RF drive itself supplies the additional kinetic energy the "
+    "enhancement factor accounts for. That larger sum is the expected signature of a driven "
+    "system."
+)
+
+
+@dataclass(frozen=True)
+class ConstrainedFloquetModeComparison:
+    """One radial mode's constrained-fit prediction vs. Marshall et al.'s
+    own published per-mode "Frequency shift per quantum" value (WP35 Part
+    2). Axial modes are included too, unchanged from WP31 (`q_z=0`).
+
+    Attributes
+    ----------
+    name : str
+        Mode name (`_MODE_NAMES` order).
+    is_axial : bool
+        Whether this is one of the two axial modes.
+    measured_frequency_hz, predicted_frequency_hz : float
+        The published mode frequency and the constrained fit's OWN
+        predicted frequency for this mode (identical for axial modes,
+        `a_z` fixed exactly from the axial measurement; for the four
+        radial modes, `predicted_frequency_hz - measured_frequency_hz`
+        is exactly this mode's own fit residual).
+    participation_clock, enhancement_clock : float
+        The clock ion's participation and exact micromotion enhancement
+        for this mode, from the constrained fit's own coupled-Floquet
+        decomposition (`1.0`/`1.0` for axial modes).
+    predicted_shift_per_quantum, published_shift_per_quantum : float
+        ``-(hbar*omega_measured/m_Al)*participation_clock*enhancement_clock
+        /(2*c^2)`` (using the MEASURED, not fit-predicted, frequency for
+        omega -- the same convention WP33/WP34/the per-axis diagnostic
+        case all use for their own per-mode reporting) and Marshall et
+        al.'s own published value.
+    ratio_predicted_over_published : float
+        ``predicted/published``.
+    predicted_shift_per_quantum_rounding_uncertainty : float
+        This mode's own 1-sigma contribution from the input-rounding
+        uncertainty channel, propagated through the constrained-fit
+        chain.
+    """
+
+    name: str
+    is_axial: bool
+    measured_frequency_hz: float
+    predicted_frequency_hz: float
+    participation_clock: float
+    enhancement_clock: float
+    predicted_shift_per_quantum: float
+    published_shift_per_quantum: float
+    ratio_predicted_over_published: float
+    predicted_shift_per_quantum_rounding_uncertainty: float
+
+
+@dataclass(frozen=True)
+class MotionalAlIonConstrainedFloquetCase:
+    """The WP35 constrained-fit variant of the WP30-34 Al+ secular-motion
+    case, this WP's own headline result (G17 gate fix loop).
+
+    Attributes
+    ----------
+    case_class : str
+        Always ``"arithmetic_reproduction"``.
+    constrained_fit : dict[str, float]
+        `asdict(cliffordclock.integrator.omega.ConstrainedTwoIonMathieuFit)`:
+        the solved `(q, alpha, a_x, a_y, a_z)` and the fit's own four
+        frequency residuals, stated in full.
+    per_mode : tuple[ConstrainedFloquetModeComparison, ...]
+        One entry per mode, `_MODE_NAMES` order.
+    predicted_total_nominal : float
+        The constrained-fit total `(P-1)_motional`.
+    predicted_total_uncertainty_nbar_fractional,
+    predicted_total_uncertainty_rounding_fractional,
+    predicted_total_uncertainty_model_structure_fractional,
+    predicted_total_uncertainty_combined_fractional : float
+        THREE separately labeled uncertainty components (thermometry,
+        input-rounding, and model-structure) plus their quadrature
+        combination. Model-structure is `|this total - the per-axis
+        diagnostic case's own total|` (G17's own "at minimum" bound): the
+        two cases model the SAME physics differently (one constrained by
+        Berkeland Eq. 6, one fit freely per axis), and their spread is a
+        direct measure of how much the reported agreement depends on
+        which of the two defensible models is used.
+    predicted_total_band_lo, predicted_total_band_hi : float
+        `predicted_total_nominal +/- predicted_total_uncertainty_combined_fractional`.
+    total_bands_overlap : bool
+        Whether this band overlaps Marshall et al.'s own published band.
+    total_kpi_verdict : str
+        ``"MET"`` if `total_bands_overlap` else ``"NOT MET"``.
+    bare_frequency_partner_x_predicted_hz, bare_frequency_partner_y_predicted_hz,
+    bare_frequency_partner_x_reconstructed_hz, bare_frequency_partner_y_reconstructed_hz,
+    partner_x_relative_deviation, partner_y_relative_deviation : float
+        The over-determination partner check G17 asked to be implemented
+        for this case: the constrained fit's own `(q, a_x, a_y)`,
+        mass-scaled to the partner ion and evaluated through the
+        partner's own uncoupled exact Floquet beta
+        (`predicted_partner_bare_radial_frequencies_hz_exact`), compared
+        against WP32's SEPARATELY reconstructed partner bare frequencies.
+    per_mode_citation, enhancement_caveat, fit_note, partner_prediction_note,
+    model_structure_note, rounding_uncertainty_note : str
+        Citations plus plain-language summaries of this case's own
+        results, stated in full.
+    """
+
+    case_class: str
+    constrained_fit: dict[str, float]
+    per_mode: tuple[ConstrainedFloquetModeComparison, ...]
+    predicted_total_nominal: float
+    predicted_total_uncertainty_nbar_fractional: float
+    predicted_total_uncertainty_rounding_fractional: float
+    predicted_total_uncertainty_model_structure_fractional: float
+    predicted_total_uncertainty_combined_fractional: float
+    predicted_total_band_lo: float
+    predicted_total_band_hi: float
+    total_bands_overlap: bool
+    total_kpi_verdict: str
+    bare_frequency_partner_x_predicted_hz: float
+    bare_frequency_partner_y_predicted_hz: float
+    bare_frequency_partner_x_reconstructed_hz: float
+    bare_frequency_partner_y_reconstructed_hz: float
+    partner_x_relative_deviation: float
+    partner_y_relative_deviation: float
+    per_mode_citation: str
+    enhancement_caveat: str
+    fit_note: str
+    partner_prediction_note: str
+    model_structure_note: str
+    rounding_uncertainty_note: str
+
+
+def _wp35_constrained_case_from_frequencies_hz(
+    frequencies_hz: tuple[float, float, float, float, float, float],
+    rf_drive_frequency_hz: float,
+    m_al: float,
+    m_mg: float,
+) -> tuple[float, tuple[float, float, float, float, float, float], ConstrainedTwoIonMathieuFit]:
+    """Recompute the WHOLE WP35 Part 2 constrained-fit chain (Coulomb
+    curvature, the constrained least-squares fit, the fitted modes' own
+    participations/enhancements, per-mode predicted values using the
+    MEASURED frequencies, and the total) as a pure function of the six
+    Marshall mode frequencies and the RF drive frequency, holding `n_bar`
+    fixed -- shared by the nominal case build and the input-rounding
+    finite-difference uncertainty channel.
+
+    Returns
+    -------
+    tuple
+        ``(predicted_total, predicted_pq, fit)``.
+    """
+    axial_com_hz, _axial_str_hz, x_com_hz, x_str_hz, y_com_hz, y_str_hz = frequencies_hz
+    c, _c_unc = axial_coulomb_curvature(m_al, m_mg, axial_com_hz)
+    axial_participations = two_ion_participations(m_al, m_mg)
+
+    fit = constrained_two_ion_mathieu_fit(
+        m_al, m_mg, c, rf_drive_frequency_hz, axial_com_hz, x_com_hz, x_str_hz, y_com_hz, y_str_hz
+    )
+    x_com_mode, x_str_mode = coupled_two_ion_floquet_modes(
+        m_al, m_mg, fit.mathieu_a_x, fit.mathieu_q, c, rf_drive_frequency_hz
+    )
+    y_com_mode, y_str_mode = coupled_two_ion_floquet_modes(
+        m_al, m_mg, fit.mathieu_a_y, fit.mathieu_q, c, rf_drive_frequency_hz
+    )
+
+    participations = (
+        axial_participations[0],
+        axial_participations[1],
+        x_com_mode.participation_clock,
+        x_str_mode.participation_clock,
+        y_com_mode.participation_clock,
+        y_str_mode.participation_clock,
+    )
+    enhancements = (
+        1.0,
+        1.0,
+        x_com_mode.enhancement_clock,
+        x_str_mode.enhancement_clock,
+        y_com_mode.enhancement_clock,
+        y_str_mode.enhancement_clock,
+    )
+
+    predicted_pq = []
+    v2_terms = []
+    for freq_hz, participation, enhancement, (_name, _f_mhz, n_bar, _n_bar_unc) in zip(
+        frequencies_hz,
+        participations,
+        enhancements,
+        loaders.MARSHALL_AL_ION_MODES_MHZ_NBAR,
+        strict=True,
+    ):
+        omega_i = 2.0 * math.pi * freq_hz
+        weight = (HBAR * omega_i / m_al) * participation * enhancement
+        predicted_pq.append(-weight / (2.0 * SPEED_OF_LIGHT**2))
+        v2_terms.append(weight * (n_bar + 0.5))
+
+    predicted_total = -math.fsum(v2_terms) / (2.0 * SPEED_OF_LIGHT**2)
+    return predicted_total, tuple(predicted_pq), fit  # type: ignore[return-value]
+
+
+def _wp35_constrained_rounding_uncertainty(
+    nominal_frequencies_hz: tuple[float, float, float, float, float, float],
+    rf_drive_frequency_hz: float,
+    m_al: float,
+    m_mg: float,
+) -> tuple[float, tuple[float, float, float, float, float, float]]:
+    """The constrained case's own input-rounding finite-difference
+    propagation (WP34 Part 2's channel, propagated through
+    :func:`_wp35_constrained_case_from_frequencies_hz`).
+
+    Returns
+    -------
+    tuple[float, tuple[float, float, float, float, float, float]]
+        ``(total_rounding_uncertainty, per_mode_rounding_uncertainty)``.
+    """
+    freq_bound_hz = loaders.MARSHALL_AL_ION_MODES_ROUNDING_BOUND_HZ
+    rf_bound_hz = loaders.MARSHALL_AL_ION_RF_DRIVE_FREQUENCY_ROUNDING_BOUND_HZ
+
+    total_terms = []
+    per_mode_terms: list[list[float]] = [[] for _ in range(6)]
+    for i in range(6):
+        plus = list(nominal_frequencies_hz)
+        plus[i] += freq_bound_hz
+        minus = list(nominal_frequencies_hz)
+        minus[i] -= freq_bound_hz
+        total_plus, pq_plus, _fit_plus = _wp35_constrained_case_from_frequencies_hz(
+            tuple(plus),
+            rf_drive_frequency_hz,
+            m_al,
+            m_mg,  # type: ignore[arg-type]
+        )
+        total_minus, pq_minus, _fit_minus = _wp35_constrained_case_from_frequencies_hz(
+            tuple(minus),
+            rf_drive_frequency_hz,
+            m_al,
+            m_mg,  # type: ignore[arg-type]
+        )
+        total_terms.append(((total_plus - total_minus) / 2.0) ** 2)
+        for j in range(6):
+            per_mode_terms[j].append(((pq_plus[j] - pq_minus[j]) / 2.0) ** 2)
+
+    total_plus, pq_plus, _fit_plus = _wp35_constrained_case_from_frequencies_hz(
+        nominal_frequencies_hz, rf_drive_frequency_hz + rf_bound_hz, m_al, m_mg
+    )
+    total_minus, pq_minus, _fit_minus = _wp35_constrained_case_from_frequencies_hz(
+        nominal_frequencies_hz, rf_drive_frequency_hz - rf_bound_hz, m_al, m_mg
+    )
+    total_terms.append(((total_plus - total_minus) / 2.0) ** 2)
+    for j in range(6):
+        per_mode_terms[j].append(((pq_plus[j] - pq_minus[j]) / 2.0) ** 2)
+
+    total_rounding_uncertainty = math.sqrt(math.fsum(total_terms))
+    per_mode_rounding_uncertainty = tuple(math.sqrt(math.fsum(terms)) for terms in per_mode_terms)
+    return total_rounding_uncertainty, per_mode_rounding_uncertainty  # type: ignore[return-value]
+
+
+def run_motional_al_ion_constrained_floquet_case() -> MotionalAlIonConstrainedFloquetCase:
+    """Build the WP35 Part 2 constrained-fit variant, this WP's own
+    headline case (G17 gate fix loop; this module's WP35 Part 2 section
+    header comment for the method).
+
+    Returns
+    -------
+    MotionalAlIonConstrainedFloquetCase
+    """
+    species = get_species("Al27+")
+    m_al = species.mass_kg
+    m_mg = loaders.MG25_ATOMIC_MASS_AMU * ATOMIC_MASS_UNIT
+    rf_drive_frequency_hz = loaders.MARSHALL_AL_ION_RF_DRIVE_FREQUENCY_HZ
+
+    nominal_frequencies_hz = tuple(
+        mode[1] * 1.0e6 for mode in loaders.MARSHALL_AL_ION_MODES_MHZ_NBAR
+    )
+
+    predicted_total, predicted_pq, fit = _wp35_constrained_case_from_frequencies_hz(
+        nominal_frequencies_hz,
+        rf_drive_frequency_hz,
+        m_al,
+        m_mg,  # type: ignore[arg-type]
+    )
+
+    axial_com_hz = nominal_frequencies_hz[0]
+    c, _c_unc = axial_coulomb_curvature(m_al, m_mg, axial_com_hz)
+    axial_participations = two_ion_participations(m_al, m_mg)
+    x_com_mode, x_str_mode = coupled_two_ion_floquet_modes(
+        m_al, m_mg, fit.mathieu_a_x, fit.mathieu_q, c, rf_drive_frequency_hz
+    )
+    y_com_mode, y_str_mode = coupled_two_ion_floquet_modes(
+        m_al, m_mg, fit.mathieu_a_y, fit.mathieu_q, c, rf_drive_frequency_hz
+    )
+    participations = (
+        axial_participations[0],
+        axial_participations[1],
+        x_com_mode.participation_clock,
+        x_str_mode.participation_clock,
+        y_com_mode.participation_clock,
+        y_str_mode.participation_clock,
+    )
+    enhancements = (
+        1.0,
+        1.0,
+        x_com_mode.enhancement_clock,
+        x_str_mode.enhancement_clock,
+        y_com_mode.enhancement_clock,
+        y_str_mode.enhancement_clock,
+    )
+    predicted_frequencies_hz = (
+        axial_com_hz,
+        nominal_frequencies_hz[1],
+        fit.predicted_x_com_frequency_hz,
+        fit.predicted_x_str_frequency_hz,
+        fit.predicted_y_com_frequency_hz,
+        fit.predicted_y_str_frequency_hz,
+    )
+
+    # Input-rounding uncertainty channel.
+    total_rounding_uncertainty, per_mode_rounding_uncertainty = (
+        _wp35_constrained_rounding_uncertainty(
+            nominal_frequencies_hz,
+            rf_drive_frequency_hz,
+            m_al,
+            m_mg,  # type: ignore[arg-type]
+        )
+    )
+
+    # Model-structure uncertainty channel (G17 item 3, "at minimum the
+    # spread between the constrained and per-axis totals"): the per-axis
+    # diagnostic case's own total, recomputed here via the SAME raw
+    # helper that case itself uses, so both totals come from an identical
+    # radial-spectrum reconstruction and differ ONLY in which Mathieu
+    # model (constrained vs. per-axis) generated the participations and
+    # enhancements.
+    per_axis_total, _per_axis_pq, _mode_freqs, _cx, _cy = _wp35_case_from_frequencies_hz(
+        nominal_frequencies_hz,
+        rf_drive_frequency_hz,
+        m_al,
+        m_mg,  # type: ignore[arg-type]
+    )
+    model_structure_uncertainty = abs(predicted_total - per_axis_total)
+
+    per_mode = []
+    nbar_terms = []
+    for (
+        name,
+        _frequency_mhz,
+        _n_bar,
+        n_bar_uncertainty,
+    ), participation, enhancement, published_pq, predicted_this_mode, rounding_unc_this_mode, (
+        measured_freq_hz,
+        predicted_freq_hz,
+    ) in zip(
+        loaders.MARSHALL_AL_ION_MODES_MHZ_NBAR,
+        participations,
+        enhancements,
+        loaders.MARSHALL_AL_ION_FREQUENCY_SHIFT_PER_QUANTUM,
+        predicted_pq,
+        per_mode_rounding_uncertainty,
+        zip(nominal_frequencies_hz, predicted_frequencies_hz, strict=True),
+        strict=True,
+    ):
+        is_axial = name in _AXIAL_MODE_NAMES
+        per_mode.append(
+            ConstrainedFloquetModeComparison(
+                name=name,
+                is_axial=is_axial,
+                measured_frequency_hz=measured_freq_hz,
+                predicted_frequency_hz=predicted_freq_hz,
+                participation_clock=participation,
+                enhancement_clock=enhancement,
+                predicted_shift_per_quantum=predicted_this_mode,
+                published_shift_per_quantum=published_pq,
+                ratio_predicted_over_published=predicted_this_mode / published_pq,
+                predicted_shift_per_quantum_rounding_uncertainty=rounding_unc_this_mode,
+            )
+        )
+        nbar_terms.append(predicted_this_mode * n_bar_uncertainty)
+
+    predicted_sigma_nbar = math.sqrt(math.fsum(t * t for t in nbar_terms))
+    predicted_sigma_combined = math.sqrt(
+        predicted_sigma_nbar**2 + total_rounding_uncertainty**2 + model_structure_uncertainty**2
+    )
+
+    published = loaders.MARSHALL_AL_ION_SECULAR_MOTION_SHIFT
+    band_lo = predicted_total - predicted_sigma_combined
+    band_hi = predicted_total + predicted_sigma_combined
+    overlap = run_benchmarks._bands_overlap(  # noqa: SLF001 (reusing the tested helper)
+        band_lo, band_hi, published.lo, published.hi
+    )
+    combined_sigma = math.sqrt(
+        predicted_sigma_combined**2 + (published.hi - published.nominal) ** 2
+    )
+    deviation_sigma = abs(predicted_total - published.nominal) / combined_sigma
+
+    # Partner over-determination check (G17 item 2): mass-scale the
+    # constrained fit's own (q, a_x, a_y) to the partner ion and evaluate
+    # its uncoupled exact Floquet beta, compared against WP32's
+    # separately-reconstructed partner bare frequencies.
+    x_bare = two_ion_radial_participations(
+        m_al, m_mg, c, nominal_frequencies_hz[2], nominal_frequencies_hz[3]
+    )
+    y_bare = two_ion_radial_participations(
+        m_al, m_mg, c, nominal_frequencies_hz[4], nominal_frequencies_hz[5]
+    )
+    predicted_partner_x_hz, predicted_partner_y_hz = (
+        predicted_partner_bare_radial_frequencies_hz_exact(
+            fit.as_clock_ion_mathieu_parameters(), m_al, m_mg, rf_drive_frequency_hz
+        )
+    )
+    partner_x_relative_deviation = (
+        predicted_partner_x_hz - x_bare.bare_frequency_partner_hz
+    ) / x_bare.bare_frequency_partner_hz
+    partner_y_relative_deviation = (
+        predicted_partner_y_hz - y_bare.bare_frequency_partner_hz
+    ) / y_bare.bare_frequency_partner_hz
+
+    fit_note = (
+        f"Constrained fit: q={fit.mathieu_q:.6f}, alpha={fit.alpha:+.6f}, "
+        f"a_x={fit.mathieu_a_x:+.6e}, a_y={fit.mathieu_a_y:+.6e}, a_z={fit.mathieu_a_z:+.6e}. "
+        "Frequency residuals (predicted-measured, the fit's own falsifiable output): "
+        f"X-COM {fit.residual_x_com_hz:+.1f} Hz "
+        f"({fit.residual_x_com_hz / nominal_frequencies_hz[2]:+.4%}), "
+        f"X-STR {fit.residual_x_str_hz:+.1f} Hz "
+        f"({fit.residual_x_str_hz / nominal_frequencies_hz[3]:+.4%}), "
+        f"Y-COM {fit.residual_y_com_hz:+.1f} Hz "
+        f"({fit.residual_y_com_hz / nominal_frequencies_hz[4]:+.4%}), "
+        f"Y-STR {fit.residual_y_str_hz:+.1f} Hz "
+        f"({fit.residual_y_str_hz / nominal_frequencies_hz[5]:+.4%}). These residuals quantify "
+        "whatever real physics (trap anharmonicity, higher multipoles, or any other departure "
+        "from the idealized Mathieu model) this two-parameter constrained fit cannot absorb; "
+        f"the resulting total lands at {deviation_sigma:.2f} sigma from the published total "
+        f"({'MET' if overlap else 'NOT MET'})."
+    )
+    partner_prediction_note = (
+        "Over-determination check (constrained fit): mass-scaling the constrained fit's own "
+        f"(q={fit.mathieu_q:.6f}, a_x={fit.mathieu_a_x:+.6e}, a_y={fit.mathieu_a_y:+.6e}) to the "
+        f"partner ion (Mg25+) predicts bare radial frequencies of {predicted_partner_x_hz:.6e} Hz "
+        f"(X) and {predicted_partner_y_hz:.6e} Hz (Y), against WP32's own SEPARATELY "
+        f"reconstructed {x_bare.bare_frequency_partner_hz:.6e} Hz (X) and "
+        f"{y_bare.bare_frequency_partner_hz:.6e} Hz (Y); relative deviations "
+        f"{partner_x_relative_deviation:+.4%} (X) and {partner_y_relative_deviation:+.4%} (Y), "
+        "both well inside the few-percent band the published mode frequencies' own "
+        "~3-significant-figure reporting precision supports."
+    )
+    model_structure_note = (
+        "Model-structure uncertainty (G17 item 3, a component this project's earlier motional "
+        "cases did not carry): the per-axis diagnostic case's own total is "
+        f"{per_axis_total:+.6e}, against this case's constrained total of "
+        f"{predicted_total:+.6e}; the spread, "
+        f"+/-{model_structure_uncertainty:.3e}, is reported as its own labeled uncertainty "
+        "component, standing for how much of the total depends on which of the two defensible "
+        "Mathieu models is used, beside the thermometry and rounding channels."
+    )
+    _rounding_ratio = (
+        predicted_sigma_nbar / total_rounding_uncertainty
+        if total_rounding_uncertainty
+        else float("inf")
+    )
+    rounding_uncertainty_note = (
+        "Input-rounding uncertainty channel (WP34 Part 2, reused unchanged here): propagating "
+        "each published frequency's half-last-digit rounding bound through this constrained-fit "
+        f"chain gives a total-level rounding uncertainty of +/-{total_rounding_uncertainty:.3e} "
+        f"(fractional), against the thermometry (n_bar) channel's own "
+        f"+/-{predicted_sigma_nbar:.3e}, roughly {_rounding_ratio:.0f}x. This channel is a BOUND "
+        "on rounding, distinct from a measured uncertainty, and is labeled as such throughout "
+        "this case's own record."
+    )
+
+    return MotionalAlIonConstrainedFloquetCase(
+        case_class="arithmetic_reproduction",
+        constrained_fit=asdict(fit),
+        per_mode=tuple(per_mode),
+        predicted_total_nominal=predicted_total,
+        predicted_total_uncertainty_nbar_fractional=predicted_sigma_nbar,
+        predicted_total_uncertainty_rounding_fractional=total_rounding_uncertainty,
+        predicted_total_uncertainty_model_structure_fractional=model_structure_uncertainty,
+        predicted_total_uncertainty_combined_fractional=predicted_sigma_combined,
+        predicted_total_band_lo=band_lo,
+        predicted_total_band_hi=band_hi,
+        total_bands_overlap=overlap,
+        total_kpi_verdict="MET" if overlap else "NOT MET",
+        bare_frequency_partner_x_predicted_hz=predicted_partner_x_hz,
+        bare_frequency_partner_y_predicted_hz=predicted_partner_y_hz,
+        bare_frequency_partner_x_reconstructed_hz=x_bare.bare_frequency_partner_hz,
+        bare_frequency_partner_y_reconstructed_hz=y_bare.bare_frequency_partner_hz,
+        partner_x_relative_deviation=partner_x_relative_deviation,
+        partner_y_relative_deviation=partner_y_relative_deviation,
+        per_mode_citation=loaders.MARSHALL_AL_ION_FREQUENCY_SHIFT_PER_QUANTUM_CITATION,
+        enhancement_caveat=CONSTRAINED_FLOQUET_CAVEAT,
+        fit_note=fit_note,
+        partner_prediction_note=partner_prediction_note,
+        model_structure_note=model_structure_note,
+        rounding_uncertainty_note=rounding_uncertainty_note,
+    )
+
+
+@dataclass(frozen=True)
+class Wp35ConstrainedBrewerConsistencyCheck:
+    """A SECOND, independent consistency case for the WP35 constrained
+    fit, built from Brewer et al.'s (arXiv:1902.07694) own published trap
+    parameters.
+
+    Attributes
+    ----------
+    constrained_fit : dict[str, float]
+        The constrained fit's own `(q, alpha, a_x, a_y, a_z)` and
+        frequency residuals for Brewer's trap.
+    per_mode_ratio_x_com, per_mode_ratio_x_str, per_mode_ratio_y_com,
+    per_mode_ratio_y_str : float
+        ``predicted/published`` for each radial mode, against Brewer's
+        own `TDS/quantum` row.
+    partner_x_relative_deviation, partner_y_relative_deviation : float
+        The constrained fit's own over-determination check for Brewer's
+        trap.
+    missing_input_note : str
+        States why this case does not attempt Brewer's own total-level
+        `-17.3(2.9)e-19` row (unchanged reason from WP33/WP34/the
+        per-axis diagnostic case).
+    """
+
+    constrained_fit: dict[str, float]
+    per_mode_ratio_x_com: float
+    per_mode_ratio_x_str: float
+    per_mode_ratio_y_com: float
+    per_mode_ratio_y_str: float
+    partner_x_relative_deviation: float
+    partner_y_relative_deviation: float
+    missing_input_note: str
+
+
+def run_wp35_constrained_brewer_consistency_check() -> Wp35ConstrainedBrewerConsistencyCheck:
+    """Build the WP35 constrained-fit Brewer et al. consistency check,
+    including the partner over-determination check for Brewer's trap
+    (G17 item 2: "both traps").
+
+    Returns
+    -------
+    Wp35ConstrainedBrewerConsistencyCheck
+    """
+    species = get_species("Al27+")
+    m_al = species.mass_kg
+    m_mg = loaders.MG25_ATOMIC_MASS_AMU * ATOMIC_MASS_UNIT
+    rf_drive_frequency_hz = loaders.BREWER_AL_ION_RF_DRIVE_FREQUENCY_HZ
+
+    modes_by_name = dict(loaders.BREWER_AL_ION_MODES_MHZ)
+    axial_com_hz = modes_by_name["axial_com"] * 1.0e6
+    x_com_hz = modes_by_name["x_com"] * 1.0e6
+    x_str_hz = modes_by_name["x_str"] * 1.0e6
+    y_com_hz = modes_by_name["y_com"] * 1.0e6
+    y_str_hz = modes_by_name["y_str"] * 1.0e6
+
+    c, _c_unc = axial_coulomb_curvature(m_al, m_mg, axial_com_hz)
+    fit = constrained_two_ion_mathieu_fit(
+        m_al, m_mg, c, rf_drive_frequency_hz, axial_com_hz, x_com_hz, x_str_hz, y_com_hz, y_str_hz
+    )
+    x_com_mode, x_str_mode = coupled_two_ion_floquet_modes(
+        m_al, m_mg, fit.mathieu_a_x, fit.mathieu_q, c, rf_drive_frequency_hz
+    )
+    y_com_mode, y_str_mode = coupled_two_ion_floquet_modes(
+        m_al, m_mg, fit.mathieu_a_y, fit.mathieu_q, c, rf_drive_frequency_hz
+    )
+
+    published_by_name = dict(
+        zip(
+            (n for n, _ in loaders.BREWER_AL_ION_MODES_MHZ),
+            loaders.BREWER_AL_ION_TDS_PER_QUANTUM,
+            strict=True,
+        )
+    )
+
+    def _ratio(name: str, frequency_hz: float, mode: CoupledTwoIonFloquetMode) -> float:
+        omega_i = 2.0 * math.pi * frequency_hz
+        predicted_pq = (
+            -(HBAR * omega_i / m_al)
+            * mode.participation_clock
+            * mode.enhancement_clock
+            / (2.0 * SPEED_OF_LIGHT**2)
+        )
+        return predicted_pq / published_by_name[name]
+
+    ratio_x_com = _ratio("x_com", x_com_hz, x_com_mode)
+    ratio_x_str = _ratio("x_str", x_str_hz, x_str_mode)
+    ratio_y_com = _ratio("y_com", y_com_hz, y_com_mode)
+    ratio_y_str = _ratio("y_str", y_str_hz, y_str_mode)
+
+    x_bare = two_ion_radial_participations(m_al, m_mg, c, x_com_hz, x_str_hz)
+    y_bare = two_ion_radial_participations(m_al, m_mg, c, y_com_hz, y_str_hz)
+    predicted_partner_x_hz, predicted_partner_y_hz = (
+        predicted_partner_bare_radial_frequencies_hz_exact(
+            fit.as_clock_ion_mathieu_parameters(), m_al, m_mg, rf_drive_frequency_hz
+        )
+    )
+    partner_x_relative_deviation = (
+        predicted_partner_x_hz - x_bare.bare_frequency_partner_hz
+    ) / x_bare.bare_frequency_partner_hz
+    partner_y_relative_deviation = (
+        predicted_partner_y_hz - y_bare.bare_frequency_partner_hz
+    ) / y_bare.bare_frequency_partner_hz
+
+    missing_input_note = (
+        "Brewer et al.'s own total-level secular-motion row (-17.3(2.9)e-19) is NOT reproduced "
+        "here, unchanged reason from WP33/WP34/the per-axis diagnostic case's own Brewer checks: "
+        "Table S2 publishes a 95%-CI BOUND on n_bar_0 combined with a per-mode heating rate "
+        "through Brewer's own time-dependent Eq. 3, a different input shape from the static "
+        "n_bar point estimate this project's formula consumes. What IS available, the RF drive "
+        "frequency, all six mode frequencies, and a per-mode TDS/quantum row that already "
+        "includes the transverse intrinsic-micromotion shift (footnote a), is what this "
+        "consistency check uses: the constrained fit's own per-mode ratios and partner "
+        "over-determination check above, both independent of n_bar."
+    )
+
+    return Wp35ConstrainedBrewerConsistencyCheck(
+        constrained_fit=asdict(fit),
+        per_mode_ratio_x_com=ratio_x_com,
+        per_mode_ratio_x_str=ratio_x_str,
+        per_mode_ratio_y_com=ratio_y_com,
+        per_mode_ratio_y_str=ratio_y_str,
+        partner_x_relative_deviation=partner_x_relative_deviation,
+        partner_y_relative_deviation=partner_y_relative_deviation,
+        missing_input_note=missing_input_note,
+    )
+
+
+def build_wp35_report() -> dict[str, Any]:
+    """Build the standalone WP35 report as a JSON-serializable dict, kept
+    in its OWN artifact (``wp35_*.json/md``). The CONSTRAINED fit
+    (:func:`run_motional_al_ion_constrained_floquet_case`) is this WP's
+    own headline result (G17 gate fix loop); the per-axis solve
+    (:func:`run_motional_al_ion_coupled_floquet_case`) is kept as a
+    labeled diagnostic variant, unchanged.
+
+    Returns
+    -------
+    dict[str, Any]
+        Metadata plus the WP35 constrained-fit Marshall case and its own
+        Brewer consistency check, the per-axis diagnostic Marshall case
+        and its own Brewer consistency check.
+    """
+    constrained_case = run_motional_al_ion_constrained_floquet_case()
+    constrained_brewer_check = run_wp35_constrained_brewer_consistency_check()
+    diagnostic_case = run_motional_al_ion_coupled_floquet_case()
+    diagnostic_brewer_check = run_wp35_brewer_consistency_check()
+    return {
+        "wp35_motional_al_ion_coupled_floquet_schema": "2.0",
+        "generated_at_utc": datetime.now(UTC).isoformat(),
+        "case_class": constrained_case.case_class,
+        "marshall_2504_13071_constrained_floquet_case": asdict(constrained_case),
+        "brewer_1902_07694_constrained_consistency_check": asdict(constrained_brewer_check),
+        "marshall_2504_13071_per_axis_diagnostic_case": asdict(diagnostic_case),
+        "brewer_1902_07694_per_axis_diagnostic_consistency_check": asdict(diagnostic_brewer_check),
+    }
+
+
+def render_wp35_markdown(report: dict[str, Any]) -> str:
+    """Render the WP35 constrained-fit case (this WP's own headline,
+    G17 gate fix loop) plus its Brewer consistency check, then the
+    per-axis diagnostic case and its own Brewer consistency check, as a
+    markdown summary.
+
+    Parameters
+    ----------
+    report : dict[str, Any]
+        A report dict as returned by :func:`build_wp35_report`.
+
+    Returns
+    -------
+    str
+        A markdown document suitable for embedding or diffing against
+        `benchmarks/RESULTS.md`.
+    """
+    case = report["marshall_2504_13071_constrained_floquet_case"]
+    brewer = report["brewer_1902_07694_constrained_consistency_check"]
+    diagnostic = report["marshall_2504_13071_per_axis_diagnostic_case"]
+    diagnostic_brewer = report["brewer_1902_07694_per_axis_diagnostic_consistency_check"]
+    fit = case["constrained_fit"]
+    lines = [
+        "# WP35 motional Al+ ion coupled-two-ion-Floquet benchmark case (generated)",
+        "",
+        f"Generated: {report['generated_at_utc']}",
+        "",
+        "## WP35 HEADLINE: the constrained two-ion Mathieu fit "
+        "(constrained_two_ion_mathieu_fit, Al27+/Mg25+, Marshall, G17 gate fix loop)",
+        "",
+        f"**{case['enhancement_caveat']}**",
+        "",
+        f"**{case['fit_note']}**",
+        "",
+        f"**{case['partner_prediction_note']}**",
+        "",
+        f"**{case['model_structure_note']}**",
+        "",
+        f"**{case['rounding_uncertainty_note']}**",
+        "",
+        "| Quantity | Value |",
+        "|---|---|",
+        f"| Constrained q | {fit['mathieu_q']:.6f} |",
+        f"| Constrained alpha (DC split) | {fit['alpha']:+.6f} |",
+        f"| Constrained a_x | {fit['mathieu_a_x']:+.6e} |",
+        f"| Constrained a_y | {fit['mathieu_a_y']:+.6e} |",
+        f"| Constrained a_z (fixed from axial) | {fit['mathieu_a_z']:+.6e} |",
+        "",
+        "| Mode | Axial? | Measured freq (Hz) | Predicted freq (Hz) | Participation | "
+        "Enhancement | Predicted shift/quantum | Published shift/quantum | Ratio |",
+        "|---|---|---|---|---|---|---|---|---|",
+        *(
+            f"| {m['name']} | {m['is_axial']} | {m['measured_frequency_hz']:.6e} | "
+            f"{m['predicted_frequency_hz']:.6e} | {m['participation_clock']:.4f} | "
+            f"{m['enhancement_clock']:.4f} | {m['predicted_shift_per_quantum']:+.4e} | "
+            f"{m['published_shift_per_quantum']:+.4e} | "
+            f"{m['ratio_predicted_over_published']:+.4f} |"
+            for m in case["per_mode"]
+        ),
+        "",
+        "| Quantity | Value |",
+        "|---|---|",
+        f"| Constrained-fit total (P-1)_motional | {case['predicted_total_nominal']:+.6e} |",
+        (
+            "| Uncertainty component: thermometry (n_bar), 1-sigma | "
+            f"+/-{case['predicted_total_uncertainty_nbar_fractional']:.3e} |"
+        ),
+        (
+            "| Uncertainty component: input rounding, 1-sigma | "
+            f"+/-{case['predicted_total_uncertainty_rounding_fractional']:.3e} |"
+        ),
+        (
+            "| Uncertainty component: model structure, 1-sigma | "
+            f"+/-{case['predicted_total_uncertainty_model_structure_fractional']:.3e} |"
+        ),
+        (
+            "| Uncertainty, combined in quadrature, 1-sigma | "
+            f"+/-{case['predicted_total_uncertainty_combined_fractional']:.3e} |"
+        ),
+        (
+            "| Band | "
+            f"[{case['predicted_total_band_lo']:+.6e}, {case['predicted_total_band_hi']:+.6e}] |"
+        ),
+        f"| Total bands overlap | {case['total_bands_overlap']} |",
+        f"| **total_kpi_verdict** | **{case['total_kpi_verdict']}** |",
+        "",
+        f"Per-mode published-value citation: {case['per_mode_citation']}",
+        "",
+        "## WP35 constrained-fit Brewer et al. (2019, arXiv:1902.07694) consistency check "
+        "(second, independent dataset)",
+        "",
+        f"**{brewer['missing_input_note']}**",
+        "",
+        "| Quantity | Value |",
+        "|---|---|",
+        f"| Constrained q | {brewer['constrained_fit']['mathieu_q']:.6f} |",
+        f"| Constrained alpha | {brewer['constrained_fit']['alpha']:+.6f} |",
+        f"| Constrained a_x | {brewer['constrained_fit']['mathieu_a_x']:+.6e} |",
+        f"| Constrained a_y | {brewer['constrained_fit']['mathieu_a_y']:+.6e} |",
+        (
+            "| Frequency residual, X-COM (Hz) | "
+            f"{brewer['constrained_fit']['residual_x_com_hz']:+.1f} |"
+        ),
+        (
+            "| Frequency residual, X-STR (Hz) | "
+            f"{brewer['constrained_fit']['residual_x_str_hz']:+.1f} |"
+        ),
+        (
+            "| Frequency residual, Y-COM (Hz) | "
+            f"{brewer['constrained_fit']['residual_y_com_hz']:+.1f} |"
+        ),
+        (
+            "| Frequency residual, Y-STR (Hz) | "
+            f"{brewer['constrained_fit']['residual_y_str_hz']:+.1f} |"
+        ),
+        f"| Partner X relative deviation | {brewer['partner_x_relative_deviation']:+.4%} |",
+        f"| Partner Y relative deviation | {brewer['partner_y_relative_deviation']:+.4%} |",
+        f"| Per-mode ratio (pred/pub), x_com | {brewer['per_mode_ratio_x_com']:+.4f} |",
+        f"| Per-mode ratio (pred/pub), x_str | {brewer['per_mode_ratio_x_str']:+.4f} |",
+        f"| Per-mode ratio (pred/pub), y_com | {brewer['per_mode_ratio_y_com']:+.4f} |",
+        f"| Per-mode ratio (pred/pub), y_str | {brewer['per_mode_ratio_y_str']:+.4f} |",
+        "",
+        "## WP35 diagnostic variant: the per-axis solve "
+        "(coupled_two_ion_floquet_modes/coupled_two_ion_mathieu_parameters, Al27+/Mg25+, Marshall)",
+        "",
+        f"**{diagnostic['enhancement_caveat']}**",
+        "",
+        f"**{diagnostic['self_consistency_note']}**",
+        "",
+        f"**{diagnostic['enhancement_note']}**",
+        "",
+        "| Mode | Axial? | Mode freq (Hz) | Participation | Enhancement (exact) | "
+        "Enhancement (reviewer estimate) | Predicted (exact) | Predicted (reviewer) | "
+        "Published | Ratio (exact) | Ratio (reviewer) |",
+        "|---|---|---|---|---|---|---|---|---|---|---|",
+        *(
+            f"| {m['name']} | {m['is_axial']} | {m['mode_frequency_hz']:.6e} | "
+            f"{m['participation_clock']:.4f} | {m['enhancement_clock']:.4f} | "
+            f"{m['enhancement_clock_reviewer_estimate']:.4f} | "
+            f"{m['predicted_shift_per_quantum']:+.4e} | "
+            f"{m['predicted_shift_per_quantum_reviewer_estimate']:+.4e} | "
+            f"{m['published_shift_per_quantum']:+.4e} | "
+            f"{m['ratio_predicted_over_published']:+.4f} | "
+            f"{m['ratio_predicted_over_published_reviewer_estimate']:+.4f} |"
+            for m in diagnostic["per_mode"]
+        ),
+        "",
+        "| Quantity | Value |",
+        "|---|---|",
+        f"| Per-axis-solve total (P-1)_motional | {diagnostic['predicted_total_nominal']:+.6e} |",
+        f"| **total_kpi_verdict** | **{diagnostic['total_kpi_verdict']}** |",
+        "",
+        "## WP35 per-axis-diagnostic Brewer et al. (2019, arXiv:1902.07694) consistency check",
+        "",
+        f"**{diagnostic_brewer['missing_input_note']}**",
+        "",
+        "| Quantity | Value |",
+        "|---|---|",
+        (
+            "| X-axis per-axis solve q | "
+            f"{diagnostic_brewer['coupled_mathieu_x']['mathieu_q']:.6f} |"
+        ),
+        (
+            "| Y-axis per-axis solve q | "
+            f"{diagnostic_brewer['coupled_mathieu_y']['mathieu_q']:.6f} |"
+        ),
+        f"| Per-mode ratio (pred/pub), x_com | {diagnostic_brewer['per_mode_ratio_x_com']:+.4f} |",
+        f"| Per-mode ratio (pred/pub), x_str | {diagnostic_brewer['per_mode_ratio_x_str']:+.4f} |",
+        f"| Per-mode ratio (pred/pub), y_com | {diagnostic_brewer['per_mode_ratio_y_com']:+.4f} |",
+        f"| Per-mode ratio (pred/pub), y_str | {diagnostic_brewer['per_mode_ratio_y_str']:+.4f} |",
+    ]
+    return "\n".join(lines) + "\n"
+
+
 def build_wp32_report() -> dict[str, Any]:
     """Build the standalone WP32 radial-spectrum-reconstructed report as a
     JSON-serializable dict, kept in its OWN artifact (``wp32_*.json/md``)
@@ -2907,6 +4398,18 @@ def main() -> None:
     print(wp34_markdown)
     print(f"Wrote {wp34_json_path}")
     print(f"Wrote {wp34_md_path}")
+
+    wp35_report = build_wp35_report()
+    wp35_json_path = _RESULTS_DIR / "wp35_motional_al_ion_coupled_floquet.json"
+    wp35_md_path = _RESULTS_DIR / "wp35_motional_al_ion_coupled_floquet.md"
+    wp35_json_path.write_text(
+        json.dumps(wp35_report, indent=2, sort_keys=False) + "\n", encoding="utf-8"
+    )
+    wp35_markdown = render_wp35_markdown(wp35_report)
+    wp35_md_path.write_text(wp35_markdown, encoding="utf-8")
+    print(wp35_markdown)
+    print(f"Wrote {wp35_json_path}")
+    print(f"Wrote {wp35_md_path}")
 
 
 if __name__ == "__main__":

@@ -39,8 +39,12 @@ from cliffordclock.integrator.omega import (
     build_omega_stark,
     clock_ion_mathieu_parameters,
     clock_ion_mathieu_parameters_exact,
+    constrained_two_ion_mathieu_fit,
+    coupled_two_ion_floquet_modes,
+    coupled_two_ion_mathieu_parameters,
     grav_pivot_perturbation,
     mathieu_floquet_solve,
+    mathieu_forced_oscillator_enhancement,
     motional_mean_squared_velocity_m2_s2,
     motional_pivot_perturbation,
     motional_pivot_uncertainty,
@@ -2002,3 +2006,420 @@ def test_mathieu_floquet_solution_is_frozen_dataclass() -> None:
     assert isinstance(solution, MathieuFloquetSolution)
     with pytest.raises(AttributeError):
         solution.beta = 0.5  # type: ignore[misc]
+
+
+# ---------------------------------------------------------------------------
+# WP35: the coupled two-ion Floquet solve (CONVENTIONS.md section 16's WP35
+# addition). Covers `coupled_two_ion_floquet_modes` (independent monodromy
+# cross-check, the c->0 limit against WP34, the q->0 limit against WP32's
+# static secular eigenproblem, guards), `coupled_two_ion_mathieu_parameters`
+# (round trip on synthetic inputs, self-consistency), and
+# `mathieu_forced_oscillator_enhancement`. WP30-34's own tests above are
+# untouched, G14-G16-gated record.
+# ---------------------------------------------------------------------------
+
+_M_MG25_AMU = 24.985837
+
+
+def test_coupled_two_ion_floquet_modes_c_to_zero_matches_wp34_single_ion() -> None:
+    """`c -> 0` decouples the two ions exactly: one mode collapses onto
+    the clock ion (`participation_clock -> 1`), the other onto the
+    partner (`participation_clock -> 0`), and each surviving ion's own
+    `beta`/`enhancement` must match `mathieu_floquet_solve`/
+    `radial_micromotion_enhancement_exact` for its own bare `(a, q)`
+    (this module's WP35 comment block step 1/3). Uses a small but
+    NONZERO `c` (exact `c=0` makes the COM/STR phase-labeling criterion
+    ill-defined, since one ion's amplitude is then exactly zero)."""
+    m_clock = _M_AL27
+    m_partner = _M_MG25
+    a1 = -0.005884496084657496
+    q1 = 0.19127799732774156
+    mass_ratio = m_clock / m_partner
+    a2 = a1 * mass_ratio
+    q2 = q1 * mass_ratio
+
+    com_mode, str_mode = coupled_two_ion_floquet_modes(m_clock, m_partner, a1, q1, 1e-20, 70.86e6)
+    # At this tiny coupling, whichever mode has participation_clock near 1
+    # is "ion 1" (the clock ion's own bare solution); the other is "ion 2".
+    clock_mode = com_mode if com_mode.participation_clock > 0.5 else str_mode
+    partner_mode = str_mode if clock_mode is com_mode else com_mode
+
+    expected_beta1 = mathieu_floquet_solve(a1, q1).beta
+    expected_f1 = radial_micromotion_enhancement_exact(q1, a1)
+    expected_beta2 = mathieu_floquet_solve(a2, q2).beta
+    expected_f2 = radial_micromotion_enhancement_exact(q2, a2)
+
+    np.testing.assert_allclose(clock_mode.beta, expected_beta1, rtol=1e-7, atol=0)
+    np.testing.assert_allclose(clock_mode.enhancement_clock, expected_f1, rtol=1e-7, atol=0)
+    np.testing.assert_allclose(clock_mode.participation_clock, 1.0, rtol=0, atol=1e-6)
+    np.testing.assert_allclose(partner_mode.beta, expected_beta2, rtol=1e-6, atol=0)
+    np.testing.assert_allclose(partner_mode.enhancement_partner, expected_f2, rtol=1e-6, atol=0)
+    np.testing.assert_allclose(partner_mode.participation_partner, 1.0, rtol=0, atol=1e-6)
+
+
+def test_coupled_two_ion_floquet_modes_q_to_zero_matches_wp32_static_eigenproblem() -> None:
+    """`q -> 0` (no RF) reduces the coupled Floquet system to the plain
+    static coupled-oscillator eigenproblem exactly (this module's WP35
+    comment block step 1): the extracted quasi-frequencies and clock-ion
+    participations must match a direct, independently-coded 2x2
+    `numpy.linalg.eigh` solve of WP32's own matrix
+    `[[omega_r1^2-c/m1, c'], [c', omega_r2^2-c/m2]]`, and `enhancement`
+    must be exactly `1.0` (no sidebands with no RF drive)."""
+    m_clock = _M_AL27
+    m_partner = _M_MG25
+    omega_rf = 2.0 * math.pi * 70.86e6
+    omega_r1 = 2.0 * math.pi * 3.9e6
+    a1 = (omega_r1 / (omega_rf / 2.0)) ** 2
+    c = 3.976554191127463e-12 / 2.0
+
+    com_mode, str_mode = coupled_two_ion_floquet_modes(m_clock, m_partner, a1, 0.0, c, 70.86e6)
+    np.testing.assert_allclose(com_mode.enhancement_clock, 1.0, rtol=0, atol=1e-12)
+    np.testing.assert_allclose(str_mode.enhancement_clock, 1.0, rtol=0, atol=1e-12)
+
+    mass_ratio = m_clock / m_partner
+    a2 = a1 * mass_ratio
+    omega_r2 = (omega_rf / 2.0) * math.sqrt(a2)
+    c_prime = c / math.sqrt(m_clock * m_partner)
+    hamiltonian = np.array(
+        [
+            [omega_r1**2 - c / m_clock, c_prime],
+            [c_prime, omega_r2**2 - c / m_partner],
+        ]
+    )
+    eigenvalues, eigenvectors = np.linalg.eigh(hamiltonian)
+    static_freqs = np.sqrt(eigenvalues)
+    static_p1 = eigenvectors[0, :] ** 2 / (eigenvectors[0, :] ** 2 + eigenvectors[1, :] ** 2)
+
+    for mode in (com_mode, str_mode):
+        mode_omega = mode.beta * omega_rf / 2.0
+        idx = int(np.argmin(np.abs(static_freqs - mode_omega)))
+        np.testing.assert_allclose(mode_omega, static_freqs[idx], rtol=1e-9, atol=0)
+        np.testing.assert_allclose(mode.participation_clock, static_p1[idx], rtol=1e-8, atol=0)
+
+
+def test_coupled_two_ion_floquet_modes_cross_checked_against_independent_monodromy() -> None:
+    """Independent verification: the two quasi-frequencies extracted by
+    :func:`coupled_two_ion_floquet_modes` must match those from a
+    completely independently-coded 4x4 monodromy-matrix integration (its
+    own `scipy.integrate.solve_ivp` call, its own right-hand side, no
+    shared code with the module under test) at the Marshall dataset's
+    own physical parameters."""
+    from scipy.integrate import solve_ivp  # noqa: PLC0415
+
+    m_clock = _M_AL27
+    m_partner = _M_MG25
+    omega_rf = 2.0 * math.pi * 70.86e6
+    a1 = -0.005884496084657496
+    q1 = 0.19127799732774156
+    mass_ratio = m_clock / m_partner
+    a2 = a1 * mass_ratio
+    q2 = q1 * mass_ratio
+    c = 3.976554191127463e-12
+
+    def rhs(t: float, state: np.ndarray) -> list[float]:
+        y1, y2, u1, u2 = state
+        c_prime = c / math.sqrt(m_clock * m_partner)
+        om1_sq = (omega_rf / 2.0) ** 2 * (a1 + 2.0 * q1 * math.cos(omega_rf * t)) - c / m_clock
+        om2_sq = (omega_rf / 2.0) ** 2 * (a2 + 2.0 * q2 * math.cos(omega_rf * t)) - c / m_partner
+        return [u1, u2, -om1_sq * y1 - c_prime * y2, -om2_sq * y2 - c_prime * y1]
+
+    period = 2.0 * math.pi / omega_rf
+    monodromy = np.zeros((4, 4))
+    for k in range(4):
+        ic = np.zeros(4)
+        ic[k] = 1.0
+        solution = solve_ivp(rhs, [0.0, period], ic, rtol=1e-13, atol=1e-15, method="DOP853")
+        monodromy[:, k] = solution.y[:, -1]
+    eigenvalues = np.linalg.eigvals(monodromy)
+    independent_betas = sorted(
+        float(np.angle(mu) / math.pi) for mu in eigenvalues if 0.0 < np.angle(mu) < math.pi
+    )
+
+    com_mode, str_mode = coupled_two_ion_floquet_modes(m_clock, m_partner, a1, q1, c, 70.86e6)
+    module_betas = sorted([com_mode.beta, str_mode.beta])
+    np.testing.assert_allclose(module_betas, independent_betas, rtol=0, atol=1e-9)
+
+
+def test_coupled_two_ion_floquet_modes_rejects_invalid_input() -> None:
+    with pytest.raises(ValueError, match="m_clock_kg"):
+        coupled_two_ion_floquet_modes(0.0, _M_MG25, -0.005, 0.19, 3.9e-12, 70.86e6)
+    with pytest.raises(ValueError, match="mathieu_q_clock"):
+        coupled_two_ion_floquet_modes(_M_AL27, _M_MG25, -0.005, -0.1, 3.9e-12, 70.86e6)
+    with pytest.raises(ValueError, match="coulomb_curvature_n_per_m"):
+        coupled_two_ion_floquet_modes(_M_AL27, _M_MG25, -0.005, 0.19, 0.0, 70.86e6)
+
+
+def test_coupled_two_ion_floquet_modes_convergence_guard_raises_on_non_convergence() -> None:
+    with pytest.raises(ValueError, match="did not converge"):
+        coupled_two_ion_floquet_modes(
+            _M_AL27,
+            _M_MG25,
+            -0.005884496084657496,
+            0.19127799732774156,
+            3.976554191127463e-12,
+            70.86e6,
+            min_n_pts=32,
+            max_n_pts=32,
+        )
+
+
+def test_coupled_two_ion_mathieu_parameters_round_trip_recovers_synthetic_inputs() -> None:
+    """Forward-evaluate the coupled Floquet system at a synthetic `(q,
+    a_axis)`, take its own two solved quasi-frequencies as the "measured"
+    input, then invert with :func:`coupled_two_ion_mathieu_parameters` and
+    check the recovered parameters match the synthetic originals -- the 2D
+    Newton solve is a genuine numerical inverse of the exact forward
+    coupled-Floquet relation."""
+    m_clock = _M_AL27
+    m_partner = _M_MG25
+    c = 3.976554191127463e-12
+    rf_drive_hz = 70.86e6
+    q_true = 0.2
+    a_true = -0.005
+
+    com_mode, str_mode = coupled_two_ion_floquet_modes(
+        m_clock, m_partner, a_true, q_true, c, rf_drive_hz
+    )
+    com_freq_hz = com_mode.beta * rf_drive_hz / 2.0
+    str_freq_hz = str_mode.beta * rf_drive_hz / 2.0
+
+    result = coupled_two_ion_mathieu_parameters(
+        m_clock, m_partner, c, rf_drive_hz, com_freq_hz, str_freq_hz
+    )
+    np.testing.assert_allclose(result.mathieu_q, q_true, rtol=1e-6, atol=0)
+    np.testing.assert_allclose(result.mathieu_a_axis, a_true, rtol=1e-5, atol=1e-10)
+
+
+def test_coupled_two_ion_mathieu_parameters_hand_computed_marshall_x_axis() -> None:
+    """The clock ion's own coupled-Floquet-solved `(q, a_x)` for
+    Marshall's trap, X axis, pinned to `python
+    benchmarks/run_motional_al_ion.py`'s WP35 case output this session,
+    and cross-checked directly: re-evaluating the coupled system at the
+    solved parameters must reproduce the two measured frequencies."""
+    c, _ = axial_coulomb_curvature(_M_AL27, _M_MG25, 2.16e6)
+    result = coupled_two_ion_mathieu_parameters(
+        _M_AL27, _M_MG25, c, _MARSHALL_RF_DRIVE_HZ, 4.22e6, 3.48e6
+    )
+    np.testing.assert_allclose(result.mathieu_q, 0.19162495727566345, rtol=1e-7, atol=0)
+    np.testing.assert_allclose(result.mathieu_a_axis, -0.0060166337166512275, rtol=1e-6, atol=0)
+
+    com_mode, str_mode = coupled_two_ion_floquet_modes(
+        _M_AL27, _M_MG25, result.mathieu_a_axis, result.mathieu_q, c, _MARSHALL_RF_DRIVE_HZ
+    )
+    np.testing.assert_allclose(
+        com_mode.beta * _MARSHALL_RF_DRIVE_HZ / 2.0, 4.22e6, rtol=1e-6, atol=0
+    )
+    np.testing.assert_allclose(
+        str_mode.beta * _MARSHALL_RF_DRIVE_HZ / 2.0, 3.48e6, rtol=1e-6, atol=0
+    )
+
+
+def test_coupled_two_ion_mathieu_parameters_rejects_invalid_input() -> None:
+    c = 3.976554191127463e-12
+    with pytest.raises(ValueError, match="m_clock_kg"):
+        coupled_two_ion_mathieu_parameters(0.0, _M_MG25, c, 70.86e6, 4.22e6, 3.48e6)
+    with pytest.raises(ValueError, match="must be distinct"):
+        coupled_two_ion_mathieu_parameters(_M_AL27, _M_MG25, c, 70.86e6, 4.22e6, 4.22e6)
+
+
+def test_mathieu_forced_oscillator_enhancement_q_zero_limit_gives_one() -> None:
+    """`mathieu_q=0` gives `F(beta_mode)=1.0` exactly: every sideband
+    coefficient `c_k=q/(...)` vanishes with `q=0`."""
+    for beta_mode in (0.1, 0.2, -0.15):
+        assert mathieu_forced_oscillator_enhancement(-0.005, 0.0, beta_mode) == 1.0
+
+
+def test_mathieu_forced_oscillator_enhancement_same_order_as_exact_at_own_bare_beta() -> None:
+    """At `beta_mode` equal to the ion's OWN exact bare beta (not an
+    externally imposed collective-mode frequency), the reviewer's
+    leading-order forced-oscillator estimate should land in the same
+    ballpark as (NOT close to: it uses a cruder nearest-neighbor recursion
+    in place of the full continued fraction, and this project's own
+    numbers show it can overestimate by several tens of percent even at
+    an ion's own bare beta) the exact `radial_micromotion_enhancement_exact`
+    result at this project's own small-`(a, q)` scale -- both `> 1` and
+    within a factor of 2."""
+    a, q = -0.005884496084657496, 0.19127799732774156
+    beta_exact = mathieu_floquet_solve(a, q).beta
+    f_exact = radial_micromotion_enhancement_exact(q, a)
+    f_reviewer = mathieu_forced_oscillator_enhancement(a, q, beta_exact)
+    assert f_reviewer > 1.0
+    assert f_exact / 2.0 < f_reviewer < f_exact * 2.0
+
+
+def test_mathieu_forced_oscillator_enhancement_rejects_invalid_input() -> None:
+    with pytest.raises(ValueError, match="mathieu_q"):
+        mathieu_forced_oscillator_enhancement(-0.005, -0.1, 0.1)
+    with pytest.raises(ValueError, match="beta_mode"):
+        mathieu_forced_oscillator_enhancement(-0.005, 0.19, 0.0)
+
+
+# ---------------------------------------------------------------------------
+# WP35 Part 2: the constrained two-ion Mathieu fit (G17 gate fix loop;
+# CONVENTIONS.md section 16's WP35 addition). Covers
+# `constrained_two_ion_mathieu_fit`: round trip on synthetic inputs, pinned
+# values, guards, and the fit's own residual behavior.
+# ---------------------------------------------------------------------------
+
+
+def test_constrained_two_ion_mathieu_fit_round_trip_recovers_synthetic_inputs() -> None:
+    """Forward-evaluate the coupled Floquet system at a synthetic `(q,
+    alpha)` (with `a_z` fixed from a synthetic axial frequency), take its
+    own four predicted mode frequencies as the "measured" inputs, then
+    invert with :func:`constrained_two_ion_mathieu_fit` and check the
+    recovered parameters match the synthetic originals with residuals
+    near zero -- the least-squares fit is a genuine numerical inverse of
+    the exact forward coupled-Floquet relation when the "measured" data
+    is exactly self-consistent."""
+    m_clock = _M_AL27
+    m_partner = _M_MG25
+    c = 3.976554191127463e-12
+    rf_drive_hz = 70.86e6
+    q_true = 0.2
+    alpha_true = 1.5
+    a_z_true = 0.0035
+
+    a_x_true = -alpha_true * a_z_true
+    a_y_true = -(1.0 - alpha_true) * a_z_true
+    x_com_mode, x_str_mode = coupled_two_ion_floquet_modes(
+        m_clock, m_partner, a_x_true, q_true, c, rf_drive_hz
+    )
+    y_com_mode, y_str_mode = coupled_two_ion_floquet_modes(
+        m_clock, m_partner, a_y_true, q_true, c, rf_drive_hz
+    )
+    omega_rf = 2.0 * math.pi * rf_drive_hz
+    x_com_hz = x_com_mode.beta * omega_rf / (4.0 * math.pi)
+    x_str_hz = x_str_mode.beta * omega_rf / (4.0 * math.pi)
+    y_com_hz = y_com_mode.beta * omega_rf / (4.0 * math.pi)
+    y_str_hz = y_str_mode.beta * omega_rf / (4.0 * math.pi)
+
+    # a_z must come from a "measured axial frequency" via the SAME exact
+    # relation the fit uses internally: omega_z = sqrt(2*c/m), a_z =
+    # 4*omega_z^2/omega_rf^2.
+    omega_z_true = math.sqrt(a_z_true) * omega_rf / 2.0
+    c_true_from_curvature = m_clock * omega_z_true * omega_z_true / 2.0
+
+    fit = constrained_two_ion_mathieu_fit(
+        m_clock,
+        m_partner,
+        c_true_from_curvature,
+        rf_drive_hz,
+        omega_z_true / (2.0 * math.pi),
+        x_com_hz,
+        x_str_hz,
+        y_com_hz,
+        y_str_hz,
+    )
+    np.testing.assert_allclose(fit.mathieu_q, q_true, rtol=2e-3, atol=0)
+    np.testing.assert_allclose(fit.alpha, alpha_true, rtol=2e-3, atol=0)
+    np.testing.assert_allclose(fit.mathieu_a_z, a_z_true, rtol=0, atol=1e-14)
+    # Residuals should be small relative to the MHz-scale mode
+    # frequencies (this "measured" data is exactly self-consistent with
+    # the coupled-Floquet forward model, so the fit should land close to
+    # the exact inverse, limited only by the Gauss-Newton solve's own
+    # convergence tolerance).
+    for residual_hz, freq_hz in (
+        (fit.residual_x_com_hz, x_com_hz),
+        (fit.residual_x_str_hz, x_str_hz),
+        (fit.residual_y_com_hz, y_com_hz),
+        (fit.residual_y_str_hz, y_str_hz),
+    ):
+        assert abs(residual_hz / freq_hz) < 2e-3
+
+
+def test_constrained_two_ion_mathieu_fit_hand_computed_marshall() -> None:
+    """The clock ion's own constrained-fit-solved `(q, alpha, a_x, a_y)`
+    for Marshall's trap, pinned to `python
+    benchmarks/run_motional_al_ion.py`'s WP35 constrained-fit case output
+    this session, with real, nonzero frequency residuals (a genuinely
+    over-determined fit, four equations for two unknowns, unlike the
+    per-axis diagnostic solve's own two-equations-two-unknowns-per-axis
+    fit, which has zero residual by construction)."""
+    c, _ = axial_coulomb_curvature(_M_AL27, _M_MG25, 2.16e6)
+    fit = constrained_two_ion_mathieu_fit(
+        _M_AL27, _M_MG25, c, _MARSHALL_RF_DRIVE_HZ, 2.16e6, 4.22e6, 3.48e6, 5.37e6, 4.75e6
+    )
+    np.testing.assert_allclose(fit.mathieu_q, 0.19064466810368705, rtol=1e-7, atol=0)
+    np.testing.assert_allclose(fit.alpha, 1.6251938469368106, rtol=1e-6, atol=0)
+    np.testing.assert_allclose(fit.mathieu_a_x, -0.00582135682640036, rtol=1e-6, atol=0)
+    np.testing.assert_allclose(fit.mathieu_a_y, 0.0022394106866383003, rtol=1e-5, atol=0)
+    np.testing.assert_allclose(fit.mathieu_a_z, 0.0035819461397620595, rtol=1e-9, atol=0)
+
+    np.testing.assert_allclose(fit.residual_x_com_hz, -782.6936096530408, rtol=1e-4, atol=0)
+    np.testing.assert_allclose(fit.residual_x_str_hz, 761.9162174556404, rtol=1e-4, atol=0)
+    np.testing.assert_allclose(fit.residual_y_com_hz, -3862.1496889954433, rtol=1e-4, atol=0)
+    np.testing.assert_allclose(fit.residual_y_str_hz, 3721.0150098791346, rtol=1e-4, atol=0)
+
+    # The Laplace constraint holds exactly on the fitted values.
+    np.testing.assert_allclose(
+        fit.mathieu_a_x + fit.mathieu_a_y, -fit.mathieu_a_z, rtol=0, atol=1e-14
+    )
+
+    # Reusable packaging for the partner over-determination check.
+    packaged = fit.as_clock_ion_mathieu_parameters()
+    assert packaged.mathieu_q == fit.mathieu_q
+    assert packaged.mathieu_a_x == fit.mathieu_a_x
+    assert packaged.mathieu_a_y == fit.mathieu_a_y
+    assert packaged.mathieu_a_z == fit.mathieu_a_z
+    assert packaged.mathieu_q_uncertainty == 0.0
+
+
+def test_constrained_two_ion_mathieu_fit_residuals_nonzero_unlike_per_axis_solve() -> None:
+    """The G17 gate finding, checked directly: the per-axis diagnostic
+    solve (`coupled_two_ion_mathieu_parameters`) reproduces its own two
+    input frequencies EXACTLY (two equations, two unknowns per axis), but
+    the constrained fit's four residuals are NOT all driven to zero (four
+    equations, two unknowns) -- confirming the constrained fit is a
+    genuine over-determination, not a relabeled exact fit."""
+    c, _ = axial_coulomb_curvature(_M_AL27, _M_MG25, 2.16e6)
+    fit = constrained_two_ion_mathieu_fit(
+        _M_AL27, _M_MG25, c, _MARSHALL_RF_DRIVE_HZ, 2.16e6, 4.22e6, 3.48e6, 5.37e6, 4.75e6
+    )
+    residuals = (
+        fit.residual_x_com_hz,
+        fit.residual_x_str_hz,
+        fit.residual_y_com_hz,
+        fit.residual_y_str_hz,
+    )
+    assert any(abs(r) > 1.0 for r in residuals)
+
+    x_axis = coupled_two_ion_mathieu_parameters(
+        _M_AL27, _M_MG25, c, _MARSHALL_RF_DRIVE_HZ, 4.22e6, 3.48e6
+    )
+    com_mode, str_mode = coupled_two_ion_floquet_modes(
+        _M_AL27, _M_MG25, x_axis.mathieu_a_axis, x_axis.mathieu_q, c, _MARSHALL_RF_DRIVE_HZ
+    )
+    np.testing.assert_allclose(
+        com_mode.beta * _MARSHALL_RF_DRIVE_HZ / 2.0, 4.22e6, rtol=1e-6, atol=0
+    )
+    np.testing.assert_allclose(
+        str_mode.beta * _MARSHALL_RF_DRIVE_HZ / 2.0, 3.48e6, rtol=1e-6, atol=0
+    )
+
+
+def test_constrained_two_ion_mathieu_fit_rejects_invalid_input() -> None:
+    c = 3.976554191127463e-12
+    with pytest.raises(ValueError, match="m_clock_kg"):
+        constrained_two_ion_mathieu_fit(
+            0.0, _M_MG25, c, 70.86e6, 2.16e6, 4.22e6, 3.48e6, 5.37e6, 4.75e6
+        )
+    with pytest.raises(ValueError, match="m_partner_kg"):
+        constrained_two_ion_mathieu_fit(
+            _M_AL27, 0.0, c, 70.86e6, 2.16e6, 4.22e6, 3.48e6, 5.37e6, 4.75e6
+        )
+    with pytest.raises(ValueError, match="coulomb_curvature_n_per_m"):
+        constrained_two_ion_mathieu_fit(
+            _M_AL27, _M_MG25, 0.0, 70.86e6, 2.16e6, 4.22e6, 3.48e6, 5.37e6, 4.75e6
+        )
+    with pytest.raises(ValueError, match="rf_drive_frequency_hz"):
+        constrained_two_ion_mathieu_fit(
+            _M_AL27, _M_MG25, c, 0.0, 2.16e6, 4.22e6, 3.48e6, 5.37e6, 4.75e6
+        )
+    with pytest.raises(ValueError, match="axial_com_frequency_hz"):
+        constrained_two_ion_mathieu_fit(
+            _M_AL27, _M_MG25, c, 70.86e6, 0.0, 4.22e6, 3.48e6, 5.37e6, 4.75e6
+        )
+    with pytest.raises(ValueError, match="radial_x_com_frequency_hz"):
+        constrained_two_ion_mathieu_fit(
+            _M_AL27, _M_MG25, c, 70.86e6, 2.16e6, 0.0, 3.48e6, 5.37e6, 4.75e6
+        )
