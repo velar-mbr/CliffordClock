@@ -119,6 +119,17 @@ completed by Y, closes most Z, passes W") without that setup says many
 things while telling no story, and the reader has no reason to slow
 down for the details. Context, then question, then the details.
 
+## Figurative language (blocker on sight)
+
+Analogies, metaphors, and poetic framing distract in science writing:
+"that is the picture these clocks live in, and this notebook walks
+five capabilities against exactly that picture" reaches for an image
+where the literal statement is shorter and clearer ("Five capabilities
+build on that model:"). State what the thing is. A physical analogy
+earns its place only when it carries a real correspondence the reader
+computes with (an integrating sphere for a mirror-walled chamber);
+decorative imagery never does.
+
 ## Word salad (blocker when found)
 
 A sentence carrying three ideas, or a paragraph where every sentence has
