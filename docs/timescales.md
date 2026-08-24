@@ -18,12 +18,12 @@
   - Classical + purely periodic motion in an isotropic trap: `secular`
     gives the same time-independent cost as the lattice fast path.
   - `worldline`/Compton-scale `direct` (`dτ̃ ~ 1`): a validation/
-    cross-check mode only, never required for a physical result, but
-    always available to double-check one.
+    cross-check mode, always available to double-check a physical
+    result.
 - **Real limits.** `select_dtau`'s automatic step size is accurate to
-  ~3e-9 relative on the closed-form test case backing it (measured, not
-  assumed: see the accuracy study below); the rotor-diagnostic fields
-  (not the primary reported shift) can drift at very large step sizes if
+  ~3e-9 relative on the closed-form test case backing it (measured: see
+  the accuracy study below); the rotor-diagnostic fields, separate from
+  the primary reported shift, can drift at very large step sizes if
   a run also uses very strong coupling, which the pipeline guards against
   automatically (see "Safety net" below). If you just want a number for a
   real experiment, the defaults above are the right call.
@@ -34,7 +34,7 @@ Early runs of this tool stepped the rotor at Compton-scale `dτ̃ ≈ 1`,
 which limited tractable runs to attosecond-or-shorter simulated
 interrogation windows: physically meaningless to a clock user (real
 interrogation times are microseconds to seconds). **That was an artifact
-of the step-size choice, not a requirement of the physics.** The
+of the step-size choice.** The physics itself imposes no such limit: the
 observable integrand `δω̃(r(t), v)` (CONVENTIONS.md E21) contains **no
 Compton-frequency content**: the fast `~10²⁰ rad/s` carrier is removed
 analytically by the perturbation formulation (E10), so `δω̃` varies only
@@ -55,8 +55,7 @@ exploits this, the accuracy study behind it, and when to use each tier.
 Tier A is the default for `ensemble.regime: lattice`; Tier B(i) is the
 default for `ensemble.regime: classical`. Tier C remains fully available
 (and is still exercised by the full test suite) as a cross-check and
-validation mode; it is what Tier A/B are validated *against* below, not
-a deprecated path.
+validation mode; it is what Tier A/B are validated *against* below.
 
 ## Tier A: lattice fast path (E29)
 
@@ -82,8 +81,8 @@ same static nodes instead, as an explicit cross-check.
 **Validated ("Tier A ≡ Tier C"):**
 `tests/test_fastpath_lattice.py::test_tier_a_equals_tier_c_worldline_on_static_nodes`
 matches the fast path against `integrate_ensemble` (Tier C) on identical
-static nodes to **rtol 1e-12, atol=0**, an exact algebraic identity, not
-an approximation. A second check confirms the equality extends to *any*
+static nodes to **rtol 1e-12, atol=0**, an exact algebraic identity. A
+second check confirms the equality extends to *any*
 `T` (Tier C's own phase is provably linear in step count for a static
 node, matching the fast path's linearity by construction). Also
 demonstrated via the pipeline directly in
@@ -104,16 +103,15 @@ interrogation. Measured (`tests/test_e2e.py::test_wp8_lattice_one_second_demo_se
 | SEM / \|shift\| | `~6.2e-4` (SEM ≪ shift) |
 
 Both well under the 60 s CPU bound, and the SEM margin is achieved
-plainly: the Gaussian-bump field's width (1 µm) is chosen to be much
-wider than the Sr-87 ground-motional-state extent at this trap frequency
-(~61 nm), so the field is nearly uniform across the ensemble's nodes,
-not by loosening a tolerance.
+by physical scale separation: the Gaussian-bump field's width (1 µm) is
+chosen to be much wider than the Sr-87 ground-motional-state extent at
+this trap frequency (~61 nm), so the field is nearly uniform across the
+ensemble's nodes.
 
 ## Tier B(i): large-`dτ̃` direct integration + `select_dtau` (E31)
 
 The rotor integrator itself is unchanged (E17-E24); what changes is
-the step size. E31's rule: resolve the *trap* period, not the Compton
-period.
+the step size. E31's rule resolves the *trap* period.
 
 ```
 select_dtau(trap, points_per_period=100) -> dτ̃ = T_orb / (points_per_period · τ_c)
@@ -149,8 +147,7 @@ throughout. Two layers guard against this (`cliffordclock.pipeline`):
    (`phase`, `phase_rotor`, `r_final`, `norm_error`, `max_norm_drift`) is
    checked for finiteness, so any run that still produces a non-finite
    rotor-diagnostic value raises `PhysicsValidationError` with a message
-   pointing at the likely cause. The pipeline never silently returns a
-   partially-`NaN` result.
+   pointing at the likely cause.
 
 `examples/quadrupole_classical.yaml`'s explicit Compton-scale `dtau: 0.5`
 is nowhere near this guard; it only engages at large auto-selected `dτ̃`
@@ -208,7 +205,7 @@ automatic memory-bounded fallback (`ensemble.regime: classical` +
 were about. `worldline`/`secular` keep the pre-WP19 hard-reject guard as
 their only memory-safety mechanism (reduce `ensemble.size`/`dtau`, or
 switch to a different mode, per the error message), a deliberate WP19
-scope limit (below), not an oversight.
+scope limit (below).
 
 **Chunked evaluation (WP19, bounds the smoother's `N × K` term
 independent of `N`).**
@@ -222,7 +219,7 @@ lowering detail, see `tests/test_fields_smoother.py`'s
 `test_evaluate_chunked_matches_unchunked_exactly`). The streaming
 accumulators below route every per-step field/`rate_fn` call through
 this wrapper, so a `FieldSmoother`-backed field's evaluation cost stays
-bounded independent of ensemble size `M` too, not just of `steps`.
+bounded independent of ensemble size `M` too.
 
 **Fused streaming accumulators (WP19, bounds the `M × T` trajectory
 term).** `cliffordclock.pipeline._stark_scalar_ensemble_streaming`
@@ -238,8 +235,8 @@ agreement with the batched path is measured directly:
 bitwise-identical for the `linear_mu` rotor path on the configs tested
 (`tests/test_e2e.py::test_streaming_matches_batched_linear_mu_direct`),
 and `~1.7e-16` relative (machine-epsilon level, a different `jax.vmap`
-batching structure over the identical underlying computation, not a
-physical discrepancy) for the `stark_dc` scalar path against a real
+batching structure over the identical underlying computation) for the
+`stark_dc` scalar path against a real
 `FieldSmoother`-backed field
 (`test_streaming_matches_batched_stark_dc_direct_smoother_field`), both
 asserted at a documented, deliberately loose bound
@@ -272,8 +269,8 @@ batched-only:**
 - **`worldline` (lattice cross-check) and `secular`.** Explicitly **out
   of scope** for WP19 (unchanged from the pre-WP19 guard): `worldline`'s
   static-node broadcast trajectory and `secular`'s closed-form one-orbit
-  quadrature are both validation/O(1)-cost paths already, not the
-  `time_s`-driven-blowup failure mode this WP targets, and the WP19 plan
+  quadrature are both validation/O(1)-cost paths already; WP19 targets
+  the `time_s`-driven-blowup failure mode elsewhere, and its plan
   is explicit that no changes to the rotor accumulator
   (`worldline.integrate_ensemble`) or the `fastpath`/secular math are in
   scope. `secular`'s `rate_fn` call has the same whole-trajectory shape
@@ -329,7 +326,7 @@ auto-selects a tighter `renorm_every` whenever `integration.dtau` is auto-select
 the E20/E24 rotor-diagnostic fields (`norm_error`/`max_norm_drift`/
 `phase_rotor`): **the primary scalar phase that `mean_fractional_shift`
 reports is never affected**, at any `renorm_every`: it is accumulated
-directly, never through the rotor exponential. `select_dtau` and the
+directly, bypassing the rotor exponential entirely. `select_dtau` and the
 fast-path/secular-averaging code paths are entirely unaffected (neither
 ever calls the rotor exponential). Full measurement detail: "Design
 history" below.
@@ -361,7 +358,7 @@ time-dependent fields; use `mode: direct` (Tier B(i)) there.
 
 - **Exact period multiple** (`T = 5 T_orb`): secular and direct
   integration (Tier B(i), same `dτ̃`) agree to **~3.6e-16 relative**,
-  floating-point summation-order noise, not a physical approximation
+  floating-point summation-order noise
   (both evaluate the same midpoint-quadrature/Kahan-sum of the same
   `rate_fn` along numerically the same periodic trajectory). Tested at
   `rtol=1e-9`, ~1e6x looser than the measured discrepancy.
@@ -414,7 +411,8 @@ check on the estimated worst-case per-step generator angle (threshold
 `MAX_PER_STEP_ROTOR_ANGLE_RAD = 0.5` rad, four orders of magnitude below
 where the rotor exponential was observed to start failing), and a
 backstop finiteness check on every diagnostic field in
-`_validate_physics`, not just `phase`. Reproduction: a 500 uK classical
+`_validate_physics`, closing the gap the earlier phase-only check left.
+Reproduction: a 500 uK classical
 ensemble at a realistic-mu quadrupole setup gave a naive auto-selected
 `dτ̃` with an estimated per-step angle of `~8863` rad; the fix
 auto-tightens `dτ̃` down to `~1.4e10` (from the naive `~2.4e14`) and
@@ -434,7 +432,7 @@ in the accuracy-study sweep above), and the rotor exponential's own
 per-step floor (`~1e-13`) is correspondingly larger. Left unrenormalized
 for hundreds of steps at the coarser default cadence, this accumulates
 past `1e-12` (measured `4.5e-11` for a 500-step, 5-period case). This is a
-cadence question, not a correctness bug: norm preservation being
+cadence question: norm preservation being
 step-size-independent is a property of the *exact* exponential map, and
 the fixed-order Taylor implementation's own error floor is what a
 tighter cadence compensates for. An early framing of this finding
@@ -453,6 +451,6 @@ a documented per-call drift floor (`renorm_every = max(1, floor(1e-12 /
 `max_norm_drift` at `~3.9e-14` with the auto-selected `renorm_every=5`; a
 lattice `worldline`-mode run at auto-`dtau` over 10 periods (1000 steps)
 keeps `max_norm_drift` at `~5.1e-13`. This is a documented, conservative
-heuristic, not an exact bound, but every case measured stays orders of
+heuristic; every case measured stays orders of
 magnitude under the pipeline's coarse sanity threshold regardless
 (`tests/test_e2e.py`'s `test_wp8_major2_*` tests).

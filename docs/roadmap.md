@@ -29,8 +29,10 @@ which is what lets every atom's trajectory and shift be computed
 separately and combined into a dispersion budget. Density and
 collisional shifts are a different physics class: they need
 an interaction model between atoms (s-wave and p-wave collision
-physics, excitation-fraction dependence), not an added term on a single
-atom's pivot. This package waits for a partner lab to make it the
+physics, excitation-fraction dependence). Every term this tool ships
+today is a single added term on one atom's pivot, computed
+independently of the other atoms in the ensemble. This package waits
+for a partner lab to make it the
 binding constraint on their evaluation; some labs manage it entirely
 through density control and extrapolation, in which case it may stay
 outside this tool's scope indefinitely.
@@ -72,7 +74,7 @@ skipping their own pre-reduction step.
 
 RF trap fields and probe-beam AC Stark shifts share their underlying
 machinery with the micromotion work above: both need a field that
-varies continuously over the course of the interrogation. Building that
+varies over the course of the interrogation. Building that
 time-dependent field machinery once, for the RF/micromotion package,
 sets up AC-field support broadly.
 

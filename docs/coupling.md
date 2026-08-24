@@ -2,12 +2,12 @@
 
 `cliffordclock.integrator.omega.pivot_perturbation_stark` implements the
 **physical** pivot coupling for optical-lattice clocks: the second-order DC
-Stark shift, CONVENTIONS.md E14b. It exists alongside (not instead of) the
+Stark shift, CONVENTIONS.md E14b. It exists alongside the
 linear validation coupling E14a
 (`cliffordclock.integrator.omega.pivot_perturbation`), which is untouched.
 
 Clock states carry no permanent dipole moment, so the physically meaningful
-stray-field systematic is quadratic in the field, not linear: E14a is a
+stray-field systematic is quadratic in the field: E14a is a
 closed-form coupling used to validate the integrator/phase-accumulation
 pipeline (CONVENTIONS.md §5). It makes no claim about the real physics of
 a clock transition.
@@ -92,13 +92,18 @@ CONVENTIONS.md E14b's own suggestion.
 | Field | Units | Meaning |
 |---|---|---|
 | `delta_alpha_dc_si` | C²·m²·J⁻¹ (= C·m²·V⁻¹) | `Δα`, literature-native units |
-| `stark_coefficient_hz_per_v2_m2` | Hz·m²·V⁻² | `k_S = -Δα/(2h)`, derived automatically from `delta_alpha_dc_si`, never independently transcribed |
+| `stark_coefficient_hz_per_v2_m2` | Hz·m²·V⁻² | `k_S = -Δα/(2h)`, derived automatically from `delta_alpha_dc_si` |
 
 Both are `None` for a species with no DC-Stark data. Read the resolved
 coefficient through
 `Species.resolve_stark_coefficient_hz_per_v2_m2()`: it prefers `stark_coefficient_hz_per_v2_m2` if set,
 falls back to deriving it from `delta_alpha_dc_si`, and raises a clear
 `ValueError` (citing E14b and the species name) if neither is populated.
+The resolver is what applies that precedence and derivation consistently
+for every caller. A caller reading `species.delta_alpha_dc_si` or
+`species.stark_coefficient_hz_per_v2_m2` directly gets whichever field
+happens to be populated (often `None`), with no fallback and no
+validation.
 
 Populated species and their literature sources:
 
@@ -185,7 +190,7 @@ species = get_species("Sr87")
 p_minus_1 = pivot_perturbation_stark(e0, delta_e, species)
 ```
 
-**API note (documented, not silent):** this function takes the E11
+**API note:** this function takes the E11
 baseline/perturbation split as two separate arguments, `e0` and
 `delta_e`, matching the existing E14a functions' established convention
 at this module boundary and matching what the precision discipline below
@@ -252,8 +257,8 @@ environment:
 ```
 
 Requires `coupling: {type: stark_dc, ...}` (BBR needs the species'
-registry-published static/dynamic BBR fit, not a coupling-agnostic
-quantity) and a temperature in `[50, 350]` K (hard `PipelineConfigError`
+registry-published static/dynamic BBR fit) and a temperature in
+`[50, 350]` K (hard `PipelineConfigError`
 outside that range, the published fit's support). Composed into every
 evaluation mode: `fast_path`, `secular`, classical `direct` (batched and
 streaming), and the rotor worldline. Every shipped example omits this
@@ -268,11 +273,12 @@ quantities' uncertainties, for `Sr87` and `Yb171` (unpopulated for
 the citations and shape-vs-anchor reasoning behind each coefficient.
 
 **Uncertainty and labeling.** The pipeline report's BBR
-uncertainty is *arithmetic-reproduction fidelity* (does the code evaluate
-the published formula correctly), never an independent claim about *BBR
-accuracy*: the physical uncertainty is set by the registry's published
-coefficient uncertainties (combined in quadrature, `≈8e-19` for Sr87 at
-300 K), optionally widened by a `radiation_temperature_uncertainty_K`.
+uncertainty is *arithmetic-reproduction fidelity*: does the code evaluate
+the published formula correctly. It is not an independent claim about
+*BBR accuracy*, since the physical uncertainty is set by the registry's
+published coefficient uncertainties (combined in quadrature, `≈8e-19`
+for Sr87 at 300 K), optionally widened by a
+`radiation_temperature_uncertainty_K`.
 The report also carries an explicit "modeled-out, `≈6e-20` each" M1/E2
 multipole budget line and, for `300 < T ≤ 350 K`, a note that the run is
 in-fit-range but beyond the PTB↔JILA 1e-19-class cross-verification band.
@@ -284,7 +290,7 @@ geometry (uniform `T` only), no stochastic/Monte-Carlo BBR field sampling
 deterministic, matching every published evaluation), no
 hyperpolarizability (`β`) terms, no BBR-Zeeman coupling. A benchmark case
 reproducing a published BBR-row measurement (JILA 2024) is a separate,
-later work package with its own review, not part of this document's scope.
+later work package with its own review.
 
 ## Ion-clock electric-quadrupole shift (E34/E35, WP21 Tier 2)
 
@@ -318,14 +324,14 @@ pattern E33 already establishes for BBR), via a keyword-only
 `pivot_perturbation_stark`/`spin_connection_stark`/
 `scalar_rate_perturbation_stark`/`build_omega_stark` functions BBR
 extends (default `0.0`, exact no-op), but unlike BBR (a single per-run
-scalar), the quadrupole term is genuinely per-point: `cliffordclock.pipeline`
-evaluates it fresh from each point's local gradient tensor, not once per
-run. See CONVENTIONS.md §14 for the full formula (including the
+scalar), the quadrupole term is per-point: `cliffordclock.pipeline`
+evaluates it fresh from each point's local gradient tensor on every
+call. See CONVENTIONS.md §14 for the full formula (including the
 coordinate-free `n_hat^T . G(r) . n_hat` reduction this project
 implements, algebraically equivalent to the literal Itano/Roos
-axial-plus-asymmetric form, the derivation is in that section, not just
-asserted), sign-verification discipline, and the exact three-orthogonal-
-orientation cancellation proof.
+axial-plus-asymmetric form; the derivation is in that section), sign-
+verification discipline, and the exact three-orthogonal-orientation
+cancellation proof.
 
 **Config (`docs/cli.md`'s "Quadrupole shift" section has the full
 schema):**
@@ -368,23 +374,24 @@ quadrupole map is not a stray-field budget"), no tensor polarizability
 / m_J-dependent Stark, no rotor/bivector content beyond the
 scalar pivot composition (a fixed `(J, m_J, axis)` collapses the tensor
 character to a scalar coefficient, G8 sign-off A3), no spin-connection
-gradient contribution from the quadrupole term itself (would need
+gradient contribution from the quadrupole term (would need
 third-order field derivatives the smoother does not expose, a
 documented, bounded scope limit, CONVENTIONS.md §14). A benchmark case
 reproducing a published quadrupole-shift measurement (Roos et al. 2006 /
 Barwood et al. 2004) is a separate, later work package with its own
-review, not part of this document's scope.
+review.
 
 ## Gravitational redshift and the extended-lattice ensemble (E36, WP22)
 
-A clock's rate depends on its position in a gravitational potential, not
-just the local electromagnetic environment: a clock a millimetre higher
-in a lab genuinely ticks faster, by a fractional amount `g*Delta_h/c^2`
-(General Relativity's weak-field gravitational redshift). Real optical-
-lattice clocks now measure this directly across a single, extended
-(millimetre-scale) atomic sample, not just as a correction between two
-separated clocks: Bothwell et al. (Nature 602, 420 (2022)) is the
-showpiece measurement this section targets
+A clock's rate also depends on its position in a gravitational
+potential. Every term above is electromagnetic; gravity is a separate
+effect: a clock a millimetre higher in a lab ticks faster, by a
+fractional amount `g*Delta_h/c^2` (General Relativity's weak-field
+gravitational redshift). Real optical-lattice clocks now measure this
+directly across a single, extended (millimetre-scale) atomic sample.
+Earlier redshift measurements relied on comparing two separated clocks;
+Bothwell et al. (Nature 602, 420 (2022)) resolves the gradient within
+one sample and is the showpiece measurement this section targets
 (`benchmarks/run_bothwell_redshift.py`).
 
 `cliffordclock.integrator.omega.grav_pivot_perturbation` computes the
@@ -424,11 +431,12 @@ environment:
 Requires `coupling: {type: stark_dc, ...}` (mirrors BBR's cross-field
 validation exactly). Composed into every evaluation mode: `fast_path`,
 `secular`, classical `direct` (batched and streaming), and the rotor
-worldline: through the rotor's SCALAR pivot only (the `B_hat_C`
-rotation-plane coefficient), never `omega_boost`'s gradient term, which
-is provably inconsequential for every configuration this project ships
-(every lattice/lattice_extended node is static, `v=0`, and `omega_boost`'s
-coefficient carries an explicit factor of `v`). Every shipped example
+worldline. Through the rotor, gravity enters only via the SCALAR pivot
+(the `B_hat_C` rotation-plane coefficient). `omega_boost`'s gradient
+term is provably inconsequential for every configuration this project
+ships, since every lattice/lattice_extended node is static (`v=0`), and
+`omega_boost`'s coefficient carries an explicit factor of `v`. Every
+shipped example
 omits this section entirely, so gravity is off (byte-identical output)
 unless a config opts in.
 
@@ -447,12 +455,13 @@ map (the observable Bothwell-class measurements report) plus a
 weighted-least-squares linear-gradient fit (`slope_per_m`) and the
 dispersion-labeling split gate edit 4 requires (below).
 
-**Dispersion labeling (a required design discipline, not a cosmetic
-choice).** For an extended sample the frequency spread across sites is
-dominated by the DETERMINISTIC linear gradient (higher/lower sites tick
-at a systematically different rate), not stochastic sampling: reporting
-a map, a spread, and a T2*/linewidth together risks double-counting the
-gradient or misreading it as decoherence. `LatticeExtendedSiteMap`
+**Dispersion labeling (a required design discipline).** For an
+extended sample the frequency spread across sites is dominated by the
+DETERMINISTIC linear gradient (higher/lower sites tick at a
+systematically different rate). Reporting a map, a spread, and a
+T2*/linewidth together without separating that gradient out risks
+double-counting it or misreading it as decoherence.
+`LatticeExtendedSiteMap`
 reports BOTH the total spread (`total_spread_fractional`, the same
 combined number `MetrologyReport.t2_star_s` is derived from, in
 fractional-shift units) AND the gradient-removed residual spread
@@ -465,17 +474,17 @@ a test-pinned note stating this explicitly
 
 **Coordinate-sign convention is this project's own** (a HIGHER clock along
 `up_axis` runs FASTER, so a positive-slope map means the sample's
-"upward" direction is genuinely up); a published paper's own axis
+"upward" direction is up); a published paper's own axis
 convention may run the opposite way (Bothwell's z-axis increases toward
 LOWER physical height, so their published gradient is negative); mapping
-between the two conventions is the comparing script's job, not this
-engine's, and `benchmarks/run_bothwell_redshift.py` documents and applies
+between the two conventions is the comparing script's job, and
+`benchmarks/run_bothwell_redshift.py` documents and applies
 that specific mapping explicitly.
 
 **Validity bounds.** The uniform-`g` approximation is exact to `<<1e-19`
 at lab/mm scale and stays below the 1e-19 floor out to `~76 m` of height
 extent; `cliffordclock.pipeline.GRAVITY_EXTENT_WARN_M` (10 m) triggers a
-runtime warning note (not a config-load-time rejection) well before that
+runtime warning note well before that
 bound, recommending a surveyed potential difference or height-dependent
 g/geoid model beyond it. `g_m_s2` defaults to standard gravity, a
 placeholder at the 1e-19 level: the lab's own surveyed local value is
@@ -490,13 +499,13 @@ mode's geometry is static; trajectory/rotor support already exists
 unchanged for anyone who wants it later), no changes to the chamber-scale
 showcase or the existing `lattice` regime (byte-identical). The Bothwell
 2022 benchmark case (`benchmarks/run_bothwell_redshift.py`) is this WP's
-own scope, not a separate later work package; Zheng et al. (Nature 602,
+own scope; Zheng et al. (Nature 602,
 425 (2022)) is recorded as the named second extended-lattice candidate,
 post-beta.
 
 ## Historical design notes (superseded, kept for record)
 
-The rest of this document is design history, not current reference: the
+The rest of this document is design history: the
 sketch that guided wiring `pivot_perturbation_stark` into
 `cliffordclock.pipeline`/`cliffordclock.cli`, and how the shipped
 implementation ended up differing from that sketch. Everything a user or
@@ -517,23 +526,24 @@ coupling:
 ```
 
 **How the shipped implementation differs from that sketch**
-(`src/cliffordclock/pipeline.py`), each a documented decision, not a
-silent gap:
+(`src/cliffordclock/pipeline.py`), each a documented decision:
 
-- **The default stays `linear_mu`**, not `stark_dc`, when `coupling.type`
+- **The default stays `linear_mu`** when `coupling.type`
   is omitted; every config written before this coupling existed (which
   never wrote a `type` key at all) keeps its exact behavior unchanged.
   `docs/cli.md` documents `stark_dc` as the recommended choice for new
-  configs; it is a documentation recommendation, not the silent default.
+  configs.
 - **No pipeline-level E11 baseline/perturbation split.** The original
   sketch assumed a separate baseline/residual field would already be
   available inside the pipeline; in the implementation as built, every
   field abstraction the pipeline actually uses returns one combined total
   field, so the implementation calls
-  `pivot_perturbation_stark(e0=E(r), delta_e=0, ...)` instead. The
+  `pivot_perturbation_stark(e0=E(r), delta_e=0, ...)`. The
   `baseline` term alone then evaluates the exact E14b formula (`cross`/
-  `quadratic` are identically zero), a simplification, not a
-  truncation, given what the pipeline has to work with.
+  `quadratic` are identically zero); this costs nothing in accuracy,
+  since the pipeline already works with one combined total field, and
+  the exact E14b formula still comes out whole through the `baseline`
+  term.
 - **No direct swap inside the rotor integrator's field-to-`Ω` step**
   *(superseded by WP16 for `integration.mode: worldline`: see the
   "Production path vs. general engine" note above; this bullet describes
@@ -542,8 +552,8 @@ silent gap:
   both routed through a coupling-agnostic scalar phase accumulator
   (`cliffordclock.pipeline._stark_scalar_ensemble`) that never built a
   Cl(1,3) rotor at all: E14b had no `Ω`-bivector construction in this
-  codebase, a genuine gap flagged for future work, not silently worked
-  around. WP16 closed that gap for `integration.mode: worldline`
+  codebase, a genuine gap flagged for future work. WP16 closed that gap
+  for `integration.mode: worldline`
   specifically (`cliffordclock.integrator.omega.build_omega_stark` +
   `cliffordclock.pipeline._stark_rotor_ensemble`); `integration.mode:
   direct` still uses the scalar accumulator (classical-ensemble

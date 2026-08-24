@@ -41,7 +41,7 @@ pipeline with zero fitted parameters.
 - [x] **Quadratic DC-Stark shift** with published differential
   polarizabilities for Sr-87 and Yb-171 (or any coefficient you supply)
 - [x] **Second-order Doppler** (relativistic time dilation) carried
-  exactly, never dropped or approximated
+  exactly
 - [x] **Blackbody-radiation shift** for a uniform radiation temperature,
   with published coefficients, checked against JILA's published
   evaluation by arithmetic reproduction (a weaker class than an

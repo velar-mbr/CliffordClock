@@ -128,8 +128,7 @@ E, grad_E = smoother.evaluate(pos)  # pos: (N, 3) m -> E: (N, 3) V/m, grad_E: (N
 - The fit is capped at `smoother.MAX_FIT_POINTS` (~20,000) points: the RBF
   fit solves a dense `(N, N)` linear system, an O(N³) operation.
 - Querying `evaluate` outside the fit data's bounding box raises an
-  `OutOfBoundsWarning` (values are still returned, extrapolated, not
-  interpolated).
+  `OutOfBoundsWarning` (values are still returned, extrapolated).
 
 ## Synthetic test fields
 

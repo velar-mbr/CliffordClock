@@ -6,8 +6,8 @@ measured agreement. "Passed" here means "agrees with an independently
 computed or independently sourced number to the stated tolerance."
 
 See `docs/CONVENTIONS.md` for every cited equation. Tolerance doctrine 
-throughout this project: explicit `rtol` with `atol=0` via 
-`assert_allclose`, never a bare `pytest.approx`.
+throughout this project uses explicit `rtol` with `atol=0` via 
+`assert_allclose`. `pytest.approx` is never used.
 
 **TLDR.** 
 This engine's validation is
@@ -48,9 +48,9 @@ polarizabilities, the textbook DC-Stark formula, and the standard
 equipartition second-order-Doppler result, at realistic (not
 femtosecond) interrogation times, via the physical E14b coupling and the
 fast-path architecture (`docs/timescales.md`). **KA5** extends this to
-the E32 BBR pivot term's closed-form polynomial (a formula check,
-not yet a check against a published *row*; see the arithmetic-
-reproduction case below for that).
+the E32 BBR pivot term's closed-form polynomial, a formula check. The
+check against a published *row* is the arithmetic-reproduction case
+below.
 
 **The dataset benchmark (`benchmarks/`):** comparison against a published
 experimental *dataset*, for example NIST/JILA lattice-clock shift
@@ -66,9 +66,9 @@ within this dataset-benchmark pass. NPL's Rydberg-electrometry paper
 independent stray-field measurement, and this engine's `coupling.type:
 stark_dc` pipeline, given that field and the Middelmann-sourced `Δα`
 this project's registry already uses, predicts a DC-Stark shift band
-that overlaps NPL's own published band, labeled a
-*reproducibility* check (NPL already combined the same two ingredients),
-not a blind prediction. Project-wide, the reproducibility count is
+that overlaps NPL's own published band. That makes it a
+*reproducibility* check: NPL already combined the same two ingredients.
+Project-wide, the reproducibility count is
 **two**, with the Bothwell mm-scale gravitational-redshift case (below)
 built as a separate benchmark pass the same way the BBR and Roos cases
 are. **0 of 0 blind-prediction cases**: that
@@ -78,13 +78,13 @@ most promising lead for closing that gap (Li J et al 2024, Metrologia
 61,015006, USTC's own reference for its applied-field characterization)
 was authorized and attempted but could not be accessed by any legitimate
 route (no arXiv preprint, no open-access license, ResearchGate blocked);
-it is reported as its own "not accessed" outcome, not folded into a
-negative finding. **13 rows not-applicable**: 8 of
+it is reported as its own "not accessed" outcome. **13 rows
+not-applicable**: 8 of
 9 JILA systematic-shift line items and most of USTC's Table 3 are
 outside this engine's physics scope entirely; JILA's and USTC's own
 DC-Stark rows are in scope but lack a published independent field input
-(unlike NPL's); the NIST dataset measures a different physical quantity
-(phase/Allan-deviation instability, not a systematic shift). Full gap
+(unlike NPL's); the NIST dataset measures a different physical quantity:
+phase/Allan-deviation instability. Full gap
 analysis and citations: `benchmarks/RESULTS.md`, `benchmarks/MAPPING.md`.
 
 **The BBR arithmetic-reproduction case (WP20):** a second, structurally
@@ -99,13 +99,12 @@ compares against JILA's own published BBR row (arXiv:2403.10664 Table I:
 `-2.251×10⁻²⁰`, bands overlap, `kpi_verdict = "MET"`. **Binding label**
 (the project's theory sign-off record (G7), B5): **"arithmetic reproduction of a
 published standard-formula evaluation"**, explicitly weaker than the
-NPL `"reproducibility"` case above, since JILA's own row is itself
+NPL `"reproducibility"` case above: JILA's own row is itself
 computed (their T and their coefficients through the standard BBR
-formula), not an independent measurement of the shift. Agreement is
+formula). Agreement is
 expected almost by construction (the registry's dynamic polynomial is
 itself anchored/rescaled to this exact JILA value); this case
-demonstrates the engine's arithmetic and provenance chain, not
-independent BBR physics validation. Full write-up:
+demonstrates the engine's arithmetic and provenance chain. Full write-up:
 `benchmarks/RESULTS.md`'s "Arithmetic-reproduction case: JILA BBR row"
 section; provenance: `benchmarks/MAPPING.md`'s WP20 addendum,
 `benchmarks/SOURCES.md` section 1.
@@ -281,14 +280,14 @@ Measured (M=5000):        -8.003764e-21 +/- 6.33e-23 (SEM)
 **Measured agreement:** `0.32σ` (well inside the `5σ` statistical
 tolerance); this is a genuine Monte Carlo comparison (unlike KA1-3's
 exact closed forms), so the tolerance is stated in multiples of the
-pipeline's own reported standard error, not a bare relative tolerance; the
+pipeline's own reported standard error; the
 deviation stays comfortably under 1σ across multiple seeds checked during
 development.
 
-This case is also a real uncertainty-budget line item, not just a
-consistency check: the second-order Doppler shift is a genuine systematic
-every optical-lattice-clock uncertainty budget carries, and this is the
-tool computing it exactly (E21's kinematic term), not approximating it.
+This case is also a real uncertainty-budget line item: the second-order
+Doppler shift is a genuine systematic every optical-lattice-clock
+uncertainty budget carries, and this is the tool computing it exactly
+(E21's kinematic term).
 
 ## KA5: blackbody-radiation shift closed-form check (Sr87/Yb171)
 
@@ -308,7 +307,7 @@ section.
 `T = 300 K` (the registry's own reference temperature) and `T = 250 K` (a
 non-trivial `T` inside the `[50, 350] K` validity window), both species,
 each checked against an independently hand-computed 50-digit `decimal`
-reference (not a copy of the implementation).
+reference.
 
 **Quotable numbers (T = 300 K):**
 
@@ -332,16 +331,15 @@ class than a reproducibility case).
   checked against an independently measured field/temperature the
   engine's own inputs did not already combine) remains out of scope;
   the JILA-2024 arithmetic-reproduction case (above) is deliberately a
-  weaker class, since JILA's own row is itself computed, not
-  independently measured. T(r) spatial maps, solid-angle
+  weaker class, since JILA's own row is itself computed. T(r) spatial
+  maps, solid-angle
   effective-temperature computation, and stochastic BBR-field sampling
   are also explicitly out of scope (uniform `T` only); see
   CONVENTIONS.md §13 and `docs/coupling.md`.
 - No fitted or tuned parameters anywhere: every expected value above is
   derived from a literature formula/citation or an independent
   re-implementation, computed once and never adjusted to make a test pass.
-  If a case had missed its target, that would be reported here as a
-  finding, not silently corrected.
+  A case that missed its target would be reported here as a finding.
 
 **The Bothwell mm-scale gravitational-redshift case (WP22 extended-
 lattice benchmark):** a fourth case, extending the extended-lattice

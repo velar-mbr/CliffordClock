@@ -31,7 +31,7 @@ Task-oriented instructions for a specific job:
 
 ## Reference
 
-Look-up material, organized around the artifact, not a narrative:
+Look-up material, organized around the artifact:
 
 - [`report-schema.md`](report-schema.md): the `report.json` and
   `line_profile.csv` output formats written by `cliffordclock run`.
