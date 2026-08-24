@@ -72,6 +72,53 @@ directly, in the physics, so the reader knows why the details matter before
 meeting them. Orientation states the conclusion; meta-commentary announces
 that a conclusion is coming.
 
+## Decorative adverbs and empty emphasis (blocker on sight)
+
+Adverbs that add emphasis without changing the claim get deleted:
+"straight from" (from), "reconstructed directly from" (reconstructed
+from), "the field map itself" (the field map), "precisely/exactly"
+when the number already carries the precision. Test: if deleting the
+word changes nothing checkable, delete it. Prefer plain verbs over
+reaching ones: gives or reports over supplies, uses over utilizes,
+shows over reveals.
+
+## Absolute claims (blocker unless cashable on the spot)
+
+Words like nothing, zero, every, all, none, and never make a reader
+stop and audit. An absolute survives only when the text beside it lets
+the reader verify it: "zero free parameters" is legitimate exactly
+where the sentence or table lists every input and its published
+source, so the reader can count. "With nothing tuned" floating free is
+a red flag; either name the complete input list in the same breath or
+drop the claim.
+
+## Unprompted defense (blocker on sight)
+
+A sentence that rebuts an objection the text has not raised reads as
+nervousness: "None of this is new physics" appearing without any
+surrounding novelty claim defends against a thought the reader was
+not having. Delete it, or state the positive fact it was guarding
+("every formula here is standard, with its source cited") only where
+the reader would genuinely ask.
+
+## Opaque punchy labels (blocker when found)
+
+A bold label or bullet heading must inform a cold reader, never just
+sound decisive. "The Al+ reproduction" and "The per-mode cross-check"
+name nothing a first-time reader can hold; "Reproducing the published
+Al+ time-dilation total" and "Checking each motional mode against the
+published row" do. The test: covered up to the label alone, does a
+newcomer know what the item is about?
+
+## Story before inventory (blocker when missing)
+
+Before any bullet list or dense paragraph that enumerates results, one
+or two plain sentences answer: what question is this settling, and why
+does the reader care? An inventory of achievements ("adds X,
+completed by Y, closes most Z, passes W") without that setup says many
+things while telling no story, and the reader has no reason to slow
+down for the details. Context, then question, then the details.
+
 ## Word salad (blocker when found)
 
 A sentence carrying three ideas, or a paragraph where every sentence has
