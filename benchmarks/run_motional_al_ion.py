@@ -263,8 +263,8 @@ CASE_LABEL = (
     "arithmetic reproduction of a published standard-formula evaluation "
     "(arithmetic-reproduction fidelity, validates the engine's E38 "
     "implementation and unit chain, NOT an independent motional-Doppler "
-    "physics prediction; Marshall et al.'s own secular-motion row is "
-    "itself computed from their own measured inputs through the same "
+    "physics prediction; Marshall et al.'s secular-motion row is "
+    "computed from their own measured inputs through the same "
     "standard formula)"
 )
 
@@ -288,20 +288,20 @@ GEOMETRIC_FACTOR_CAVEAT = (
     "SCOPE CAVEAT (corrected per the project's G11 gate record, section A3): "
     "Marshall et al.'s six modes are TWO-ION (27Al+/25Mg+) crystal normal modes. "
     "The physically complete per-mode evaluation partitions each mode's zero-point "
-    "and thermal motion between the two ions by their own normal-mode amplitudes. "
+    "and thermal motion between the two ions by their normal-mode amplitudes. "
     "THIS case (participation=1.0 throughout, the single-species-mass formula) does "
     "not consume that partition, by deliberate construction: it isolates the WP30 "
-    "single-mass TOTAL-level reproduction as its own case, independent of the WP31 "
+    "single-mass TOTAL-level reproduction as a case independent of the WP31 "
     "participation-corrected variant reported alongside it below. As a result this "
-    "case's own per-mode contributions differ from Marshall's own per-mode values by "
+    "case's per-mode contributions differ from Marshall's per-mode values by "
     "up to several-fold, while summing over the complete six-mode set reproduces "
     "their published TOTAL inside both uncertainty bands (an open empirical "
     "observation about this total-level agreement, not a proven identity; see the "
-    "G11 gate record's own orthogonality-identity discussion, which is qualitatively "
+    "G11 gate record's orthogonality-identity discussion, which is qualitatively "
     "consistent with but does not by itself certify the observed precision). WP31 "
     "(CONVENTIONS.md section 16's participation-factor extension, "
     "`cliffordclock.integrator.omega.two_ion_participations`) now consumes the "
-    "two-ion partition directly; see this report's own participation-corrected "
+    "two-ion partition; see this report's participation-corrected "
     "variant case for the per-mode and total-level result that closed-form "
     "treatment gives (axial modes match well; radial modes do not, a disclosed, "
     "different scope boundary of THAT closed form, not this one). What remains open "
@@ -709,7 +709,7 @@ def run_motional_al_ion_participation_variant_case() -> MotionalAlIonParticipati
 RADIAL_RECONSTRUCTION_CAVEAT = (
     "WP32 SCOPE NOTE: this case's X/Y participations are NOT the axial mu-only closed form "
     "reused for radial (WP31's documented approximation, still reported unmodified in the "
-    "participation-corrected variant case above); they are reconstructed directly from "
+    "participation-corrected variant case above); they are reconstructed from "
     "Marshall et al.'s own measured axial-COM and radial mode frequencies "
     "(cliffordclock.integrator.omega.axial_coulomb_curvature/two_ion_radial_participations), "
     "inverting the two-ion radial eigenproblem for each transverse direction's two unknown "
@@ -717,8 +717,9 @@ RADIAL_RECONSTRUCTION_CAVEAT = (
     "The disambiguation assumption (RF pseudopotential scaling: the lighter ion, Mg25+, "
     "carries the higher bare radial frequency) is applied identically to both the X and Y "
     "branches. Reported per-mode and total-level agreement below is whatever this "
-    "reconstruction gives against Marshall's own published per-mode and total rows, with no "
-    "tuning; see this case's own participation_note for the result stated in full."
+    "reconstruction gives against Marshall's own published per-mode and total rows; the only "
+    "inputs are the measured mode frequencies named above. See this case's own "
+    "participation_note for the result stated in full."
 )
 
 
@@ -918,13 +919,12 @@ def run_motional_al_ion_radial_reconstructed_case() -> MotionalAlIonRadialRecons
         f"landing at {deviation_sigma:.2f} sigma from the published total "
         f"({'MET' if overlap else 'NOT MET'}), essentially unchanged from WP31's own "
         "radial-approximation total. Because each mode-pair's clock-ion participations sum to "
-        "1.0 exactly regardless of how the pair's total is split between its COM and STR "
+        "1.0 regardless of how the pair's total is split between its COM and STR "
         "members, and Marshall's own COM/STR (n_bar+1/2)-weighted magnitudes for a given "
         "branch are comparable in size, redistributing participation within a radial pair "
         "moves the per-mode ratios without moving the pair's own total much, a structural "
         "reason a correctly reconstructed split need not by itself close a total-level gap "
-        "this size. The reconstruction, its cross-check, and this result are reported as run, "
-        "with no tuning."
+        "this size. The reconstruction, its cross-check, and this result are reported as run."
     )
 
     return MotionalAlIonRadialReconstructedCase(
@@ -986,7 +986,7 @@ INTRINSIC_MICROMOTION_ENHANCEMENT_CAVEAT = (
     "inversion, an entirely different calculation); see this case's own "
     "partner_prediction_note for the result. Reported per-mode and total-level agreement below "
     "is whatever this reconstruction gives against Marshall's own published per-mode and total "
-    "rows, with no tuning; see this case's own enhancement_note for the result stated in full."
+    "rows; see this case's own enhancement_note for the result stated in full."
 )
 
 
@@ -1247,10 +1247,10 @@ def run_motional_al_ion_intrinsic_micromotion_enhanced_case() -> (
         f"{y_result.bare_frequency_partner_hz:.6e} Hz (Y); relative deviations "
         f"{partner_x_relative_deviation:+.4%} (X) and {partner_y_relative_deviation:+.4%} (Y), "
         "both sub-1%-relative, well inside the few-percent band the published mode "
-        "frequencies' own ~3-significant-figure reporting precision supports. This is a "
-        "genuinely independent, falsifiable test (nothing in the Mathieu-parameter solve's own "
+        "frequencies' own ~3-significant-figure reporting precision supports. This is an "
+        "independent, falsifiable test (nothing in the Mathieu-parameter solve's own "
         "inputs touches the partner ion's frequencies at all) of the WHOLE reconstruction "
-        "chain's internal consistency, reported as run, with no tuning."
+        "chain's internal consistency, reported as run."
     )
     enhancement_note = (
         "Per-mode comparison against Marshall et al.'s own published 'Frequency shift per "
@@ -1259,7 +1259,7 @@ def run_motional_al_ion_intrinsic_micromotion_enhanced_case() -> (
         f"participation*enhancement (F_x={enhancement_x:.4f}, F_y={enhancement_y:.4f}) in place "
         "of WP32's plain participation; the resulting per-mode ratios (predicted/published) "
         f"land at {deviation_sigma:.2f} sigma from the published total "
-        f"({'MET' if overlap else 'NOT MET'}). Reported as run, with no tuning."
+        f"({'MET' if overlap else 'NOT MET'}). Reported as run."
     )
 
     return MotionalAlIonIntrinsicMicromotionEnhancedCase(
@@ -1420,7 +1420,7 @@ def run_wp33_brewer_consistency_check() -> Wp33BrewerConsistencyCheck:
         "Marshall et al. instead of Brewer for their own total-level cases. What IS available "
         "from Brewer's Table S2, the RF drive frequency, all six mode frequencies, and a "
         "per-mode TDS/quantum row that already includes the transverse intrinsic-micromotion "
-        "shift (footnote a), is exactly what this consistency check uses: the "
+        "shift (footnote a), is what this consistency check uses: the "
         "over-determination check and the per-mode ratios above, both independent of n_bar."
     )
 

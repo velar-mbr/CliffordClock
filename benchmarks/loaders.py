@@ -684,7 +684,7 @@ MARSHALL_AL_ION_FREQUENCY_SHIFT_PER_QUANTUM_CITATION = (
     "(same mode order as MARSHALL_AL_ION_MODES_MHZ_NBAR). This is the paper's own "
     "PUBLISHED per-mode time-dilation weight (distinct from the unrelated 'Geometric "
     "factor kappa' row, a Doppler-cooling-laser geometry factor, MARSHALL_AL_ION_MODES_"
-    "CITATION's own caveat). Re-fetched and confirmed directly against the arXiv PDF "
+    "CITATION's own caveat). Re-fetched and confirmed against the arXiv PDF "
     "text this session."
 )
 
