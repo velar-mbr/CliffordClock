@@ -47,7 +47,7 @@ gravitational-redshift physics this project has added since.
 | First order Zeeman | No | Same as Second Order Zeeman: no B-field physics. **No mapping attempted.** |
 | Background Gas | No | Collisional shift from residual background-gas atoms; no collisional physics of any kind exists. **No mapping attempted.** |
 | **DC Stark** | **Yes (E14b)** | **See "DC Stark row" below: in scope, but no independent forward mapping is possible from what the paper publishes.** |
-| Tunneling | No | Inter-lattice-site band-structure/Wannier-Stark tunneling. This engine models motional states as harmonic-oscillator Hermite-Gauss quadrature nodes (`cliffordclock.ensemble.lattice`), not a lattice band structure, so there is no tunneling degree of freedom to map onto. **No mapping attempted.** |
+| Tunneling | No | Inter-lattice-site band-structure/Wannier-Stark tunneling. This engine models motional states as harmonic-oscillator Hermite-Gauss quadrature nodes (`cliffordclock.ensemble.lattice`). That representation has no lattice band structure, so there is no tunneling degree of freedom to map onto. **No mapping attempted.** |
 | Minor Shifts | No | An unitemized grab-bag ("all other systematic effects have uncertainties below 1e-19" per the abstract); no single mechanism to map. **No mapping attempted.** |
 | Total Shift | n/a | An arithmetic sum of the rows above. |
 
@@ -100,10 +100,11 @@ the compiled PDF's five supplement sections (I: 3D1/3P1 lifetime
 uncertainty budget, II: Temperature Measurement, III: Dynamic BBR Shift,
 IV: First Order Zeeman Shift, V: Background Gas Shift, confirmed
 complete, ending in the supplement's own separate bibliography). **The DC
-Stark paragraph cites no such reference**: its only citation, `[29]`, is
-a generic prior-literature citation for the general stray-field effect,
-not this paper's own supplemental data, and is fully self-contained,
-stating only the resulting shift.
+Stark paragraph cites no such reference.** Its only citation, `[29]`, is
+a generic prior-literature reference for the general stray-field effect,
+unlike citation [23]'s pointer to this paper's own Supplemental Material
+above. The DC Stark paragraph is fully self-contained, stating only the
+resulting shift.
 
 **Precise conclusion:** the Supplemental Material almost certainly
 contains no DC-Stark field-magnitude, quadrant-electrode-voltage, or
@@ -193,7 +194,7 @@ full verbatim extraction and independent verification. This changes this
 benchmark's outcome: for the first time, a genuine `PipelineConfig` can
 be built with every input traced to a publication.
 
-### The two ingredients, and why this is NOT a blind prediction
+### The two ingredients, and why the label stays "reproducibility"
 
 NPL measured a residual stray field at their Sr atoms **independently of
 the clock transition** (Rydberg-state EIT spectroscopy on a completely

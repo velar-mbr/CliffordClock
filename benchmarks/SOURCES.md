@@ -178,8 +178,8 @@ credentials, prohibited regardless of any authorization):**
 
 None of these were pursued further (no credential entry, no institutional
 login, no CAPTCHA-solving, no account creation): per this session's
-binding safety rules, a paywall is a stop, not an obstacle to route
-around, regardless of the owner's fetch authorization.
+binding safety rules, a paywall is a stop. The owner's authorization to
+fetch a source never authorizes bypassing that stop.
 
 **Cross-check performed instead (using the already-fetched, checksummed
 arXiv v2 e-print, source 1 above):** the arXiv e-print tarball
@@ -400,8 +400,8 @@ paper's DC-Stark characterization as "budget-only," "reproducibility-
 grade," or "blind-prediction-grade": any such classification would be
 a guess dressed as a finding. The correct status is **"not
 accessed: classification not possible without a copy,"** reported as
-its own outcome, not silently folded into "not applicable" (which this
-project uses only for content that *was* examined and found not to map).
+its own outcome. This project reserves "not applicable" for content
+that *was* examined and found not to map.
 
 ## 7. quant-ph/0701215v1: Roos et al., the two-ion quadrupole-shift benchmark (owner-supplied, 2026-08-11)
 

@@ -194,7 +194,7 @@ text before using them for anything:
 
 Full citation table and access log: `benchmarks/SOURCES.md` section 4.
 
-### Why this is a "reproducibility" case, not a "blind prediction" (binding label)
+### Why the binding label is "reproducibility", and what "blind prediction" would require
 
 NPL measured their field independently of the clock transition, then
 converted it to a shift using the same published `Δα` this project's
@@ -208,9 +208,9 @@ unit-conversion bug, or wrong `Δα`-to-`k_S` derivation would show up as a
 non-overlapping band). That correctness claim stops at the pipeline,
 short of showing this engine predicts a clock shift nobody had already
 computed. This document and
-`benchmarks/MAPPING.md` describe this case only as a reproducibility
-check, never as "validated against an independent measurement of the
-shift," a framing reserved for a blind prediction. `case_class` in the
+`benchmarks/MAPPING.md` describe this case as a reproducibility check.
+The stronger framing, "validated against an independent measurement of
+the shift," is reserved for a blind prediction. `case_class` in the
 JSON output is
 literally the string `"reproducibility"`, structurally separate from
 `"blind_prediction"` (still empty).
@@ -281,7 +281,7 @@ kept structurally and numerically separate from this document's WP10
 blind-prediction cases, `13` not-applicable rows, `14` total, unchanged
 by this addendum).
 
-### Why this is "arithmetic reproduction", not "reproducibility" (binding label, G7 sign-off B5)
+### Why the binding label is "arithmetic reproduction", and what "reproducibility" would require (G7 sign-off B5)
 
 The project's theory sign-off record (G7) B5 (ratified): **"arithmetic
 reproduction of a published standard-formula evaluation"**, explicitly
@@ -621,10 +621,11 @@ both draw from the same engine-scope gaps):
 and this benchmark's follow-up (NPL) shows the engine can be checked
 against it when the source publishes a field alongside the shift.** JILA's
 and USTC's own DC-Stark rows remain not-comparable because those two
-specific papers happen not to publish an independent field (a data-
-completeness gap in those sources, not a modeling gap in this engine);
-this is no longer a blanket statement about the systematic being
-uncheckable in principle, which the NPL case now disproves.
+specific papers happen not to publish an independent field. That gap
+belongs to what those two papers chose to publish. This engine's own
+DC-Stark model handles an independently published field correctly, as
+the NPL case above demonstrates, so this is no longer a blanket
+statement about the systematic being uncheckable in principle.
 
 **Second-order Doppler (E21):** neither JILA nor USTC reports a
 motional/Doppler line item, consistent with tightly-confined, deep
@@ -648,7 +649,7 @@ reported as the result of this benchmark exactly as found. Programmatically (`be
 `blind_prediction_cases_total: 0`, `not_applicable_rows: 13`,
 `total_rows_considered: 14`.
 
-## What would change this outcome (for a future pass, not attempted here)
+## What would change this outcome in a future pass
 
 - **USTC's reference [30]** (Li J et al 2024, Metrologia 61, 015006) was
   the clearest concrete lead for a possible *blind-prediction-grade*
@@ -670,9 +671,9 @@ reported as the result of this benchmark exactly as found. Programmatically (`be
 - A **blind-prediction** case (an engine prediction checked against a
   measurement the engine's own inputs were not already combined to
   produce) remains entirely unavailable from any source examined so far
-  across all of this benchmark's passes; the NPL case is a reproducibility
-  success, demonstrating pipeline correctness, a different kind of
-  evidence from a blind prediction toward this category.
+  across all of this benchmark's passes. The NPL case demonstrates
+  pipeline correctness within the reproducibility class; the
+  blind-prediction count is a separate tally that case leaves unchanged.
 - The NIST dataset's content (Allan deviation / frequency-division
   instability) would need an entirely different engine capability
   (statistical stability analysis of a time series, not a systematic-
@@ -855,8 +856,8 @@ machinery (per-site geometry, Gaussian-envelope weighting, per-site E36
 pivot evaluation, weighted-least-squares map fit) predict the per-site
 slope end to end, with zero adjustable inputs.
 
-### Why this is a "reproducibility" case, not a "blind prediction" (and
-its inverted-NPL caveat, binding label, G9 sign-off B4)
+### Why the binding label is "reproducibility", and what "blind prediction"
+would require (the inverted-NPL caveat, G9 sign-off B4)
 
 Structurally the SAME class as the NPL case: this engine + a published
 local gravity value reconstructs what the authors themselves already

@@ -102,9 +102,13 @@ published standard-formula evaluation"**, explicitly weaker than the
 NPL `"reproducibility"` case above: JILA's own row is itself
 computed (their T and their coefficients through the standard BBR
 formula). Agreement is
-expected almost by construction (the registry's dynamic polynomial is
-itself anchored/rescaled to this exact JILA value); this case
-demonstrates the engine's arithmetic and provenance chain. Full write-up:
+expected almost by construction: the registry's dynamic polynomial is
+itself anchored and rescaled to this exact JILA value. What that
+agreement certifies is the engine's arithmetic and provenance chain
+end-to-end, run on JILA's own published operating temperature and
+coefficients through the standard BBR formula; an independent BBR
+physics validation would need a comparison target the registry was not
+already rescaled against. Full write-up:
 `benchmarks/RESULTS.md`'s "Arithmetic-reproduction case: JILA BBR row"
 section; provenance: `benchmarks/MAPPING.md`'s WP20 addendum,
 `benchmarks/SOURCES.md` section 1.
