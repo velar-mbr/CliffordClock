@@ -7,8 +7,6 @@
 
 ![CliffordClock trapped-ion animation: a two-ion 27Al+/25Mg+ crystal cycling through its six normal modes next to the time-dilation budget those modes add up to, compared against a published trapped-ion clock's own measured value](https://raw.githubusercontent.com/velar-mbr/CliffordClock/main/docs/assets/ion_motion_animation.gif)
 
-A second demonstration applies the same engine to a trapped-ion clock: the measured normal modes of a published two-ion Al+/Mg+ crystal, and the time-dilation budget they add up to, checked against that clock's own published systematic budget.
-
 **CliffordClock predicts how stray electric fields shift and broaden an
 optical lattice clock's frequency, starting from your own field
 simulation.** Export a field map from COMSOL or any FEA tool, describe
