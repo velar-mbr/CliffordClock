@@ -7,57 +7,65 @@ animation for the trapped-ion audience.
 Marshall et al. (arXiv:2504.13071v2), animated through its six secular
 normal modes, next to the time-dilation budget those modes add up to.
 Every number on screen comes from the real engine, through the same
-call path ``benchmarks/run_motional_al_ion.py``'s WP33 case already
-uses:
+call path ``benchmarks/run_motional_al_ion.py``'s WP35 constrained-fit
+case already uses:
 
 - **Left panel**: the two ions on their trap axis, cycling through the
   six modes (axial COM/STR, then radial X COM/STR, then radial Y
   COM/STR) in Marshall et al.'s own Table S2 order. Each mode's
   displayed frequency and mean phonon number ``n_bar`` come from
-  ``benchmarks/loaders.MARSHALL_AL_ION_MODES_MHZ_NBAR``. Each
-  ion's oscillation amplitude is that ion's own mass-weighted
-  participation factor
-  (:func:`cliffordclock.integrator.omega.two_ion_participations` for
-  the axial pair, :func:`~cliffordclock.integrator.omega.two_ion_radial_participations`'s
-  measured-spectrum reconstruction for the radial pairs, as
-  ``run_motional_al_ion.run_motional_al_ion_intrinsic_micromotion_enhanced_case``
-  already assembles them), square-rooted to turn an energy fraction
-  back into an amplitude and scaled only for visibility. COM modes move
-  both ions the same direction (in-phase); STR modes move them
-  opposite directions (out-of-phase), the sign structure
-  ``two_ion_participations``'s own docstring derives from the coupled
-  normal-mode eigenvectors. The oscillation RATE shown is a
+  ``benchmarks/loaders.MARSHALL_AL_ION_MODES_MHZ_NBAR``. Each ion's
+  oscillation amplitude is that ion's own mass-weighted participation
+  factor (:func:`cliffordclock.integrator.omega.two_ion_participations`
+  for the axial pair; for the radial pairs, the SAME per-mode coupled
+  Fourier decomposition
+  ``run_motional_al_ion.run_motional_al_ion_constrained_floquet_case``
+  fits the clock ion's Mathieu parameters against, one shared RF
+  parameter q and a dc-split fraction alpha solved from all four
+  measured radial mode frequencies at once), square-rooted to turn an
+  energy fraction back into an amplitude and scaled only for
+  visibility. COM modes move both ions the same direction (in-phase);
+  STR modes move them opposite directions (out-of-phase), the sign
+  structure ``two_ion_participations``'s own docstring derives from the
+  coupled normal-mode eigenvectors. The oscillation RATE shown is a
   visualization convenience: a real MHz-scale oscillation has no
   legible frame rate in a gif, so each mode plays a fixed
   number of cycles, the same kind of documented, labeled pacing
   decoupling ``generate_showcase_animation.py``'s own module docstring
   already uses for its coherence panel.
 - **Right panel**: a bar that accumulates each mode's own
-  time-dilation contribution
-  (``predicted_shift_per_quantum * (n_bar + 1/2)``, the same six terms
-  ``motional_pivot_perturbation`` sums to the WP33 total) as that
-  mode plays on the left, colored by whether the mode's contribution
-  includes the intrinsic-micromotion enhancement factor (axial modes:
-  participation alone; radial modes: participation times
-  :func:`~cliffordclock.integrator.omega.radial_micromotion_enhancement`).
-  Once all six modes have played, Marshall et al.'s own published band
+  time-dilation contribution (``predicted_shift_per_quantum *
+  (n_bar + 1/2)``, the exact per-mode term the constrained-fit case
+  sums internally to reach its own total) as that mode plays on the
+  left, colored by whether the mode is axial (participation alone,
+  micromotion enhancement fixed at 1.0) or radial (participation and
+  micromotion enhancement both read from the same coupled two-ion
+  Floquet solution at the fitted q and dc split, with no separate
+  per-axis enhancement factor multiplied in). Once all six modes have
+  played, Marshall et al.'s own published band
   (``benchmarks/loaders.MARSHALL_AL_ION_SECULAR_MOTION_SHIFT``) appears
   around it. This script computes the same sigma separation and
-  verdict ``run_motional_al_ion.py``'s WP33 case reports (1.62 sigma,
-  ``NOT MET``) itself, by the identical formula that case function
-  uses internally.
+  verdict ``run_motional_al_ion.py``'s WP35 constrained-fit case
+  reports (0.08 sigma, ``MET``) itself, by the identical formula that
+  case function uses internally.
 
 This script never hand-types a physics number: every frequency, phonon
 number, participation, enhancement factor, contribution, and the final
 sigma separation is either read from ``benchmarks/loaders.py``'s
 transcribed publication tables or computed by calling
-``benchmarks/run_motional_al_ion.py``'s own WP33 case function, which
-itself calls the real engine functions in
+``benchmarks/run_motional_al_ion.py``'s own WP35 constrained-fit case
+function, which itself calls the real engine functions in
 ``cliffordclock.integrator.omega``. A runtime check (mirroring
 ``generate_showcase_animation.py``'s own
 ``_check_shift_reconstruction``) confirms this script's own per-mode
 sum reproduces the case function's total before trusting it for the
-animation.
+animation. Nothing here is tuned against Marshall's published total:
+the fitted Mathieu parameters solve from the four MEASURED radial mode
+frequencies alone, the same over-determination
+``plan/reviews/G17-e38-coupled-floquet.md`` reviewed. The caption's
+"zero free parameters" line is cashable against three inputs: the
+measured mode frequencies, the mean phonon numbers, and the published
+RF drive frequency, all three read live from ``benchmarks/loaders.py``.
 
 Regeneration
 ------------
@@ -175,15 +183,15 @@ def _mode_inputs() -> dict[str, tuple[float, float, float]]:
 
 
 def _per_mode_contributions_1e19(
-    case: run_motional_al_ion.MotionalAlIonIntrinsicMicromotionEnhancedCase,
+    case: run_motional_al_ion.MotionalAlIonConstrainedFloquetCase,
     mode_inputs: dict[str, tuple[float, float, float]],
 ) -> dict[str, float]:
-    """Each mode's own share of the WP33 total, in 1e-19 units.
+    """Each mode's own share of the WP35 constrained-fit total, in 1e-19 units.
 
     ``contribution_i = predicted_shift_per_quantum_i * (n_bar_i + 1/2)``,
-    the exact per-mode term `motional_pivot_perturbation` sums (with a
-    sign flip already folded into `predicted_shift_per_quantum`) to
-    reach `case.predicted_total_nominal`; verified below before this
+    the exact per-mode term the constrained-fit case sums internally
+    (with a sign flip already folded into `predicted_shift_per_quantum`)
+    to reach `case.predicted_total_nominal`; verified below before this
     script trusts it for the animation.
     """
     per_mode_by_name = {mode.name: mode for mode in case.per_mode}
@@ -197,7 +205,7 @@ def _per_mode_contributions_1e19(
 
 def _check_total_reconstruction(
     contributions_1e19: dict[str, float],
-    case: run_motional_al_ion.MotionalAlIonIntrinsicMicromotionEnhancedCase,
+    case: run_motional_al_ion.MotionalAlIonConstrainedFloquetCase,
 ) -> None:
     """The six per-mode contributions must sum to the case's own total.
 
@@ -210,24 +218,25 @@ def _check_total_reconstruction(
     published_total = case.predicted_total_nominal
     rel_diff = abs(reconstructed_total - published_total) / abs(published_total)
     assert rel_diff < 1.0e-9, (
-        "per-mode contribution reconstruction disagrees with the WP33 case's own "
-        f"predicted_total_nominal by a relative {rel_diff:.3e} (expected roundoff-level "
+        "per-mode contribution reconstruction disagrees with the WP35 constrained-fit case's "
+        f"own predicted_total_nominal by a relative {rel_diff:.3e} (expected roundoff-level "
         "agreement) -- the animation's bar heights would not be trustworthy"
     )
 
 
 def _deviation_sigma(
-    case: run_motional_al_ion.MotionalAlIonIntrinsicMicromotionEnhancedCase,
+    case: run_motional_al_ion.MotionalAlIonConstrainedFloquetCase,
     published: loaders.PublishedBand,
 ) -> float:
     """Sigma separation between the predicted and published totals.
 
-    The identical formula `run_motional_al_ion.py`'s WP33 case function
-    uses internally to build its own `enhancement_note` ("1.62 sigma"),
-    computed here directly from the case's own returned fields.
+    The identical formula `run_motional_al_ion.py`'s WP35 constrained-fit
+    case function uses internally to build its own `fit_note` ("0.08
+    sigma"), computed here directly from the case's own returned fields.
     """
     combined_sigma = math.sqrt(
-        case.predicted_total_uncertainty_fractional**2 + (published.hi - published.nominal) ** 2
+        case.predicted_total_uncertainty_combined_fractional**2
+        + (published.hi - published.nominal) ** 2
     )
     return abs(case.predicted_total_nominal - published.nominal) / combined_sigma
 
@@ -249,7 +258,7 @@ def main() -> None:
     t_wall_start = time.perf_counter()
     _OUTPUT_PATH.parent.mkdir(parents=True, exist_ok=True)
 
-    case = run_motional_al_ion.run_motional_al_ion_intrinsic_micromotion_enhanced_case()
+    case = run_motional_al_ion.run_motional_al_ion_constrained_floquet_case()
     mode_inputs = _mode_inputs()
     contributions_1e19 = _per_mode_contributions_1e19(case, mode_inputs)
     _check_total_reconstruction(contributions_1e19, case)
@@ -260,7 +269,7 @@ def main() -> None:
 
     per_mode_by_name = {mode.name: mode for mode in case.per_mode}
     predicted_total_1e19 = case.predicted_total_nominal * 1.0e19
-    predicted_sigma_1e19 = case.predicted_total_uncertainty_fractional * 1.0e19
+    predicted_sigma_1e19 = case.predicted_total_uncertainty_combined_fractional * 1.0e19
     published_nominal_1e19 = published.nominal * 1.0e19
     published_lo_1e19 = published.lo * 1.0e19
     published_hi_1e19 = published.hi * 1.0e19
@@ -340,9 +349,9 @@ def main() -> None:
     ax_bar.set_xlim(-1.3, 1.5)
     ax_bar.set_ylim(0.0, max_height)
     ax_bar.set_xticks([bar_x])
-    ax_bar.set_xticklabels(["this engine\n(participation x enhancement)"], fontsize=7.5)
+    ax_bar.set_xticklabels(["this engine\n(coupled, constrained fit)"], fontsize=7.5)
     ax_bar.set_ylabel(r"|shift| contribution ($\times10^{-19}$)", fontsize=8.5)
-    ax_bar.set_title("Time-dilation budget (WP33)", fontsize=9, pad=8)
+    ax_bar.set_title("Time-dilation budget (WP35)", fontsize=9, pad=8)
 
     published_band = Rectangle(
         (-1.3, min(abs(published_lo_1e19), abs(published_hi_1e19))),
@@ -398,7 +407,7 @@ def main() -> None:
         display_name, axis = MODE_DISPLAY[active_name]
         frequency_hz, n_bar, _n_bar_uncertainty = mode_inputs[active_name]
         mode = per_mode_by_name[active_name]
-        clock_participation = mode.participation
+        clock_participation = mode.participation_clock
         partner_participation = 1.0 - clock_participation
         in_phase = MODE_IN_PHASE[active_name]
 
@@ -447,12 +456,20 @@ def main() -> None:
             for i, name in enumerate(MODE_ORDER)
             if is_hold or i < mode_index
         ) + (abs(contributions_1e19[active_name]) * progress if not is_hold else 0.0)
-        total_label.set_position((bar_x, running_total + max_height * 0.015))
-        total_label.set_color("0.15")
-        total_label.set_fontsize(8)
         if is_hold:
+            # Placed inside the bar, just below its top edge: this variant's
+            # total lands close to published_label's own position above the
+            # bar, and the two labels would collide if both sat up there.
+            total_label.set_position((bar_x, running_total - max_height * 0.02))
+            total_label.set_va("top")
+            total_label.set_color("white")
+            total_label.set_fontsize(8)
             total_label.set_text(f"{abs(predicted_total_1e19):.1f} +/- {predicted_sigma_1e19:.1f}")
         else:
+            total_label.set_position((bar_x, running_total + max_height * 0.015))
+            total_label.set_va("bottom")
+            total_label.set_color("0.15")
+            total_label.set_fontsize(8)
             total_label.set_text(f"{running_total:.1f}")
 
         if is_hold:
@@ -505,8 +522,8 @@ def main() -> None:
     for name in MODE_ORDER:
         mode = per_mode_by_name[name]
         print(
-            f"  {name}: participation={mode.participation:.4f} enhancement={mode.enhancement:.4f} "
-            f"contribution={contributions_1e19[name]:+.3f}"
+            f"  {name}: participation={mode.participation_clock:.4f} "
+            f"enhancement={mode.enhancement_clock:.4f} contribution={contributions_1e19[name]:+.3f}"
         )
     print(
         f"predicted total: {predicted_total_1e19:+.2f} +/- {predicted_sigma_1e19:.2f} (1e-19); "
