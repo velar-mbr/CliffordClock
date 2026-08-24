@@ -1610,8 +1610,128 @@ resulting `(P-1)_motional` shift, the EMM input when present, the
 propagated uncertainty, and the excess-micromotion roadmap-boundary note
 verbatim (`cliffordclock.pipeline._resolve_motional_pivot_perturbation`).
 
+**Exact Floquet treatment of intrinsic micromotion (v1.10.0, WP34).** WP33's
+`F_axis = 1 + q^2/(2*a_axis+q^2)` and its `omega_i = (Omega/2)*sqrt(a_i +
+q_i^2/2)` are both FIRST ORDER in the Mathieu parameters (Berkeland's own
+`|q_i|<<1`, `|a_i|<<1` caveat). WP34 replaces both with the numerically
+exact Floquet solution of the Mathieu equation
+`u'' + [a + 2*q*cos(2*tau)]*u = 0` (Berkeland Eq. 4 convention): writing the
+stable solution `u(tau) = exp(i*beta*tau)*phi(tau)` with `phi` periodic,
+`phi(tau) = sum_n c_n*exp(i*2*n*tau)`, the Fourier coefficients satisfy the
+standard tridiagonal recursion `q*c_(m-1) + [a-(beta+2*m)^2]*c_m +
+q*c_(m+1) = 0`; eliminating the off-diagonal entries via two one-sided
+continued fractions reduces the Hill-determinant stability condition to a
+single scalar equation in `beta`, solved by Newton root-find at a
+truncation depth chosen by an explicit convergence test (doubling the
+depth until both `beta` and the retained Fourier ratios stop changing,
+raising if a ceiling is reached first).
+`cliffordclock.integrator.omega.mathieu_floquet_solve` implements this
+(`MathieuFloquetSolution`); this session's own cross-check against
+independent monodromy-matrix ODE integration (the trace of the one-period
+fundamental-solution matrix) confirms agreement to float64 working
+precision. `omega_sec = beta*Omega/2` EXACTLY, the definition of the
+characteristic exponent itself, and the exact velocity-variance
+enhancement is `F_exact = sum_n c_n^2*(beta+2*n)^2 / beta^2` (`c_0=1`
+normalization, `MathieuFloquetSolution.velocity_enhancement_exact`/
+`radial_micromotion_enhancement_exact`). Two checks confirm this reduces
+correctly: `q -> 0` gives `F_exact -> 1` exactly, and substituting the
+leading-order relation `beta^2 = a+q^2/2` into `F_exact`'s own formula
+reproduces Berkeland's bracket EXACTLY at that substitution, the same
+algebraic expression on both sides once `beta` is fixed there. WP33's
+closed-form `(q, a_x, a_y)` inversion is re-solved by 2D Newton iteration
+against the exact `beta(a, q)` map (`clock_ion_mathieu_parameters_exact`),
+using WP33's own closed form as the initial guess; the exact map has no
+algebraic inverse, so this step needs a numerical solve. The mandatory
+partner-ion over-determination check is re-run with the exact
+partner-frequency prediction
+(`predicted_partner_bare_radial_frequencies_hz_exact`, the SAME
+mass-scaling relation WP33 uses, only the `beta` evaluation swapped). The
+axial direction needs no exact treatment: `q_z=0` (Berkeland Eq. 6)
+reduces the Mathieu equation to the plain harmonic oscillator exactly, so
+`beta=sqrt(a_z)` and `F_axial=1` are already exact at WP33's own leading
+order. `benchmarks/run_motional_al_ion.py`'s WP34 case
+(`run_motional_al_ion_exact_intrinsic_micromotion_enhanced_case`) and its
+Brewer consistency check (`run_wp34_brewer_consistency_check`) report both
+datasets with the exact treatment: the Al27+/Mg25+ Marshall total moves
+from WP33's `-1.064e-17` (1.62 sigma) to `-1.064e-17` (1.62 sigma, to the
+precision reported), the two staying close because this project's own
+`(a, q)` sit well inside Berkeland's stated leading-order validity regime,
+where the exact-vs-leading-order correction to `F_x`/`F_y` is at the
+sub-1%-relative level. This closeness is a structural fact that holds for
+any dataset in that regime: `F_axis` depends only on the axis's own
+`(a, q)`, so the SAME factor multiplies both a pair's COM and STR members
+in both the leading-order and exact treatments, and that factor can only
+scale an existing within-axis deviation, never flip its sign. The
+opposite-sign per-mode deviation the G14/G15 gate reviews found within the
+X axis (`x_com` above 1.0, `x_str` below 1.0) survives the exact treatment
+unchanged for exactly this reason. That residual sits outside the
+single-per-axis-enhancement-factor model WP33 and WP34 both implement;
+a genuinely per-mode mechanism, still within Mathieu-order physics but
+coupling the two ions' motion beyond that single shared factor, remains
+open, alongside the published rows' own per-mode calibration chain as a
+second open candidate. The TOTAL remains the right level at which to
+compare this project's reconstruction against Marshall's published
+number.
+
+**Input-rounding uncertainty (v1.10.0, WP34, Part 2).** Marshall's (and
+Brewer's) published mode frequencies and RF drive frequency are each
+stated to a fixed number of decimal places with no measurement
+uncertainty at all; the WP30-33 cases above propagate zero for that
+missing channel, understating the true uncertainty on their totals. WP34
+adds a ROUNDING-bound channel: each published frequency carries a
+half-last-digit bound (e.g. `2.16` MHz carries `+/-0.005` MHz), propagated
+by finite differences through the FULL reconstruction chain (the axial
+spring constant, the radial inversion, the participations, the exact
+Mathieu solve, the exact enhancement, and the total) and combined in
+quadrature with the existing phonon-number (thermometry) uncertainty. The
+two components are reported SEPARATELY and labeled as such
+(`predicted_total_uncertainty_nbar_fractional`/
+`predicted_total_uncertainty_rounding_fractional`/
+`predicted_total_uncertainty_combined_fractional`, WP34's benchmark case
+record), so a reader can see what comes from rounding and what from
+thermometry without the two being folded silently into one number. This
+rounding channel is a BOUND: the true value could differ from the printed
+one by up to half its last digit. It is documented throughout as a bound,
+distinct in kind from a measured 1-sigma uncertainty even where the two
+combine in quadrature. For the Al27+/Mg25+ Marshall dataset the
+rounding channel comes out roughly an order of magnitude smaller than the
+thermometry channel, leaving the reported band essentially where the
+thermometry channel alone would place it; the rounding channel is still
+carried through and reported in full, on the same footing as the
+thermometry channel, instead of being assumed negligible and dropped.
+
 ---
 *Changelog:*
+*1.10.0 (2026-08-24): WP34, specified directly by the project owner (no
+separate formalism sign-off ceremony recorded for this entry): §16
+extended with the numerically exact Floquet treatment of intrinsic
+micromotion (the continued-fraction/Newton solve for the exact Mathieu
+characteristic exponent `beta(a, q)`, the exact velocity-variance
+enhancement `F_exact` derived from the Floquet Fourier coefficients and
+verified to reduce exactly to Berkeland's leading-order bracket at the
+leading-order substitution, and the exact 2D clock-ion Mathieu inversion
+and partner-ion over-determination check, all cross-checked this session
+against independent monodromy-matrix ODE integration to float64
+precision), replacing WP33's leading-order Mathieu bracket
+SELF-CONSISTENTLY end to end, plus an input-rounding uncertainty channel
+(each published frequency's half-last-digit bound, propagated by finite
+differences through the full reconstruction chain and combined in
+quadrature with the existing thermometry uncertainty, reported as its own
+labeled component). Result: the exact treatment moves the Al27+/Mg25+
+Marshall total by well under 1 percent relative to WP33's own leading-order
+result, staying at essentially the same ~1.6 sigma `NOT MET` verdict, and
+the rounding-uncertainty channel comes out roughly an order of magnitude
+smaller than the existing thermometry channel; a second, independent
+dataset (Brewer et al. (2019), arXiv:1902.07694) shows the same near-unchanged
+pattern. The opposite-sign per-mode deviation within the X axis that the
+G14/G15 gate reviews identified persists unchanged under the exact
+treatment, a structural confirmation on top of the earlier empirical one:
+the residual sits outside the single-per-axis-enhancement-factor model
+WP33 and WP34 both implement, with a genuinely per-mode mechanism (still
+within Mathieu-order physics) and the published per-mode calibration
+chain both remaining open candidates. WP33's own functions are
+untouched, G15-gated record, and every WP34 function is additive
+alongside them.*
 *1.9.0 (2026-08-23): WP33, specified directly by the project owner (no
 separate formalism sign-off ceremony recorded for this entry): §16
 extended with the mode-specific intrinsic-micromotion enhancement

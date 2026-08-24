@@ -1,6 +1,6 @@
 # WP30 motional Al+ ion benchmark case (generated)
 
-Generated: 2026-08-24T02:37:00.182799+00:00
+Generated: 2026-08-24T14:24:08.284872+00:00
 
 ## Arithmetic-reproduction case: Marshall et al. arXiv:2504.13071 Table I "Secular motion" row
 

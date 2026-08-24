@@ -32,19 +32,24 @@ from cliffordclock.constants import ATOMIC_MASS_UNIT, HBAR, SPEED_OF_LIGHT
 from cliffordclock.ensemble.species import get_species
 from cliffordclock.integrator.omega import (
     ClockIonMathieuParameters,
+    MathieuFloquetSolution,
     MotionalMode,
     axial_coulomb_curvature,
     bbr_pivot_perturbation,
     build_omega_stark,
     clock_ion_mathieu_parameters,
+    clock_ion_mathieu_parameters_exact,
     grav_pivot_perturbation,
+    mathieu_floquet_solve,
     motional_mean_squared_velocity_m2_s2,
     motional_pivot_perturbation,
     motional_pivot_uncertainty,
     pivot_perturbation_stark,
     predicted_partner_bare_radial_frequencies_hz,
+    predicted_partner_bare_radial_frequencies_hz_exact,
     quadrupole_pivot_perturbation,
     radial_micromotion_enhancement,
+    radial_micromotion_enhancement_exact,
     spin_connection_stark,
     stark_pivot_terms,
     two_ion_participations,
@@ -1628,3 +1633,372 @@ def test_predicted_partner_bare_radial_frequencies_raises_for_unconfined_predict
         predicted_partner_bare_radial_frequencies_hz(
             mathieu, _M_AL27, m_partner_too_heavy, _MARSHALL_RF_DRIVE_HZ
         )
+
+
+# ---------------------------------------------------------------------------
+# WP34: numerically exact Floquet treatment of intrinsic micromotion
+# (CONVENTIONS.md section 16's WP34 addition). Covers `mathieu_floquet_solve`
+# (the continued-fraction/Newton engine, its convergence guard, the q->0
+# limit, and the small-q reduction to Berkeland's leading-order bracket),
+# `radial_micromotion_enhancement_exact`, `clock_ion_mathieu_parameters_exact`
+# (round trip on synthetic inputs, and a hand-pinned Marshall solve), and
+# `predicted_partner_bare_radial_frequencies_hz_exact`. WP33's own tests
+# above are untouched, G15-gated record.
+# ---------------------------------------------------------------------------
+
+
+def test_mathieu_floquet_solve_q_zero_limit_gives_f_exact_one() -> None:
+    """`mathieu_q=0` (no RF coupling, e.g. the trap axial direction) must
+    give `beta=sqrt(a)` and `F_exact=1.0` EXACTLY (WP34 comment block step
+    3): the harmonic-oscillator limit, with no continued-fraction machinery
+    exercised at all."""
+    for a in (0.001, 0.01, 0.1, 1.0):
+        solution = mathieu_floquet_solve(a, 0.0)
+        np.testing.assert_allclose(solution.beta, math.sqrt(a), rtol=0, atol=0)
+        assert solution.velocity_enhancement_exact() == 1.0
+
+
+def test_mathieu_floquet_solve_small_q_matches_leading_order_beta() -> None:
+    """At small `(a, q)`, the exact characteristic exponent must converge
+    to the leading-order relation `beta = sqrt(a+q^2/2)` (Berkeland Eq. 9)
+    as `q -> 0`, with the deviation shrinking as `q` shrinks -- the exact
+    solve strictly generalizes the leading-order formula, it does not
+    replace it with something unrelated."""
+    a = 0.005
+    deviations = []
+    for q in (0.1, 0.03, 0.01, 0.003):
+        solution = mathieu_floquet_solve(a, q)
+        leading_order_beta = math.sqrt(a + q * q / 2.0)
+        deviations.append(abs(solution.beta - leading_order_beta) / leading_order_beta)
+    # Monotonically shrinking relative deviation as q shrinks.
+    for earlier, later in zip(deviations, deviations[1:], strict=False):
+        assert later < earlier
+    assert deviations[-1] < 1e-5
+
+
+def test_mathieu_floquet_solve_small_q_f_exact_matches_leading_bracket() -> None:
+    """Small-q expansion check (WP34 task item b): `F_exact` must
+    reproduce Berkeland's leading-order bracket
+    `1 + q^2/(2*a+q^2)` to `O(q^2)` as `q` shrinks at fixed `a`."""
+    a = 0.01
+    for q in (0.1, 0.03, 0.01):
+        solution = mathieu_floquet_solve(a, q)
+        f_exact = solution.velocity_enhancement_exact()
+        f_leading = 1.0 + q * q / (2.0 * a + q * q)
+        # O(q^2) agreement: the relative residual shrinks quadratically
+        # with q (checked here as "well under q^2 magnitude").
+        assert abs(f_exact - f_leading) / f_leading < q * q
+
+
+def test_mathieu_floquet_solve_f_exact_matches_marshall_wp33_pinned_scale() -> None:
+    """At the Al27+/Mg25+ Marshall dataset's own `(a, q)` scale (pinned
+    from `clock_ion_mathieu_parameters`'s own WP33 hand-computed test),
+    `F_exact` must land close to (but distinguishably different from)
+    WP33's own leading-order `F_axis`, within a few percent -- Berkeland's
+    own leading-order regime, verified quantitatively."""
+    q = 0.19127799732774156
+    a_x = -0.005884496084657496
+    a_y = 0.0023025499448954367
+    f_x_leading = radial_micromotion_enhancement(q, a_x)
+    f_y_leading = radial_micromotion_enhancement(q, a_y)
+    f_x_exact = radial_micromotion_enhancement_exact(q, a_x)
+    f_y_exact = radial_micromotion_enhancement_exact(q, a_y)
+    # Close (leading-order regime), but not bit-for-bit identical (the
+    # exact solve is a genuinely different computation).
+    np.testing.assert_allclose(f_x_exact, f_x_leading, rtol=5e-3, atol=0)
+    np.testing.assert_allclose(f_y_exact, f_y_leading, rtol=5e-3, atol=0)
+    assert f_x_exact != f_x_leading
+    assert f_y_exact != f_y_leading
+
+
+def test_mathieu_floquet_solve_cross_checked_against_monodromy_matrix_integration() -> None:
+    """Independent verification (WP34 comment block step 1): the exact
+    characteristic exponent from the continued-fraction/Newton solve must
+    match the Floquet exponent from completely independent monodromy-
+    matrix ODE integration (the trace of the one-period fundamental-
+    solution matrix, `beta = arccos(Tr(M)/2)/pi`), computed here with
+    `scipy.integrate.solve_ivp` -- a method sharing no code path with
+    `mathieu_floquet_solve`'s own continued fraction."""
+    from scipy.integrate import solve_ivp
+
+    def mathieu_rhs(tau: float, y: np.ndarray, a: float, q: float) -> list[float]:
+        u, u_prime = y
+        return [u_prime, -(a + 2.0 * q * math.cos(2.0 * tau)) * u]
+
+    def beta_via_monodromy(a: float, q: float) -> float:
+        sol1 = solve_ivp(
+            mathieu_rhs, [0.0, math.pi], [1.0, 0.0], args=(a, q), rtol=1e-13, atol=1e-14
+        )
+        sol2 = solve_ivp(
+            mathieu_rhs, [0.0, math.pi], [0.0, 1.0], args=(a, q), rtol=1e-13, atol=1e-14
+        )
+        monodromy = np.array([[sol1.y[0, -1], sol2.y[0, -1]], [sol1.y[1, -1], sol2.y[1, -1]]])
+        trace = np.trace(monodromy)
+        return float(np.arccos(trace / 2.0) / math.pi)
+
+    test_points = (
+        (0.003, 0.05),
+        (-0.005884496084657496, 0.19127799732774156),
+        (0.0023025499448954367, 0.19127799732774156),
+        (0.0008, 0.28),
+        (0.05, 0.28),
+    )
+    for a, q in test_points:
+        beta_monodromy = beta_via_monodromy(a, q)
+        solution = mathieu_floquet_solve(a, q)
+        np.testing.assert_allclose(solution.beta, beta_monodromy, rtol=0, atol=1e-10)
+
+
+def test_mathieu_floquet_solve_convergence_guard_raises_on_non_convergence() -> None:
+    """A `max_depth` too small to let the depth-doubling convergence test
+    ever compare two depths must raise, not silently return an
+    unconverged result."""
+    with pytest.raises(ValueError, match="did not converge"):
+        mathieu_floquet_solve(0.0023025499448954367, 0.19127799732774156, min_depth=2, max_depth=2)
+
+
+def test_mathieu_floquet_solve_rejects_invalid_input() -> None:
+    with pytest.raises(ValueError, match="mathieu_q"):
+        mathieu_floquet_solve(0.001, -0.1)
+    with pytest.raises(ValueError, match="min_depth"):
+        mathieu_floquet_solve(0.001, 0.1, min_depth=0)
+    with pytest.raises(ValueError, match="max_depth"):
+        mathieu_floquet_solve(0.001, 0.1, min_depth=10, max_depth=5)
+    with pytest.raises(ValueError, match="unphysical radial confinement"):
+        mathieu_floquet_solve(-1.0, 0.1)
+
+
+def test_mathieu_floquet_solve_fourier_coefficients_c0_is_one() -> None:
+    """`c_0 = 1.0` exactly, by construction (the normalization
+    `MathieuFloquetSolution`'s own docstring states)."""
+    solution = mathieu_floquet_solve(0.0023025499448954367, 0.19127799732774156)
+    c0 = solution.fourier_coefficients[solution.truncation_depth]
+    assert c0 == 1.0
+
+
+def test_radial_micromotion_enhancement_exact_axial_case_is_identity() -> None:
+    """`q=0` gives `F_exact=1` identically for any nonzero `a_axis`,
+    mirroring `radial_micromotion_enhancement`'s own leading-order
+    behavior at `q=0`."""
+    for a in (0.001, 0.5, 3.0):
+        assert radial_micromotion_enhancement_exact(0.0, a) == 1.0
+
+
+def test_radial_micromotion_enhancement_exact_rejects_negative_q() -> None:
+    with pytest.raises(ValueError, match="mathieu_q"):
+        radial_micromotion_enhancement_exact(-0.1, 0.001)
+
+
+def test_clock_ion_mathieu_parameters_exact_round_trip_recovers_synthetic_inputs() -> None:
+    """Forward-construct a synthetic clock-ion Mathieu solution using the
+    EXACT Floquet relation (not the leading-order one): pick `(q, a_x,
+    a_y, a_z)` satisfying the Laplace constraint, compute `beta_exact(a_x,
+    q)`/`beta_exact(a_y, q)` via `mathieu_floquet_solve` to get the "true"
+    bare radial frequencies, then invert with
+    `clock_ion_mathieu_parameters_exact` and check the recovered
+    parameters match the synthetic originals to near machine precision --
+    the 2D Newton solve is a genuine numerical inverse of the exact
+    forward Floquet relation."""
+    m_clock = 27.0 * ATOMIC_MASS_UNIT
+    q_true = 0.22
+    a_x_true = -0.0040
+    a_z_true = 0.0031
+    a_y_true = -a_z_true - a_x_true  # Laplace constraint
+
+    rf_drive_hz = 65.0e6
+    omega_rf = 2.0 * math.pi * rf_drive_hz
+    omega_z_true = (omega_rf / 2.0) * math.sqrt(a_z_true)
+    c_true = m_clock * omega_z_true * omega_z_true / 2.0
+
+    beta_x_true = mathieu_floquet_solve(a_x_true, q_true).beta
+    beta_y_true = mathieu_floquet_solve(a_y_true, q_true).beta
+    omega_x_true = (omega_rf / 2.0) * beta_x_true
+    omega_y_true = (omega_rf / 2.0) * beta_y_true
+    f_x_true = omega_x_true / (2.0 * math.pi)
+    f_y_true = omega_y_true / (2.0 * math.pi)
+
+    result = clock_ion_mathieu_parameters_exact(m_clock, c_true, rf_drive_hz, f_x_true, f_y_true)
+    np.testing.assert_allclose(result.mathieu_q, q_true, rtol=1e-8, atol=0)
+    np.testing.assert_allclose(result.mathieu_a_x, a_x_true, rtol=1e-7, atol=1e-14)
+    np.testing.assert_allclose(result.mathieu_a_y, a_y_true, rtol=1e-7, atol=1e-14)
+    np.testing.assert_allclose(result.mathieu_a_z, a_z_true, rtol=1e-9, atol=1e-16)
+    np.testing.assert_allclose(
+        result.mathieu_a_x + result.mathieu_a_y, -result.mathieu_a_z, rtol=0, atol=1e-14
+    )
+
+
+def test_clock_ion_mathieu_parameters_exact_hand_computed_marshall() -> None:
+    """The clock (Al27+) ion's EXACT Mathieu parameters for Marshall et
+    al.'s trap, cross-checked against `python benchmarks/
+    run_motional_al_ion.py`'s WP34 case output this session, and against
+    WP33's own leading-order values (close but not identical, WP33's
+    own leading-order regime)."""
+    c, _ = axial_coulomb_curvature(_M_AL27, _M_MG25, 2.16e6)
+    result = clock_ion_mathieu_parameters_exact(
+        _M_AL27, c, _MARSHALL_RF_DRIVE_HZ, _MARSHALL_BARE_CLOCK_X_HZ, _MARSHALL_BARE_CLOCK_Y_HZ
+    )
+    np.testing.assert_allclose(result.mathieu_q, 0.19008302401903907, rtol=1e-8, atol=0)
+    np.testing.assert_allclose(result.mathieu_a_x, -0.005809270371234204, rtol=1e-7, atol=0)
+    np.testing.assert_allclose(result.mathieu_a_y, 0.0022273242314721445, rtol=1e-7, atol=0)
+    # a_z is unaffected by the exact treatment (q_z=0 makes it exact
+    # already at WP33's own leading order, WP34 comment block step 3).
+    np.testing.assert_allclose(result.mathieu_a_z, 0.0035819461397620595, rtol=1e-9, atol=0)
+    np.testing.assert_allclose(
+        result.mathieu_a_x + result.mathieu_a_y, -result.mathieu_a_z, rtol=0, atol=1e-14
+    )
+    # Close to, but distinguishable from, WP33's own leading-order solve.
+    leading = clock_ion_mathieu_parameters(
+        _M_AL27, c, _MARSHALL_RF_DRIVE_HZ, _MARSHALL_BARE_CLOCK_X_HZ, _MARSHALL_BARE_CLOCK_Y_HZ
+    )
+    np.testing.assert_allclose(result.mathieu_q, leading.mathieu_q, rtol=1e-2, atol=0)
+    assert result.mathieu_q != leading.mathieu_q
+    assert result.mathieu_a_z == leading.mathieu_a_z
+
+
+def test_clock_ion_mathieu_parameters_exact_uncertainty_matches_finite_difference() -> None:
+    """Uncertainty propagation sanity, mirroring
+    `test_clock_ion_mathieu_parameters_uncertainty_matches_finite_difference`'s
+    style: an INDEPENDENTLY-coded central finite difference over each
+    uncertain input, combined in quadrature, must match the reported
+    uncertainty."""
+    c, sigma_c = 3.976554191127463e-12, 3.976554191127463e-12 * 1e-4
+    rf_hz, sigma_rf = _MARSHALL_RF_DRIVE_HZ, 1.0e3
+    f_x, sigma_f_x = _MARSHALL_BARE_CLOCK_X_HZ, 2000.0
+    f_y, sigma_f_y = _MARSHALL_BARE_CLOCK_Y_HZ, 1500.0
+
+    def solve(
+        c_val: float, rf_val: float, fx_val: float, fy_val: float
+    ) -> ClockIonMathieuParameters:
+        return clock_ion_mathieu_parameters_exact(_M_AL27, c_val, rf_val, fx_val, fy_val)
+
+    def partials(field: str) -> float:
+        plus = getattr(solve(c + sigma_c, rf_hz, f_x, f_y), field)
+        minus = getattr(solve(c - sigma_c, rf_hz, f_x, f_y), field)
+        d_c = (plus - minus) / 2.0
+        plus = getattr(solve(c, rf_hz + sigma_rf, f_x, f_y), field)
+        minus = getattr(solve(c, rf_hz - sigma_rf, f_x, f_y), field)
+        d_rf = (plus - minus) / 2.0
+        plus = getattr(solve(c, rf_hz, f_x + sigma_f_x, f_y), field)
+        minus = getattr(solve(c, rf_hz, f_x - sigma_f_x, f_y), field)
+        d_fx = (plus - minus) / 2.0
+        plus = getattr(solve(c, rf_hz, f_x, f_y + sigma_f_y), field)
+        minus = getattr(solve(c, rf_hz, f_x, f_y - sigma_f_y), field)
+        d_fy = (plus - minus) / 2.0
+        return math.sqrt(d_c**2 + d_rf**2 + d_fx**2 + d_fy**2)
+
+    expected_q_unc = partials("mathieu_q")
+
+    result = clock_ion_mathieu_parameters_exact(
+        _M_AL27,
+        c,
+        rf_hz,
+        f_x,
+        f_y,
+        coulomb_curvature_uncertainty_n_per_m=sigma_c,
+        rf_drive_frequency_uncertainty_hz=sigma_rf,
+        radial_bare_frequency_clock_x_uncertainty_hz=sigma_f_x,
+        radial_bare_frequency_clock_y_uncertainty_hz=sigma_f_y,
+    )
+    np.testing.assert_allclose(result.mathieu_q_uncertainty, expected_q_unc, rtol=1e-6, atol=0)
+
+
+def test_clock_ion_mathieu_parameters_exact_uncertainty_zero_when_every_input_exact() -> None:
+    c, _ = axial_coulomb_curvature(_M_AL27, _M_MG25, 2.16e6)
+    result = clock_ion_mathieu_parameters_exact(
+        _M_AL27, c, _MARSHALL_RF_DRIVE_HZ, _MARSHALL_BARE_CLOCK_X_HZ, _MARSHALL_BARE_CLOCK_Y_HZ
+    )
+    assert result.mathieu_q_uncertainty == 0.0
+    assert result.mathieu_a_x_uncertainty == 0.0
+    assert result.mathieu_a_y_uncertainty == 0.0
+    assert result.mathieu_a_z_uncertainty == 0.0
+
+
+def test_clock_ion_mathieu_parameters_exact_rejects_invalid_input() -> None:
+    c = 3.976554191127463e-12
+    with pytest.raises(ValueError, match="m_clock_kg"):
+        clock_ion_mathieu_parameters_exact(0.0, c, _MARSHALL_RF_DRIVE_HZ, 4.0e6, 5.0e6)
+    with pytest.raises(ValueError, match="coulomb_curvature_n_per_m"):
+        clock_ion_mathieu_parameters_exact(_M_AL27, 0.0, _MARSHALL_RF_DRIVE_HZ, 4.0e6, 5.0e6)
+
+
+def test_predicted_partner_bare_radial_frequencies_exact_matches_marshall_run() -> None:
+    """MANDATORY OVER-DETERMINATION CHECK (exact, WP34): the clock ion's
+    own EXACT-solved Mathieu parameters, mass-scaled to the partner ion
+    and evaluated via the exact `beta(a, q)` map, predict bare radial
+    frequencies pinned here to `python benchmarks/run_motional_al_ion.py`'s
+    actual WP34 case output this session, landing within a few
+    tenths of a percent of WP32's own SEPARATELY reconstructed partner
+    frequencies."""
+    c, _ = axial_coulomb_curvature(_M_AL27, _M_MG25, 2.16e6)
+    mathieu = clock_ion_mathieu_parameters_exact(
+        _M_AL27, c, _MARSHALL_RF_DRIVE_HZ, _MARSHALL_BARE_CLOCK_X_HZ, _MARSHALL_BARE_CLOCK_Y_HZ
+    )
+    predicted_x_hz, predicted_y_hz = predicted_partner_bare_radial_frequencies_hz_exact(
+        mathieu, _M_AL27, _M_MG25, _MARSHALL_RF_DRIVE_HZ
+    )
+    np.testing.assert_allclose(predicted_x_hz, 4341117.492998679, rtol=1e-8, atol=0)
+    np.testing.assert_allclose(predicted_y_hz, 5475275.342765603, rtol=1e-8, atol=0)
+
+    relative_deviation_x = (
+        predicted_x_hz - _MARSHALL_BARE_PARTNER_X_HZ
+    ) / _MARSHALL_BARE_PARTNER_X_HZ
+    relative_deviation_y = (
+        predicted_y_hz - _MARSHALL_BARE_PARTNER_Y_HZ
+    ) / _MARSHALL_BARE_PARTNER_Y_HZ
+    assert abs(relative_deviation_x) < 0.01
+    assert abs(relative_deviation_y) < 0.01
+
+
+def test_predicted_partner_bare_radial_frequencies_exact_round_trip_equal_mass() -> None:
+    """At `m_partner == m_clock` (mass ratio 1), the "predicted partner"
+    frequencies must reproduce the clock ion's own EXACT bare radial
+    frequencies exactly -- the mass-scaling relation's trivial fixed
+    point, evaluated through the exact `beta(a, q)` map this time."""
+    m_clock = 27.0 * ATOMIC_MASS_UNIT
+    mathieu = ClockIonMathieuParameters(
+        mathieu_q=0.2,
+        mathieu_a_x=-0.003,
+        mathieu_a_y=0.001,
+        mathieu_a_z=0.002,
+        mathieu_q_uncertainty=0.0,
+        mathieu_a_x_uncertainty=0.0,
+        mathieu_a_y_uncertainty=0.0,
+        mathieu_a_z_uncertainty=0.0,
+    )
+    rf_drive_hz = 70.0e6
+    omega_rf = 2.0 * math.pi * rf_drive_hz
+    expected_beta_x = mathieu_floquet_solve(mathieu.mathieu_a_x, mathieu.mathieu_q).beta
+    expected_beta_y = mathieu_floquet_solve(mathieu.mathieu_a_y, mathieu.mathieu_q).beta
+    expected_fx = (omega_rf / 2.0) * expected_beta_x / (2.0 * math.pi)
+    expected_fy = (omega_rf / 2.0) * expected_beta_y / (2.0 * math.pi)
+    predicted_x_hz, predicted_y_hz = predicted_partner_bare_radial_frequencies_hz_exact(
+        mathieu, m_clock, m_clock, rf_drive_hz
+    )
+    np.testing.assert_allclose(predicted_x_hz, expected_fx, rtol=1e-10, atol=0)
+    np.testing.assert_allclose(predicted_y_hz, expected_fy, rtol=1e-10, atol=0)
+
+
+def test_predicted_partner_bare_radial_frequencies_exact_rejects_invalid_input() -> None:
+    mathieu = ClockIonMathieuParameters(
+        mathieu_q=0.2,
+        mathieu_a_x=-0.003,
+        mathieu_a_y=0.001,
+        mathieu_a_z=0.002,
+        mathieu_q_uncertainty=0.0,
+        mathieu_a_x_uncertainty=0.0,
+        mathieu_a_y_uncertainty=0.0,
+        mathieu_a_z_uncertainty=0.0,
+    )
+    with pytest.raises(ValueError, match="m_clock_kg"):
+        predicted_partner_bare_radial_frequencies_hz_exact(mathieu, 0.0, _M_MG25, 70.0e6)
+    with pytest.raises(ValueError, match="m_partner_kg"):
+        predicted_partner_bare_radial_frequencies_hz_exact(mathieu, _M_AL27, 0.0, 70.0e6)
+    with pytest.raises(ValueError, match="rf_drive_frequency_hz"):
+        predicted_partner_bare_radial_frequencies_hz_exact(mathieu, _M_AL27, _M_MG25, 0.0)
+
+
+def test_mathieu_floquet_solution_is_frozen_dataclass() -> None:
+    solution = mathieu_floquet_solve(0.001, 0.1)
+    assert isinstance(solution, MathieuFloquetSolution)
+    with pytest.raises(AttributeError):
+        solution.beta = 0.5  # type: ignore[misc]
