@@ -1,16 +1,8 @@
 # Contributing to CliffordClock
 
-CliffordClock gets better with every lab's case that runs through it. NPL's
-stray-field measurement and Bothwell et al.'s mm-scale redshift measurement
-are the two reproducibility cases the validation record stands on today, and
-both exist because that data was public enough to reconstruct end to end. We
-want more of that: your species, your chamber, your trap, your published
-evaluation, run through this engine and written up as a real case the next
-person can check.
-
-This file is that invitation. Whether you run a clock, work on the physics
-this engine touches, or want to fix a sentence that reads wrong, we want you
-contributing, and the rest of this document explains how.
+Contributions are welcome, from a one-line docs fix to a benchmark case
+built on your lab's own published evaluation. This document covers what
+helps most, how review works here, and the quality bar.
 
 ## What helps most
 
