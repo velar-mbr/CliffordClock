@@ -1,23 +1,24 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: AGPL-3.0-or-later
-"""Figure 8 (Al+ motional-Doppler progression): the four E38 case variants
+"""Figure 8 (Al+ motional-Doppler progression): six E38 case variants
 against Marshall et al.'s published secular-motion band, plus every quoted
 number in the paper's E38/E39 validation subsections.
 
 Calls the real ``benchmarks/run_motional_al_ion.py`` case builders (WP30
 single-mass, WP31 mass-ratio participation, WP32 measured-spectrum-
-reconstructed participation, WP33 participation-times-intrinsic-
-micromotion-enhancement), the same case objects
-``notebooks/13_trapped_ion_quantum_motion.ipynb`` sections 3-4 run live, so
-this script and that notebook can never silently disagree.
+reconstructed participation, WP33 participation-times-leading-order-
+intrinsic-micromotion-enhancement, WP34 participation-times-exact-Floquet
+enhancement, WP35 the coupled two-ion Floquet constrained fit), the same
+case objects ``notebooks/13_trapped_ion_quantum_motion.ipynb`` sections 3-4
+run live, so this script and that notebook can never silently disagree.
 
-**Binding classification label: every one of the four cases below is an
+**Binding classification label: every one of the six cases below is an
 `arithmetic_reproduction`** (``benchmarks/run_motional_al_ion.py``'s own
 ``case_class``, never ``reproducibility``/``blind_prediction``): Marshall et
 al.'s published mode frequencies and n_bar values, and their own published
 per-mode/total secular-motion rows, are what each case reproduces from an
 independently published standard formula, not an independent measurement
-this project supplied. None of the four join this paper's two-
+this project supplied. None of the six join this paper's two-
 reproducibility-case validation headline (Sec. sec:validation); each carries
 its own class label wherever it is quoted.
 
@@ -79,16 +80,23 @@ def main() -> None:
     radial_case = motional.run_motional_al_ion_radial_reconstructed_case()
     enhanced_case = motional.run_motional_al_ion_intrinsic_micromotion_enhanced_case()
     brewer_check = motional.run_wp33_brewer_consistency_check()
+    exact_case = motional.run_motional_al_ion_exact_intrinsic_micromotion_enhanced_case()
+    diagnostic_case = motional.run_motional_al_ion_coupled_floquet_case()
+    constrained_case = motional.run_motional_al_ion_constrained_floquet_case()
+    constrained_brewer_check = motional.run_wp35_constrained_brewer_consistency_check()
 
     for case, label in (
         (al_case, "WP30"),
         (participation_case, "WP31"),
         (radial_case, "WP32"),
         (enhanced_case, "WP33"),
+        (exact_case, "WP34"),
+        (diagnostic_case, "WP35 diagnostic"),
+        (constrained_case, "WP35 constrained"),
     ):
         assert case.case_class == "arithmetic_reproduction", (
             f"unexpected case_class for {label} -- the classification-labeling prose this "
-            "script's macros feed assumes every WP30-33 case is an arithmetic reproduction"
+            "script's macros feed assumes every WP30-35 case is an arithmetic reproduction"
         )
 
     published = motional.loaders.MARSHALL_AL_ION_SECULAR_MOTION_SHIFT
@@ -110,14 +118,24 @@ def main() -> None:
             radial_case.predicted_total_uncertainty_fractional,
         ),
         (
-            "participation\n$\\times$ micromotion",
+            "participation\n$\\times$ leading-order\nenhancement",
             enhanced_case.predicted_total_nominal,
             enhanced_case.predicted_total_uncertainty_fractional,
         ),
+        (
+            "participation\n$\\times$ exact Floquet\nenhancement",
+            exact_case.predicted_total_nominal,
+            exact_case.predicted_total_uncertainty_combined_fractional,
+        ),
+        (
+            "coupled\nconstrained fit",
+            constrained_case.predicted_total_nominal,
+            constrained_case.predicted_total_uncertainty_combined_fractional,
+        ),
     ]
 
-    # --- Figure 8: the four-variant progression against the published band. ---
-    fig, ax = plt.subplots(figsize=(6.4, 4.0))
+    # --- Figure 8: the six-variant progression against the published band. ---
+    fig, ax = plt.subplots(figsize=(8.4, 4.2))
     x_pos = np.arange(len(progression))
     totals_1e19 = np.array([p[1] for p in progression]) / 1.0e-19
     uncs_1e19 = np.array([p[2] for p in progression]) / 1.0e-19
@@ -143,9 +161,9 @@ def main() -> None:
         zorder=3,
     )
     ax.set_xticks(x_pos)
-    ax.set_xticklabels(labels, fontsize=7.5)
+    ax.set_xticklabels(labels, fontsize=7.0)
     ax.set_ylabel(r"$(P-1)_\mathrm{motional}$ ($\times10^{-19}$)")
-    ax.set_title("Al$^+$ secular-motion total: the four-variant progression")
+    ax.set_title("Al$^+$ secular-motion total: the six-variant progression")
     ax.legend(fontsize=7.5, loc="lower left")
     ax.grid(True, alpha=0.25, axis="y")
     fig.tight_layout()
@@ -310,6 +328,199 @@ def main() -> None:
     )
     common.write_tex_macro("AlIonBrewerRatioLo", f"{min(brewer_ratios):.2f}", "motional_values.tex")
     common.write_tex_macro("AlIonBrewerRatioHi", f"{max(brewer_ratios):.2f}", "motional_values.tex")
+
+    # --- WP34: numerically exact Floquet enhancement (Marshall trap). --------
+    sigma_wp34 = _sigma_from_published(
+        exact_case.predicted_total_nominal,
+        exact_case.predicted_total_uncertainty_combined_fractional,
+        published,
+    )
+    common.write_tex_macro(
+        "AlIonWpThirtyFourTotal",
+        _fmt_sci(exact_case.predicted_total_nominal),
+        "motional_values.tex",
+    )
+    common.write_tex_macro(
+        "AlIonWpThirtyFourUnc",
+        _fmt_sci(exact_case.predicted_total_uncertainty_combined_fractional),
+        "motional_values.tex",
+    )
+    common.write_tex_macro("AlIonWpThirtyFourSigma", f"{sigma_wp34:.2f}", "motional_values.tex")
+    common.write_tex_macro(
+        "AlIonWpThirtyFourVerdict", exact_case.total_kpi_verdict, "motional_values.tex"
+    )
+    common.write_tex_macro(
+        "AlIonWpThirtyFourEnhancementX", f"{exact_case.enhancement_x:.3f}", "motional_values.tex"
+    )
+    common.write_tex_macro(
+        "AlIonWpThirtyFourEnhancementY", f"{exact_case.enhancement_y:.3f}", "motional_values.tex"
+    )
+    enhancement_x_rel_pct = (
+        (exact_case.enhancement_x - exact_case.enhancement_x_leading_order)
+        / exact_case.enhancement_x_leading_order
+        * 100.0
+    )
+    enhancement_y_rel_pct = (
+        (exact_case.enhancement_y - exact_case.enhancement_y_leading_order)
+        / exact_case.enhancement_y_leading_order
+        * 100.0
+    )
+    common.write_tex_macro(
+        "AlIonWpThirtyFourEnhancementXRelPct", f"{enhancement_x_rel_pct:.2f}", "motional_values.tex"
+    )
+    common.write_tex_macro(
+        "AlIonWpThirtyFourEnhancementYRelPct", f"{enhancement_y_rel_pct:.2f}", "motional_values.tex"
+    )
+    common.write_tex_macro(
+        "AlIonWpThirtyFourPartnerDevX",
+        f"{exact_case.partner_x_relative_deviation * 100.0:.2f}",
+        "motional_values.tex",
+    )
+    common.write_tex_macro(
+        "AlIonWpThirtyFourPartnerDevY",
+        f"{exact_case.partner_y_relative_deviation * 100.0:.2f}",
+        "motional_values.tex",
+    )
+    exact_by_name = {m.name: m for m in exact_case.per_mode if not m.is_axial}
+    common.write_tex_macro(
+        "AlIonWpThirtyFourFinalXcom",
+        f"{exact_by_name['x_com'].ratio_predicted_over_published:.2f}",
+        "motional_values.tex",
+    )
+    common.write_tex_macro(
+        "AlIonWpThirtyFourFinalXstr",
+        f"{exact_by_name['x_str'].ratio_predicted_over_published:.2f}",
+        "motional_values.tex",
+    )
+
+    # --- WP35: the coupled two-ion Floquet solve. -----------------------------
+    # Diagnostic per-axis variant (kept as a labeled diagnostic, G17 gate):
+    # its own total is the model-structure component's other endpoint, and
+    # its own limit checks (c -> 0 against WP34, RF -> 0 against WP32) tie
+    # the coupled solve to its predecessors.
+    sigma_wp35_diagnostic = _sigma_from_published(
+        diagnostic_case.predicted_total_nominal,
+        diagnostic_case.predicted_total_uncertainty_combined_fractional,
+        published,
+    )
+    common.write_tex_macro(
+        "AlIonWpThirtyFiveDiagnosticTotal",
+        _fmt_sci(diagnostic_case.predicted_total_nominal),
+        "motional_values.tex",
+    )
+    common.write_tex_macro(
+        "AlIonWpThirtyFiveDiagnosticSigma", f"{sigma_wp35_diagnostic:.2f}", "motional_values.tex"
+    )
+    common.write_tex_macro(
+        "AlIonWpThirtyFiveDiagnosticVerdict",
+        diagnostic_case.total_kpi_verdict,
+        "motional_values.tex",
+    )
+
+    # The constrained fit: this WP's own headline result (G17 gate fix loop).
+    fit = constrained_case.constrained_fit
+    common.write_tex_macro("AlIonWpThirtyFiveQ", f"{fit['mathieu_q']:.6f}", "motional_values.tex")
+    common.write_tex_macro("AlIonWpThirtyFiveAlpha", f"{fit['alpha']:.6f}", "motional_values.tex")
+    common.write_tex_macro(
+        "AlIonWpThirtyFiveAx", f"{fit['mathieu_a_x']:.5f}", "motional_values.tex"
+    )
+    common.write_tex_macro(
+        "AlIonWpThirtyFiveAy", f"{fit['mathieu_a_y']:.5f}", "motional_values.tex"
+    )
+
+    _measured_hz = {
+        "x_com": motional.loaders.MARSHALL_AL_ION_MODES_MHZ_NBAR[2][1] * 1.0e6,
+        "x_str": motional.loaders.MARSHALL_AL_ION_MODES_MHZ_NBAR[3][1] * 1.0e6,
+        "y_com": motional.loaders.MARSHALL_AL_ION_MODES_MHZ_NBAR[4][1] * 1.0e6,
+        "y_str": motional.loaders.MARSHALL_AL_ION_MODES_MHZ_NBAR[5][1] * 1.0e6,
+    }
+    for mode_key, residual_hz, macro_suffix in (
+        ("x_com", fit["residual_x_com_hz"], "Xcom"),
+        ("x_str", fit["residual_x_str_hz"], "Xstr"),
+        ("y_com", fit["residual_y_com_hz"], "Ycom"),
+        ("y_str", fit["residual_y_str_hz"], "Ystr"),
+    ):
+        common.write_tex_macro(
+            f"AlIonWpThirtyFiveResid{macro_suffix}Hz", f"{residual_hz:.1f}", "motional_values.tex"
+        )
+        common.write_tex_macro(
+            f"AlIonWpThirtyFiveResid{macro_suffix}Pct",
+            f"{residual_hz / _measured_hz[mode_key] * 100.0:.3f}",
+            "motional_values.tex",
+        )
+
+    sigma_wp35 = _sigma_from_published(
+        constrained_case.predicted_total_nominal,
+        constrained_case.predicted_total_uncertainty_combined_fractional,
+        published,
+    )
+    common.write_tex_macro(
+        "AlIonWpThirtyFiveTotal",
+        _fmt_sci(constrained_case.predicted_total_nominal),
+        "motional_values.tex",
+    )
+    common.write_tex_macro("AlIonWpThirtyFiveSigma", f"{sigma_wp35:.2f}", "motional_values.tex")
+    common.write_tex_macro(
+        "AlIonWpThirtyFiveVerdict", constrained_case.total_kpi_verdict, "motional_values.tex"
+    )
+
+    # The three-component uncertainty budget (G17 item 3).
+    common.write_tex_macro(
+        "AlIonWpThirtyFiveUncThermometry",
+        _fmt_sci(constrained_case.predicted_total_uncertainty_nbar_fractional),
+        "motional_values.tex",
+    )
+    common.write_tex_macro(
+        "AlIonWpThirtyFiveUncRounding",
+        _fmt_sci(constrained_case.predicted_total_uncertainty_rounding_fractional),
+        "motional_values.tex",
+    )
+    common.write_tex_macro(
+        "AlIonWpThirtyFiveUncModelStructure",
+        _fmt_sci(constrained_case.predicted_total_uncertainty_model_structure_fractional),
+        "motional_values.tex",
+    )
+    common.write_tex_macro(
+        "AlIonWpThirtyFiveUncCombined",
+        _fmt_sci(constrained_case.predicted_total_uncertainty_combined_fractional),
+        "motional_values.tex",
+    )
+
+    # The over-determination partner check (G17 item 2: both traps).
+    common.write_tex_macro(
+        "AlIonWpThirtyFivePartnerDevX",
+        f"{constrained_case.partner_x_relative_deviation * 100.0:.2f}",
+        "motional_values.tex",
+    )
+    common.write_tex_macro(
+        "AlIonWpThirtyFivePartnerDevY",
+        f"{constrained_case.partner_y_relative_deviation * 100.0:.2f}",
+        "motional_values.tex",
+    )
+    common.write_tex_macro(
+        "AlIonWpThirtyFiveBrewerPartnerDevX",
+        f"{constrained_brewer_check.partner_x_relative_deviation * 100.0:.2f}",
+        "motional_values.tex",
+    )
+    common.write_tex_macro(
+        "AlIonWpThirtyFiveBrewerPartnerDevY",
+        f"{constrained_brewer_check.partner_y_relative_deviation * 100.0:.2f}",
+        "motional_values.tex",
+    )
+
+    # Radial per-mode ratios (constrained fit, Marshall trap).
+    constrained_by_name = {m.name: m for m in constrained_case.per_mode if not m.is_axial}
+    for name, macro_suffix in (
+        ("x_com", "Xcom"),
+        ("x_str", "Xstr"),
+        ("y_com", "Ycom"),
+        ("y_str", "Ystr"),
+    ):
+        common.write_tex_macro(
+            f"AlIonWpThirtyFiveRatio{macro_suffix}",
+            f"{constrained_by_name[name].ratio_predicted_over_published:.2f}",
+            "motional_values.tex",
+        )
 
     print(
         f"WP30 (single-mass): {al_case.predicted_shift_nominal / 1e-19:.2f}e-19, "
