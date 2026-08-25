@@ -35,6 +35,13 @@ import sys
 from pathlib import Path
 
 import numpy as np
+import pytest
+
+# The coupled-Floquet cases each run many 4D monodromy integrations, about
+# seven CPU-minutes for this file on a dev machine and several times that
+# on the CI runner, so the whole file rides the slow lane (the same
+# doctrine that moved the patch-field and FD-electrode generators there).
+pytestmark = pytest.mark.slow
 
 _BENCHMARKS_DIR = Path(__file__).resolve().parent.parent / "benchmarks"
 if str(_BENCHMARKS_DIR) not in sys.path:
