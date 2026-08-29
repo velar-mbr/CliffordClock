@@ -217,6 +217,14 @@ HONEST_FAMILY_RE = re.compile(
     re.IGNORECASE,
 )
 
+#: prose-review skill, "'Exactly' and 'precisely' (blocker by default)":
+#: these words almost always inflate a claim or glue on an extra clause,
+#: surviving only in narrow technical uses (an exact solution, a stated
+#: identity) that this line-local scan cannot tell apart from inflation.
+#: Every match is therefore MINOR, a candidate for the human clarity
+#: read, never a FAIL.
+EMPHASIS_WORD_RE = re.compile(r"\b(exactly|precisely)\b", re.IGNORECASE)
+
 FENCE_MARKERS = ("```", "~~~")
 
 
@@ -422,6 +430,100 @@ def _scan_meta_slop_phrases(
     return findings
 
 
+#: prose-review skill, "The clarity read": approximate sentence boundary --
+#: a sentence-ending mark followed by whitespace and a capital letter,
+#: digit, quote, or opening paren starts the next sentence. Deliberately
+#: approximate: every finding built on this split is MINOR, a candidate
+#: for the human clarity read, never a FAIL, so misreading "e.g." or
+#: "Fig. 3" as a boundary costs nothing.
+_SENTENCE_SPLIT_RE = re.compile(r"(?<=[.!?])\s+(?=[A-Z0-9\"'“(])")
+_BECAUSE_RE = re.compile(r"\bbecause\b", re.IGNORECASE)
+#: "longer than ~45 words" and "3+ commas" per the clarity-scan spec: both
+#: thresholds surface candidates for review, not verdicts, so they are
+#: tuned loosely rather than derived.
+_LONG_SENTENCE_WORD_LIMIT = 45
+_QUALIFIER_CHAIN_COMMA_LIMIT = 3
+
+
+def _split_sentences(joined: str) -> list[tuple[int, str]]:
+    """Split a wrap-joined paragraph into ``(start_offset, sentence)`` pairs.
+
+    ``start_offset`` indexes into ``joined`` (see :func:`_wrapped_paragraphs`)
+    so the caller can resolve it to a source line the same way
+    :func:`_scan_meta_slop_phrases` resolves a phrase match.
+    """
+    out: list[tuple[int, str]] = []
+    start = 0
+    for m in _SENTENCE_SPLIT_RE.finditer(joined):
+        sentence = joined[start : m.start()]
+        if sentence.strip():
+            out.append((start, sentence.strip()))
+        start = m.end()
+    tail = joined[start:]
+    if tail.strip():
+        out.append((start, tail.strip()))
+    return out
+
+
+def _scan_clarity_heuristics(
+    relpath: str, lines: list[str], *, allowed: list[str]
+) -> list[Finding]:
+    """MINOR candidates for the prose-review skill's "The clarity read".
+
+    Flags sentences over ``_LONG_SENTENCE_WORD_LIMIT`` words and sentences
+    that stack "because" with a qualifier chain of
+    ``_QUALIFIER_CHAIN_COMMA_LIMIT`` or more commas, against the
+    wrap-joined paragraphs of ``lines`` (see :func:`_wrapped_paragraphs`)
+    so a sentence split across a hard line-wrap is still measured whole.
+    Both are MINOR by design: a long or qualifier-stacked sentence is
+    sometimes the right call (the skill's own words: "correct prose can
+    still be unreadable" is a reading judgment, not a mechanical one), so
+    this scan only surfaces candidates for a human to read, never a
+    verdict.
+    """
+    findings: list[Finding] = []
+    seen: set[tuple[str, int]] = set()
+    for joined, line_starts in _wrapped_paragraphs(lines):
+        for start_offset, sentence in _split_sentences(joined):
+            lineno = line_starts[0][1]
+            for line_offset, ln in line_starts:
+                if line_offset > start_offset:
+                    break
+                lineno = ln
+            snippet = lines[lineno - 1].strip()
+            if _is_allowed(snippet, allowed):
+                continue
+            word_count = len(sentence.split())
+            if word_count > _LONG_SENTENCE_WORD_LIMIT and ("long", lineno) not in seen:
+                seen.add(("long", lineno))
+                findings.append(
+                    Finding(
+                        relpath,
+                        lineno,
+                        f"sentence runs {word_count} words, candidate for the clarity "
+                        f"read: {sentence[:120]!r}",
+                        severity="MINOR",
+                    )
+                )
+            if (
+                _BECAUSE_RE.search(sentence)
+                and sentence.count(",") >= _QUALIFIER_CHAIN_COMMA_LIMIT
+                and ("because-chain", lineno) not in seen
+            ):
+                seen.add(("because-chain", lineno))
+                findings.append(
+                    Finding(
+                        relpath,
+                        lineno,
+                        'sentence stacks "because" with a '
+                        f"{_QUALIFIER_CHAIN_COMMA_LIMIT}-plus-comma qualifier chain, "
+                        f"candidate for the clarity read: {sentence[:120]!r}",
+                        severity="MINOR",
+                    )
+                )
+    return findings
+
+
 def _scan_prose_text(
     relpath: str,
     raw_text: str,
@@ -460,6 +562,17 @@ def _scan_prose_text(
             findings.append(
                 Finding(relpath, lineno, f"honest-family word in prose: {snippet[:120]!r}")
             )
+        m = EMPHASIS_WORD_RE.search(line)
+        if m:
+            findings.append(
+                Finding(
+                    relpath,
+                    lineno,
+                    f"emphasis word {m.group(0)!r} in prose, candidate for the clarity "
+                    f"read: {snippet[:120]!r}",
+                    severity="MINOR",
+                )
+            )
     # Meta-slop phrases match against wrap-joined paragraphs (not single
     # lines), so a phrase split across a hard line-wrap cannot escape.
     findings.extend(
@@ -471,6 +584,9 @@ def _scan_prose_text(
             allowed=allowed,
         )
     )
+    # Clarity-read candidates (prose-review skill, "The clarity read"):
+    # MINOR only, against the same wrap-joined paragraphs.
+    findings.extend(_scan_clarity_heuristics(relpath, lines, allowed=allowed))
     if strip_code:
         findings.extend(
             _scan_meta_slop_phrases(
@@ -487,15 +603,22 @@ def _scan_prose_text(
 
 
 def prose_scan(allowlist: dict[str, Any]) -> CheckResult:
-    """Em dash / dash-as-punctuation / honest-family / meta-slop scan.
+    """Em dash / dash-as-punctuation / honest-family / meta-slop / clarity scan.
 
     Scans README.md, docs/**/*.md, benchmarks/**/*.md, notebook markdown
     cells, and paper/main.tex prose (after LaTeX-comment stripping). The
-    dash and honest-family checks are line-local; meta-slop phrases match
-    against wrap-joined paragraphs (see :func:`_wrapped_paragraphs`) so a
-    phrase split across a markdown hard line-wrap is still caught, and
-    additionally against ``#`` comment prose inside fenced code blocks
-    (see :data:`_FENCE_COMMENT_RE` for the decision record).
+    dash, honest-family, and emphasis-word (``exactly``/``precisely``)
+    checks are line-local; meta-slop phrases and the clarity-read
+    heuristics (long sentences, "because" plus a 3+-comma qualifier
+    chain -- see :func:`_scan_clarity_heuristics`) match against
+    wrap-joined paragraphs (see :func:`_wrapped_paragraphs`) so a phrase
+    or sentence split across a markdown hard line-wrap is still caught,
+    and meta-slop additionally matches against ``#`` comment prose inside
+    fenced code blocks (see :data:`_FENCE_COMMENT_RE` for the decision
+    record). The clarity-read heuristics and the emphasis-word check are
+    always MINOR (prose-review skill, "The clarity read" and "'Exactly'
+    and 'precisely'"): they surface candidates for the human clarity
+    read, never a verdict the scanner is positioned to make.
     """
     meta_slop_cfg = allowlist.get("meta_slop", {})
     meta_slop_fatal = list(meta_slop_cfg.get("fatal", []))
