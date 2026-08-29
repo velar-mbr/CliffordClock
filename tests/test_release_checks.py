@@ -1038,6 +1038,179 @@ def test_prose_scan_fenced_comment_allowlisted_by_raw_source_line():
     assert findings == []
 
 
+# ---------------------------------------------------------------------------
+# prose-scan: clarity-read heuristics (prose-review skill, "The clarity
+# read" and "'Exactly' and 'precisely'") -- long sentences, "because" plus
+# a 3+-comma qualifier chain, and the exactly/precisely emphasis words.
+# All MINOR, never FAIL: these surface candidates for the human clarity
+# read, not verdicts.
+# ---------------------------------------------------------------------------
+
+
+def _n_word_sentence(n: int) -> str:
+    """A single sentence of exactly ``n`` whitespace-separated words."""
+    return " ".join(f"w{i}" for i in range(n)) + "."
+
+
+def test_prose_scan_catches_long_sentence_planted_violation():
+    text = _n_word_sentence(55)
+    findings = rc._scan_prose_text(
+        "fixture.md", text, strip_code=True, meta_slop_fatal=[], meta_slop_minor=[], allowed=[]
+    )
+    long_findings = [f for f in findings if "sentence runs" in f.message]
+    assert len(long_findings) == 1
+    assert long_findings[0].severity == "MINOR"
+    assert rc._status_from_findings(findings) == "PASS"
+
+
+def test_prose_scan_long_sentence_negative_case():
+    text = "This is a short sentence with few words."
+    findings = rc._scan_prose_text(
+        "fixture.md", text, strip_code=True, meta_slop_fatal=[], meta_slop_minor=[], allowed=[]
+    )
+    assert not any("sentence runs" in f.message for f in findings)
+
+
+def test_prose_scan_long_sentence_boundary_45_words_not_flagged():
+    text = _n_word_sentence(45)
+    findings = rc._scan_prose_text(
+        "fixture.md", text, strip_code=True, meta_slop_fatal=[], meta_slop_minor=[], allowed=[]
+    )
+    assert not any("sentence runs" in f.message for f in findings)
+
+
+def test_prose_scan_long_sentence_boundary_46_words_flagged():
+    text = _n_word_sentence(46)
+    findings = rc._scan_prose_text(
+        "fixture.md", text, strip_code=True, meta_slop_fatal=[], meta_slop_minor=[], allowed=[]
+    )
+    assert any("sentence runs" in f.message for f in findings)
+
+
+def test_prose_scan_long_sentence_allowlist_suppresses():
+    text = _n_word_sentence(55) + "\n"
+    findings = rc._scan_prose_text(
+        "fixture.md",
+        text,
+        strip_code=True,
+        meta_slop_fatal=[],
+        meta_slop_minor=[],
+        allowed=[text.strip()],
+    )
+    assert not any("sentence runs" in f.message for f in findings)
+
+
+def test_prose_scan_long_sentence_wrapped_across_hard_wrap_still_measured_whole():
+    # A single 50-word sentence hard-wrapped across two source lines must
+    # still be measured as one sentence (see _wrapped_paragraphs), and the
+    # finding reports the line the sentence starts on.
+    first_line = " ".join(f"w{i}" for i in range(30))
+    second_line = " ".join(f"w{i}" for i in range(30, 50)) + "."
+    text = f"{first_line}\n{second_line}\n"
+    findings = rc._scan_prose_text(
+        "fixture.md", text, strip_code=True, meta_slop_fatal=[], meta_slop_minor=[], allowed=[]
+    )
+    long_findings = [f for f in findings if "sentence runs" in f.message]
+    assert len(long_findings) == 1
+    assert long_findings[0].line == 1
+
+
+def test_prose_scan_catches_because_qualifier_chain_planted_violation():
+    text = (
+        "The result drifts because the reference clock free runs, the "
+        "servo lags behind, and the calibration, which is periodic, "
+        "cannot keep pace."
+    )
+    findings = rc._scan_prose_text(
+        "fixture.md", text, strip_code=True, meta_slop_fatal=[], meta_slop_minor=[], allowed=[]
+    )
+    chain_findings = [f for f in findings if "qualifier chain" in f.message]
+    assert len(chain_findings) == 1
+    assert chain_findings[0].severity == "MINOR"
+    assert rc._status_from_findings(findings) == "PASS"
+
+
+def test_prose_scan_because_with_too_few_commas_not_flagged():
+    text = (
+        "The result drifts because the reference clock free runs, and "
+        "the servo lags, which is slow."
+    )
+    findings = rc._scan_prose_text(
+        "fixture.md", text, strip_code=True, meta_slop_fatal=[], meta_slop_minor=[], allowed=[]
+    )
+    assert not any("qualifier chain" in f.message for f in findings)
+
+
+def test_prose_scan_comma_chain_without_because_not_flagged():
+    text = (
+        "The clock drifts slowly, the servo lags a little, and the "
+        "calibration, which is periodic, keeps pace."
+    )
+    findings = rc._scan_prose_text(
+        "fixture.md", text, strip_code=True, meta_slop_fatal=[], meta_slop_minor=[], allowed=[]
+    )
+    assert not any("qualifier chain" in f.message for f in findings)
+
+
+def test_prose_scan_catches_exactly_planted_violation():
+    text = "The offset is exactly what the model predicts for this configuration."
+    findings = rc._scan_prose_text(
+        "fixture.md", text, strip_code=True, meta_slop_fatal=[], meta_slop_minor=[], allowed=[]
+    )
+    emphasis_findings = [f for f in findings if "emphasis word" in f.message]
+    assert len(emphasis_findings) == 1
+    assert emphasis_findings[0].severity == "MINOR"
+    assert "'exactly'" in emphasis_findings[0].message.lower()
+    assert rc._status_from_findings(findings) == "PASS"
+
+
+def test_prose_scan_catches_precisely_planted_violation():
+    text = "This is precisely the tool a lab needs for this measurement."
+    findings = rc._scan_prose_text(
+        "fixture.md", text, strip_code=True, meta_slop_fatal=[], meta_slop_minor=[], allowed=[]
+    )
+    emphasis_findings = [f for f in findings if "emphasis word" in f.message]
+    assert len(emphasis_findings) == 1
+    assert emphasis_findings[0].severity == "MINOR"
+
+
+def test_prose_scan_exactly_precisely_negative_case():
+    text = "This is the tool a lab needs for this measurement."
+    findings = rc._scan_prose_text(
+        "fixture.md", text, strip_code=True, meta_slop_fatal=[], meta_slop_minor=[], allowed=[]
+    )
+    assert not any("emphasis word" in f.message for f in findings)
+
+
+def test_prose_scan_exactly_allowlist_suppresses():
+    text = "The offset is exactly what the model predicts for this configuration.\n"
+    findings = rc._scan_prose_text(
+        "fixture.md",
+        text,
+        strip_code=True,
+        meta_slop_fatal=[],
+        meta_slop_minor=[],
+        allowed=[text.strip()],
+    )
+    assert not any("emphasis word" in f.message for f in findings)
+
+
+def test_prose_scan_clarity_heuristics_apply_to_unstripped_tex_prose():
+    # strip_code=False is the paper/main.tex path; the clarity heuristics
+    # and the exactly/precisely check run there too, same as meta-slop.
+    text = "The correction is exactly " + _n_word_sentence(50)
+    findings = rc._scan_prose_text(
+        "paper/main.tex",
+        text,
+        strip_code=False,
+        meta_slop_fatal=[],
+        meta_slop_minor=[],
+        allowed=[],
+    )
+    assert any("emphasis word" in f.message for f in findings)
+    assert any("sentence runs" in f.message for f in findings)
+
+
 def test_wrapped_paragraphs_maps_offsets_to_source_lines():
     lines = ["first line here", "second line here", "", "fourth line alone"]
     paragraphs = rc._wrapped_paragraphs(lines)
