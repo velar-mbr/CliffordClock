@@ -160,6 +160,18 @@ must say so; unexplained agreement reads as magic and unexplained
 disagreement reads as failure. Acronyms and institution names get one
 plain-words introduction per document.
 
+## Stale status claims (blocker; check the WHOLE document)
+
+A claim about what is open, pending, unmodeled, or future must be
+checked against the entire document and the current repository state,
+never only against the cells or paragraphs the change touched. Review
+rounds scoped to a diff systematically miss these: a capability
+completed in a later section falsifies an earlier "filed as an open
+item" that nobody edited, and the reader who meets both loses trust in
+every other claim. Sweep every reviewed document for open-item,
+roadmap, not-yet, and future-work statements and verify each against
+what the document itself, and the repo, now deliver.
+
 ## Scannability
 
 Enumerable content (what is validated, what a lab can do, known limits)
