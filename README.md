@@ -9,11 +9,11 @@
 
 **CliffordClock predicts how stray electric fields shift and broaden an
 optical lattice clock's frequency, starting from your own field
-simulation.** Export a field map from COMSOL or any FEA tool, describe
-your atoms and trap in a short config file, and get back the fractional
-frequency shift, its spread across your atom cloud, the dephasing time
-T₂*, and the spectral line profile, at the 1×10⁻¹⁸ level today's clocks
-budget to.
+simulation.** Export a field map from COMSOL or any FEA tool, and
+describe your atoms and trap in a short config file. CliffordClock
+returns the fractional frequency shift, its spread across your atom
+cloud, the dephasing time T₂*, and the spectral line profile. These
+numbers land at the 1×10⁻¹⁸ level today's clocks budget to.
 
 Free and open source (AGPLv3), Python, `pip install`-able.
 
@@ -21,20 +21,23 @@ Free and open source (AGPLv3), Python, `pip install`-able.
 
 A textbook formula gives you one shift for one field value: plug in a
 differential polarizability and a stray-field magnitude, and you can
-reproduce that number in an afternoon. What CliffordClock ships
-is the full dispersion budget of a real imported field: every atom's
-shift computed from where it actually sits in your trap, rolled up into
+reproduce that number in an afternoon. What CliffordClock ships is the
+full dispersion budget of a real imported field. Every atom's shift is
+computed from where it actually sits in your trap, then rolled up into
 per-atom and per-site maps, the ensemble's spread, the dephasing time
-T₂* that spread implies, and the spectral line profile it produces. That
-budget runs through numerics proven at 1×10⁻¹⁸ against adversarial
-tests, cross-checked by two independent formulations, a direct scalar
-calculation and a Cl(1,3) geometric-algebra rotor engine, that agree to
-the last digit on every case shipped, with every coefficient carrying
-its source, which paper, which value, in the output. A
-millimetre-scale extended-lattice sample runs on a laptop. And it reproduces the real world: two
-published measurements, NPL's stray-field reconstruction and Bothwell et
-al.'s mm-scale gravitational-redshift measurement, come out of this
-pipeline with zero fitted parameters.
+T₂* that spread implies, and the spectral line profile it produces.
+
+That budget runs through numerics proven at 1×10⁻¹⁸ against adversarial
+tests. Two independent formulations cross-check it, a direct scalar
+calculation and a Cl(1,3) geometric-algebra rotor engine, and they agree
+to the last digit on every case shipped. Every coefficient carries its
+source, which paper and which value, in the output. A millimetre-scale
+extended-lattice sample runs on a laptop.
+
+It also reproduces the real world: two published measurements, NPL's
+stray-field reconstruction and Bothwell et al.'s mm-scale
+gravitational-redshift measurement, come out of this pipeline with zero
+fitted parameters.
 
 ## What it does today
 
@@ -42,14 +45,15 @@ pipeline with zero fitted parameters.
   spreadsheet, straight into the config
 - [x] **DC-Stark shift** with published polarizabilities for Sr-87 and
   Yb-171, or any coefficient you supply
-- [x] **Second-order Doppler** carried exactly
+- [x] **Second-order Doppler** carried through the exact relativistic
+  kinematic factor
 - [x] **Blackbody radiation**: one temperature or a full multi-surface
   environment (surfaces table, YAML, or `--radiation-surfaces`), checked
   against PTB's published formula and position scan (notebook 12)
 - [x] **Trapped-ion motional time dilation** from measured mode
-  frequencies and phonon numbers, two-ion participation and micromotion
-  factors included; the published Al⁺ evaluation lands at 0.10 sigma
-  (notebook 13)
+  frequencies and phonon numbers, with two-ion participation and
+  micromotion factors reconstructed by a coupled Floquet fit; the fit
+  lands at 0.08 sigma from the published Al⁺ evaluation (notebook 13)
 - [x] **Ramsey fringe visibility** from the motional state, thermal,
   coherent, or squeezed
 - [x] **Ion quadrupole shift** for Ca⁺/Sr⁺/Ba⁺/Yb⁺ D/F states, and
@@ -109,36 +113,39 @@ CliffordClock run summary
 
 That's a physically realistic scenario: stray charge patches on
 in-vacuum surfaces, sized to bracket a documented real event at a Sr
-lattice clock ([Lodewyck et al. 2012](https://arxiv.org/abs/1108.4320)),
-imported from a CSV field file exactly the way your own FEA export would
-be, at a genuine 1-second interrogation. To point it at **your** trap:
+lattice clock ([Lodewyck et al. 2012](https://arxiv.org/abs/1108.4320)).
+The field is imported from a CSV field file the way your own FEA export
+would be, and the run uses a genuine 1-second interrogation time. To
+point it at **your** trap:
 [`docs/byof-guide.md`](https://github.com/velar-mbr/CliffordClock/blob/main/docs/byof-guide.md).
 
 ## Can you trust the numbers?
 
 This is **pre-beta research code**. Every number is checked against
 exact closed forms and five literature known-answer cases with
-published polarizabilities, and the pipeline carries **two
-reproducibility cases** against zero blind predictions: it reconstructs
+published polarizabilities. The pipeline also carries **two
+reproducibility cases** against zero blind predictions. It reconstructs
 NPL's published stray-field shift from their independently measured
 field, and it reconstructs Bothwell et al.'s published mm-scale
 gravitational-redshift measurement from an extended-lattice sample's
-per-site frequency map, both with **zero fitted parameters**. A blind
-prediction, a shift nobody had already computed from the same published
-inputs, does not exist yet; getting one is the top roadmap item. The
-full case-by-case record, with formulas and sources, is
+per-site frequency map. Both reproductions use **zero fitted
+parameters**. A blind prediction, a shift nobody had already computed
+from the same published inputs, does not exist yet; getting one is the
+top roadmap item. The full case-by-case record, with formulas and
+sources, is
 [`docs/validation.md`](https://github.com/velar-mbr/CliffordClock/blob/main/docs/validation.md).
 
-## How it works, in two sentences
+## How it works
 
 At every point along an atom's path, the local fractional clock-rate
-shift comes from the field (quadratic Stark) and the atom's speed (time
-dilation), then integrates over where your atoms actually are: that
-approach fully handles spatially varying fields. The same physics
-also runs through a general geometric-algebra engine, a Cl(1,3) "rotor"
-representing the atom's internal clock, which agrees with the simple
-calculation to machine precision today and exists for the physics a
-single number per point can't express; details in
+shift combines the field's quadratic Stark shift with the time dilation
+from the atom's speed. CliffordClock integrates that local shift over
+where your atoms actually travel, so the method fully handles spatially
+varying fields. The same physics also runs through a general
+geometric-algebra engine, a Cl(1,3) "rotor" representing the atom's
+internal clock. That rotor engine agrees with the simple scalar
+calculation to machine precision today, and it exists for physics a
+single number per point cannot express; details in
 [`docs/coupling.md`](https://github.com/velar-mbr/CliffordClock/blob/main/docs/coupling.md) and
 [`docs/CONVENTIONS.md`](https://github.com/velar-mbr/CliffordClock/blob/main/docs/CONVENTIONS.md).
 
@@ -160,9 +167,9 @@ single number per point can't express; details in
   stage.
 - [`notebooks/10_grand_tour.ipynb`](https://github.com/velar-mbr/CliffordClock/blob/main/notebooks/10_grand_tour.ipynb): the
   grand tour. One chamber-scale scenario with the three lattice-clock
-  terms composed live (DC Stark, then +BBR, then +gravity),
-  cross-checked through the rotor engine on identical trajectories,
-  then bridged to the extended-lattice per-site view.
+  terms composed live (DC Stark, then +BBR, then +gravity). The same
+  scenario is cross-checked through the rotor engine on identical
+  trajectories, then bridged to the extended-lattice per-site view.
 - [`notebooks/11_real_budget_slice.ipynb`](https://github.com/velar-mbr/CliffordClock/blob/main/notebooks/11_real_budget_slice.ipynb):
   the closest-to-a-real-experiment demo. One real clock's published
   evaluation, the JILA Sr system, with the covered rows computed from
@@ -171,18 +178,21 @@ single number per point can't express; details in
 - [`notebooks/12_thermal_environment.ipynb`](https://github.com/velar-mbr/CliffordClock/blob/main/notebooks/12_thermal_environment.ipynb):
   the multi-surface thermal environment (E37), for field-deployed
   clocks sitting in a real, non-uniform radiation environment no lab
-  shield has engineered flat, quantifying live where a single effective
-  temperature stops representing it and closing with a sensitivity band
-  built from per-surface sensor readings and uncertainties.
+  shield has engineered flat. It quantifies live where a single
+  effective temperature stops representing that environment, and closes
+  with a sensitivity band built from per-surface sensor readings and
+  uncertainties.
 - [`notebooks/13_trapped_ion_quantum_motion.ipynb`](https://github.com/velar-mbr/CliffordClock/blob/main/notebooks/13_trapped_ion_quantum_motion.ipynb):
-  the trapped-ion walkthrough, quantum motional states throughout: a
-  ground-state ion's ~10 nm wavepacket sampled against a field with real
-  curvature, the Coulomb-crystal quadrupole case recapped from notebook 08,
-  the motional time-dilation row (E38) reproduced against a published Al+
-  evaluation and its per-mode participation-factor correction for the
-  two-ion crystal, and the coherent Ramsey fringe visibility a squeezed
-  motional state leaves behind (E39), closing with the excess-micromotion
-  input channel and a scope statement against the RF-dynamics roadmap.
+  the trapped-ion walkthrough, quantum motional states throughout. A
+  ground-state ion's ~10 nm wavepacket is sampled against a field with
+  real curvature, and the Coulomb-crystal quadrupole case is recapped
+  from notebook 08. The motional time-dilation row (E38) is reproduced
+  against a published Al+ evaluation, with the per-mode
+  participation-factor correction for the two-ion crystal closed by a
+  coupled Floquet fit. The notebook closes with the coherent Ramsey
+  fringe visibility a squeezed motional state leaves behind (E39), the
+  excess-micromotion input channel, and a scope statement against the
+  RF-dynamics roadmap.
 
 ## Documentation
 
