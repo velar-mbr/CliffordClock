@@ -193,6 +193,14 @@ single number per point cannot express; details in
   fringe visibility a squeezed motional state leaves behind (E39), the
   excess-micromotion input channel, and a scope statement against the
   RF-dynamics roadmap.
+- [`notebooks/14_lattice_light_shift.ipynb`](https://github.com/velar-mbr/CliffordClock/blob/main/notebooks/14_lattice_light_shift.ipynb):
+  both community lattice-light-shift models run side by side (E40/E41), the
+  closed-form Katori-lineage harmonic/operational model and the NIST
+  Born-Oppenheimer-plus-WKB model, each validated against its own group's
+  published numbers (Ushijima et al. 2018, Aeppli et al. 2024, and
+  Bothwell et al. 2025's own trap-depth-reduction table), then compared
+  directly through the density-of-states difference that drives the two
+  models apart as radial temperature rises.
 
 ## Documentation
 
