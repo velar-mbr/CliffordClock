@@ -101,8 +101,10 @@ motional state, applies per-mode participation and intrinsic-micromotion
 corrections for a two-ion crystal, and computes coherent Ramsey visibility
 under motional squeezing. Four further cases validate these additions: an arithmetic
 reproduction of a published trapped-ion secular-motion total, a per-mode
-closure against that same paper's own published row built from published
-trap-drive-frequency geometry alone, a position-resolved reproduction of a
+closure against that same paper's own published row, built from published
+trap-drive-frequency geometry alone and completing at
+$\AlIonWpThirtyFiveSigma\sigma$ under a coupled two-ion Floquet treatment,
+a position-resolved reproduction of a
 published blackbody-radiation-shield scan, and a formula check against a
 second lab's own published exchange-factor table. Each carries its own
 evidentiary class, weaker than this paper's two reproducibility cases. A blind prediction, against data the
@@ -1590,13 +1592,7 @@ $(P-1)_{\rm motional}=\AlIonWpThirtyThreeTotal$ with a propagated
 uncertainty of $\pm\AlIonWpThirtyThreeUnc$, landing at
 $\AlIonWpThirtyThreeSigma\sigma$ from Marshall et al.'s published band,
 bands that nearly touch without quite overlapping
-(\textit{\AlIonWpThirtyThreeVerdict}). Figure~\ref{fig:motional-progression}
-shows all four totals side by side against the published band. The residual
-that remains is consistent with the next-order Mathieu correction
-Berkeland's leading-order treatment omits, of order $q^2$ and a few
-percent, amplified on the X axis by its own $a_x$ sitting smaller in
-magnitude than $a_y$, which makes the enhancement factor more sensitive to
-$a$ there.
+(\textit{\AlIonWpThirtyThreeVerdict}).
 
 The same construction closes an independent second dataset. Applying it to
 Brewer et al.'s own published trap, a different RF drive frequency
@@ -1616,6 +1612,113 @@ that time-dependent model re-implemented, the same missing-input reason
 that leads Sec.~\ref{sec:al-ion-arithmetic} to build its own total-level
 case from Marshall et al.'s inputs.
 
+Berkeland's leading-order bracket truncates the Mathieu equation at first
+order in $q^2$; solving the equation's characteristic exponent to numerical
+precision by continued fraction removes that truncation, giving the exact
+velocity-variance enhancement at every order in $q$ and generalizing
+$F_{\rm axis}=1+q^2/(2a_{\rm axis}+q^2)$ directly. The exact solve moves
+$F_x$ from $\AlIonEnhancementX$ to $\AlIonWpThirtyFourEnhancementX$ and
+$F_y$ from $\AlIonEnhancementY$ to $\AlIonWpThirtyFourEnhancementY$,
+corrections of $\AlIonWpThirtyFourEnhancementXRelPct\%$ and
+$\AlIonWpThirtyFourEnhancementYRelPct\%$, and moves the corrected total to
+$(P-1)_{\rm motional}=\AlIonWpThirtyFourTotal$ with a propagated
+uncertainty of $\pm\AlIonWpThirtyFourUnc$, landing at
+$\AlIonWpThirtyFourSigma\sigma$ from Marshall et al.'s published band:
+\textit{\AlIonWpThirtyFourVerdict}, the same verdict the leading-order
+treatment gives. $F_{\rm axis}$ depends only on the axis's own $(a,q)$ at
+this exact order too, so the identical factor still multiplies both a
+pair's COM and STR members; the X-axis deviation,
+$\AlIonWpThirtyFourFinalXcom$ above unity and $\AlIonWpThirtyFourFinalXstr$
+below it, survives unchanged for that reason, and next-order Mathieu
+truncation is ruled out as the residual's mechanism. A mode-frequency-dependent
+mechanism is the candidate that fits the residual's size:
+Berkeland's factor assumes the ion oscillates at its own bare Floquet
+frequency, while the clock ion's motion in a collective, Coulomb-coupled
+mode runs at that mode's own shifted quasi-frequency, a frequency that
+differs between the in-phase and out-of-phase modes sharing one axis. A
+first estimate of this mechanism moves the total within a few tenths of a
+sigma of the published value, motivating the coupled two-ion Floquet
+treatment below, which computes it directly.
+
+The coupled two-ion Floquet solve removes the single-ion factorization
+directly: the two ions' time-periodic equations of motion, coupled by the
+same Coulomb curvature that sets their static participations
+(Sec.~\ref{sec:motional}), are integrated as a four-dimensional linear
+Hill system, whose monodromy matrix over one RF period gives the two
+collective quasi-frequencies of each axis exactly. Each mode's clock-ion
+participation and its exact micromotion enhancement both come from that
+same per-mode Fourier decomposition of the propagated eigenvectors, with
+no separately computed single-ion factor composed in afterward. A mode's
+own Coulomb-shifted quasi-frequency sets its own enhancement directly,
+closing the physical gap the single-ion factorization left open. Two exact
+limits confirm the construction: the Coulomb coupling taken to zero
+reproduces the exact single-ion Floquet result above for each ion
+separately, and the RF drive taken to zero reproduces the static
+secular-participation eigenproblem developed above (Sec.~\ref{sec:motional}),
+both to floating-point precision.
+
+Solved per axis from that axis's own two
+measured mode frequencies alone, this coupled solve fits each axis exactly
+by construction and lands its own total,
+$(P-1)_{\rm motional}=\AlIonWpThirtyFiveDiagnosticTotal$, at
+$\AlIonWpThirtyFiveDiagnosticSigma\sigma$ from the published band
+(\textit{\AlIonWpThirtyFiveDiagnosticVerdict}); kept as a labeled
+diagnostic for exactly that reason, its near-unity per-mode ratios carry
+no independent evidentiary weight, since two equations and two unknowns
+per axis guarantee a close fit regardless of whether the underlying model
+is correct.
+
+Berkeland's own trap model carries one RF parameter magnitude per ion
+($q_x=-q_y$); combined with the Laplace constraint $a_x+a_y=-a_z$ ($a_z$
+fixed exactly from the measured axial frequency, the same relation the
+exact single-ion solve uses) and a single DC-split fraction $\alpha$
+($a_x=-\alpha a_z$, $a_y=-(1-\alpha)a_z$), the whole two-ion crystal's
+radial dynamics reduce to two unknowns, $(q,\alpha)$, predicting all four
+measured radial frequencies through the coupled-Floquet forward model
+above: four equations, two unknowns, a genuine over-determination. A
+Gauss-Newton least-squares fit against all four gives
+$q=\AlIonWpThirtyFiveQ$, $\alpha=\AlIonWpThirtyFiveAlpha$,
+$a_x=\AlIonWpThirtyFiveAx$, and $a_y=\AlIonWpThirtyFiveAy$, with frequency
+residuals reported exactly as fit: $\AlIonWpThirtyFiveResidXcomHz$~Hz
+($\AlIonWpThirtyFiveResidXcomPct\%$, X-COM), $\AlIonWpThirtyFiveResidXstrHz$~Hz
+($\AlIonWpThirtyFiveResidXstrPct\%$, X-STR), $\AlIonWpThirtyFiveResidYcomHz$~Hz
+($\AlIonWpThirtyFiveResidYcomPct\%$, Y-COM), and
+$\AlIonWpThirtyFiveResidYstrHz$~Hz ($\AlIonWpThirtyFiveResidYstrPct\%$,
+Y-STR). Both COM residuals land below their measured frequency and both
+STR residuals land above it, on both axes: an antisymmetric pattern this
+two-parameter fit cannot absorb, quantifying whatever real physics, trap
+anharmonicity, higher multipoles, or another departure from the idealized
+Mathieu model, sits beyond its two free parameters. The resulting total,
+$(P-1)_{\rm motional}=\AlIonWpThirtyFiveTotal$, lands at
+$\AlIonWpThirtyFiveSigma\sigma$ from Marshall et al.'s published band:
+\textit{\AlIonWpThirtyFiveVerdict}.
+
+Three uncertainty components combine into that band: thermometry
+($\pm\AlIonWpThirtyFiveUncThermometry$, the same per-mode occupation
+channel every case above carries), input rounding
+($\pm\AlIonWpThirtyFiveUncRounding$, unchanged from the exact single-ion
+treatment), and model structure ($\pm\AlIonWpThirtyFiveUncModelStructure$,
+the spread between this constrained total and the per-axis diagnostic
+variant's own $(P-1)_{\rm motional}=\AlIonWpThirtyFiveDiagnosticTotal$),
+combined in quadrature to $\pm\AlIonWpThirtyFiveUncCombined$. An
+independent estimate of that spread, built directly from the fit's own
+residuals propagated through the reconstruction chain, lands roughly an
+order of magnitude smaller, so the reported model-structure channel is the
+conservative choice. Mass-scaling the fit's own $(q,a_x,a_y)$ to the
+partner ion predicts its bare radial frequencies at
+$\AlIonWpThirtyFivePartnerDevX\%$ (X) and $\AlIonWpThirtyFivePartnerDevY\%$
+(Y) from the separately reconstructed values, tighter than the exact
+single-ion solve's own $\AlIonWpThirtyFourPartnerDevX\%$/$\AlIonWpThirtyFourPartnerDevY\%$;
+the same fit applied to Brewer et al.'s independently published trap gives
+partner deviations of $\AlIonWpThirtyFiveBrewerPartnerDevX\%$ (X) and
+$\AlIonWpThirtyFiveBrewerPartnerDevY\%$ (Y), the same closure in a second
+trap. The four radial per-mode ratios move to $\AlIonWpThirtyFiveRatioXcom$,
+$\AlIonWpThirtyFiveRatioXstr$, $\AlIonWpThirtyFiveRatioYcom$, and
+$\AlIonWpThirtyFiveRatioYstr$ (X-COM/X-STR/Y-COM/Y-STR), and this closure
+carries the same binding label as every case in this progression: an
+\textbf{arithmetic reproduction} (Sec.~\ref{sec:al-ion-arithmetic}) built
+from Marshall et al.'s own published inputs.
+
 Sec.~\ref{sec:al-ion-arithmetic}'s single-mass total already landed inside
 Marshall et al.'s published band, at $\AlIonWpThirtySigma\sigma$, without
 either correction this section develops. That agreement is a
@@ -1625,22 +1728,24 @@ factor of two, an intrinsic-micromotion enhancement factor near two applied
 on its own over-predicts by close to the same factor, and the single-mass
 formula implicitly sets both factors to one, a product of exactly one that
 happens to sit close to the true combined value.
-Figure~\ref{fig:motional-progression}'s four bars trace this cancellation:
-the single-mass total sits
+Figure~\ref{fig:motional-progression}'s six bars trace this cancellation
+and its resolution: the single-mass total sits
 inside the published band by construction, the participation-only totals
 (the mass-ratio closed form and the spectrum-reconstructed inversion alike)
 undershoot it by the same near-factor-of-two the per-mode ratios above
-show, and the participation-times-enhancement total recovers most of the
-distance the participation-only step gives up. This progression carries its
-own arithmetic-reproduction class throughout
-(Sec.~\ref{sec:al-ion-arithmetic}); none of its four totals joins this
+show, and the participation-times-leading-order-enhancement total recovers
+most of the distance the participation-only step gives up. The exact-Floquet
+total lands within a hair of that fourth bar, and the coupled constrained-fit
+total is the closest of the six to Marshall et al.'s own published value.
+This progression carries its own arithmetic-reproduction class throughout
+(Sec.~\ref{sec:al-ion-arithmetic}); none of its six totals joins this
 paper's reproducibility or blind-prediction headline count.
 
-\begin{figure}[htbp]
+\begin{figure*}[htbp]
 \centering
-\includegraphics[width=0.48\linewidth]{figures/fig8_motional_progression.pdf}
+\includegraphics[width=0.85\linewidth]{figures/fig8_motional_progression.pdf}
 \caption{The Al$^+$ secular-motion progression (Secs.~\ref{sec:al-ion-arithmetic}
-and~\ref{sec:al-ion-participation}): four successive corrections to the same
+and~\ref{sec:al-ion-participation}): six successive treatments of the same
 six-mode total, computed by the real engine against Marshall et al.'s
 published mode frequencies and occupations~\cite{Marshall2025}, plotted
 against Marshall et al.'s own published secular-motion band (shaded). The
@@ -1649,13 +1754,18 @@ applies the two-ion participation factor from the Al$^+$/Mg$^{25+}$ mass
 ratio alone (W\"ubbena et al.~\cite{Wubbena2012}). The third keeps that
 axial factor and reconstructs the radial pairs from the measured X/Y mode
 spectrum. The fourth multiplies the third's participation by Berkeland's
-mode-specific intrinsic-micromotion
-enhancement~\cite{Berkeland1998}. Error bars are each case's own propagated
+leading-order mode-specific intrinsic-micromotion
+enhancement~\cite{Berkeland1998}. The fifth replaces that leading-order
+enhancement with the numerically exact Floquet solve of the same
+single-ion Mathieu equation. The sixth replaces the single-ion
+factorization entirely with the coupled two-ion Floquet solve's
+constrained fit, this paper's own headline treatment of the four radial
+modes. Error bars are each case's own propagated
 1-sigma uncertainty. Regenerated by
 \texttt{paper/figures/fig8\_motional\_progression.py} against the real
 \texttt{benchmarks/run\_motional\_al\_ion.py} case objects.}
 \label{fig:motional-progression}
-\end{figure}
+\end{figure*}
 
 \subsection{The PTB position-resolved thermal-environment validation}
 \label{sec:ptb-position}

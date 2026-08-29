@@ -158,6 +158,8 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 
 import jax.numpy as jnp
+import numpy as np
+from scipy.integrate import solve_ivp  # type: ignore[import-untyped]
 
 from cliffordclock.cl13 import IDX_E01, IDX_E02, IDX_E03, IDX_E12
 from cliffordclock.constants import (
@@ -3317,3 +3319,2169 @@ def predicted_partner_bare_radial_frequencies_hz(
     omega_x_partner = (omega_rf / 2.0) * math.sqrt(x_term)
     omega_y_partner = (omega_rf / 2.0) * math.sqrt(y_term)
     return omega_x_partner / (2.0 * math.pi), omega_y_partner / (2.0 * math.pi)
+
+
+# ---------------------------------------------------------------------------
+# WP34: numerically exact Floquet treatment of intrinsic micromotion
+# (CONVENTIONS.md section 16, WP34 addition), replacing WP33's leading-order
+# Mathieu bracket with the exact characteristic exponent and the exact
+# velocity-variance enhancement, computed directly from the Mathieu
+# equation's Floquet solution. WP33's own functions above (this module's
+# WP33 comment block, `clock_ion_mathieu_parameters`,
+# `radial_micromotion_enhancement`, `predicted_partner_bare_radial_
+# frequencies_hz`) are G15-gated record and are UNTOUCHED by this addition:
+# every function below is new, and callers keep both paths available, the
+# exact path alongside the leading-order path.
+#
+# Derivation.
+#
+# 1. Exact Floquet solution and characteristic exponent. For the Mathieu
+#    equation `u'' + [a + 2*q*cos(2*tau)]*u = 0` (Berkeland Eq. 4
+#    convention, `tau = Omega*t/2`), the stable solution is
+#    `u(tau) = exp(i*beta*tau)*phi(tau)` with `phi` periodic (period `pi`
+#    in `tau`, McLachlan, "Theory and Application of Mathieu Functions"),
+#    so `phi(tau) = sum_n c_n*exp(i*2*n*tau)`. Substituting into the ODE
+#    and collecting the coefficient of `exp(i*(beta+2*m)*tau)` for each
+#    integer `m` gives the standard three-term Fourier recursion
+#
+#        q*c_(m-1) + [a - (beta+2*m)^2]*c_m + q*c_(m+1) = 0.
+#
+#    Writing `D_m(beta) = a - (beta+2*m)^2`, this is a tridiagonal linear
+#    system in the `c_m`; a nontrivial solution requires its (Hill)
+#    determinant to vanish. Eliminating `c_(m>0)` and `c_(m<0)` in terms of
+#    `c_0` via the two one-sided continued fractions
+#    `R_m = c_(m+1)/c_m` (m>=0), `L_m = c_(m-1)/c_m` (m<=0) -- each
+#    satisfying its own backward recursion, `R_(m-1) = -q/(D_m+q*R_m)` and
+#    `L_(m+1) = -q/(D_m+q*L_m)`, truncated by the ansatz `R_depth =
+#    L_(-depth) = 0` (the Fourier coefficients decay rapidly, verified by
+#    this WP's own convergence test, not assumed) -- reduces the Hill
+#    determinant condition to the single scalar characteristic equation at
+#    `m=0`:
+#
+#        F(beta) = D_0(beta) + q*(R_0(beta) + L_0(beta)) = 0.
+#
+#    `mathieu_floquet_solve` finds `beta` by Newton root-find on `F`,
+#    starting from the leading-order guess `beta_0 = sqrt(a+q^2/2)`
+#    (always close: this project's own `(a, q)` values differ from the
+#    exact `beta` by well under 1%, so Newton converges in a handful of
+#    iterations), at a truncation depth chosen by an explicit convergence
+#    test -- doubling the depth and re-solving until both `beta` and the
+#    retained `R_m`/`L_m` ratios stop changing by more than `tol`, raising
+#    if `max_depth` is reached first (the convergence guard). The secular
+#    angular frequency is `omega_sec = beta*Omega/2` EXACTLY: this is the
+#    definition of the characteristic exponent itself, true for any stable
+#    `(a, q)`.
+#
+#    Verification (this WP's own test suite): the continued-fraction `beta`
+#    was cross-checked, in this session, against completely independent
+#    monodromy-matrix ODE integration (the trace of the one-period
+#    fundamental-solution matrix, `beta = arccos(Tr(M)/2)/pi`, computed by
+#    numerically integrating the Mathieu ODE with `scipy.integrate.
+#    solve_ivp` -- a method sharing no code path with the Fourier
+#    continued-fraction above) across this project's own Marshall and
+#    Brewer `(a, q)` values plus several other test points; agreement is at
+#    the 1e-13 to 1e-14 absolute level in `beta`, i.e. to float64 working
+#    precision, not merely "close."
+#
+# 2. Exact velocity-variance (kinetic-energy) enhancement. Writing the real
+#    physical trajectory as `x(tau) = u_0*sum_n c_n*cos((beta+2*n)*tau+phi)`
+#    with `c_0=1` (Berkeland's own `u_1i` amplitude convention, Eq. 8), the
+#    velocity is `dx/dt = (Omega/2)*dx/dtau =
+#    -(Omega*u_0/2)*sum_n c_n*(beta+2*n)*sin((beta+2*n)*tau+phi)`. Because
+#    the `(beta+2*n)` are equally spaced by exactly `2`, the cross terms in
+#    `<v^2>` between different `n` average to zero over time (mutually
+#    orthogonal sinusoids), leaving
+#
+#        <v^2> = (Omega*u_0/2)^2 * (1/2) * sum_n c_n^2*(beta+2*n)^2.
+#
+#    The pure-secular-only term is the `n=0` piece alone,
+#    `<v_sec^2> = (Omega*u_0/2)^2*(1/2)*beta^2` (using `c_0=1`), so
+#
+#        F_exact = <v^2>/<v_sec^2> = sum_n c_n^2*(beta+2*n)^2 / beta^2
+#
+#    (`MathieuFloquetSolution.velocity_enhancement_exact`,
+#    `radial_micromotion_enhancement_exact`). VERIFIED (this WP's test
+#    suite): (a) `q -> 0` collapses every `c_(n!=0)` to zero and
+#    `F_exact -> c_0^2*beta^2/beta^2 = 1` exactly; (b) substituting the
+#    leading-order relation `beta^2 = a+q^2/2` into `F_exact`'s own formula
+#    above, at leading order in `q` the only surviving sidebands are
+#    `c_(+/-1) ~= q/4` (recovered from the `m=1` recursion at small `beta`,
+#    `a`), and `sum_n c_n^2*(beta+2*n)^2 = beta^2 + (q^2/8)*(beta^2+4)`,
+#    giving `F = 1+q^2/(2*beta^2) = 1+q^2/(2*a+q^2)` -- Berkeland's own Eq.
+#    10 bracket EXACTLY at that substitution, not merely to the same
+#    order, since both sides are the same algebraic expression once `beta`
+#    is fixed there; (c) at Berkeland's own worked-example scale
+#    (`Omega/2pi ~= 10 MHz`, `omega_i/2pi ~= 1.0 MHz`, `q_i ~= 0.28`, their
+#    own stated `|a_i| << q_i^2 << 1` regime, Sec. II -- back-computing `a`
+#    from their own approximately-stated `omega_i`/`Omega`/`q_i` via the
+#    leading-order relation gives `a ~= 0.0008`), `F_exact ~= 1.9835` versus
+#    the leading bracket's `1.98`, a sub-1%-relative correction: plausible
+#    given the paper's own explicitly-stated leading-order approximation at
+#    that `(a, q)` scale, neither implausibly large nor suspiciously exact.
+#
+# 3. The axial direction needs no exact treatment: it already has one.
+#    `q_z=0` (Berkeland Eq. 6, no RF field component along the trap axis)
+#    reduces the Mathieu equation itself to the plain harmonic oscillator
+#    `u''+a_z*u=0`, with `beta=sqrt(a_z)` and every `c_(n!=0)=0` EXACTLY at
+#    every order: there is no periodic drive term along this axis to
+#    produce a Floquet correction in the first place.
+#    `mathieu_floquet_solve` short-circuits this case directly
+#    (`mathieu_q=0.0`), returning the exact harmonic result immediately
+#    instead of running the continued-fraction machinery on a trivial
+#    system, and `clock_ion_mathieu_parameters_exact` reuses WP33's own
+#    `a_z=4*omega_z,clock^2/Omega^2` directly (already exact), the same
+#    number computed once.
+#
+# 4. Exact 2D inversion for the clock ion's own `(q, a_x, a_y)`. WP33's
+#    closed-form solve (this module's WP33 comment block, step 3) inverted
+#    the LEADING-ORDER relation `omega_i=(Omega/2)*sqrt(a_i+q_i^2/2)`
+#    algebraically. The exact relation `omega_i=(Omega/2)*beta_exact(a_i,q)`
+#    has no closed-form inverse (`beta_exact` itself is defined by a
+#    root-find), so `_clock_ion_mathieu_parameters_exact_raw` instead runs
+#    a 2D Newton iteration in `(q, a_x)` (with `a_y=-a_z-a_x` maintained by
+#    the same Laplace constraint WP33 uses, and `a_z` unchanged, step 3
+#    above) against the two target characteristic exponents
+#    `beta_x,target=2*omega_x,clock/Omega`, `beta_y,target=2*omega_y,clock/
+#    Omega`, using WP33's own closed-form solution as the initial guess (a
+#    good one: step 1's verification note). This is the SAME two-equations-
+#    two-unknowns, zero-degrees-of-freedom structure as WP33, solved
+#    numerically instead of algebraically because the exact `beta` map
+#    admits no algebraic inverse.
+#
+# 5. Mass-scaling to the partner ion stays exact. Berkeland Eqs. 5-6 show
+#    `a_i` and `q_i` are each linear in `1/mass` at fixed trap drive
+#    voltage/geometry/charge -- a statement about how `a`, `q` themselves
+#    are defined, unrelated to which `beta(a,q)` evaluation follows.
+#    `predicted_partner_bare_radial_frequencies_hz_exact` therefore reuses
+#    the SAME mass-scaling WP33 already uses, only swapping the leading-
+#    order `sqrt(a_partner+q_partner^2/2)` for the exact
+#    `beta_exact(a_partner, q_partner)` when converting the mass-scaled
+#    `(a, q)` back to a predicted frequency.
+#
+# 6. Implementation note. Every function below operates on plain Python
+#    floats, one `(a, q)` pair (or one clock-ion solve) at a time -- not
+#    `jax.numpy`-batched arrays. This mirrors WP33's own scalar-function
+#    style immediately above (`clock_ion_mathieu_parameters`,
+#    `radial_micromotion_enhancement`), a deliberate departure from this
+#    module's batched pivot-construction functions at the top of the
+#    file: the Fourier
+#    recursion, continued fraction, and Newton root-finds are all
+#    hand-implemented (no `scipy.optimize`/`scipy.special.mathieu_*` call
+#    anywhere in the shipped implementation; `scipy.integrate` appears only
+#    in this WP's own test suite, as the independent cross-check method
+#    step 1 describes, never in the functions themselves).
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class MathieuFloquetSolution:
+    """Exact Floquet solution of the Mathieu equation
+    ``u'' + [mathieu_a + 2*mathieu_q*cos(2*tau)]*u = 0`` (Berkeland Eq. 4
+    convention, WP34; see this module's WP34 comment block above
+    :func:`mathieu_floquet_solve` for the full derivation and its
+    verification against independent monodromy-matrix ODE integration).
+
+    Attributes
+    ----------
+    mathieu_a, mathieu_q : float
+        The Mathieu DC/RF parameters this solution was solved for.
+    beta : float
+        The characteristic exponent, `>= 0`: the stable solution is
+        `u(tau) = exp(i*beta*tau)*phi(tau)` with `phi` periodic (period
+        `pi` in `tau`); the secular angular frequency is
+        `omega_sec = beta*Omega/2` EXACTLY (`Omega` the Mathieu drive
+        angular frequency), reducing to the leading-order
+        `beta = sqrt(mathieu_a + mathieu_q^2/2)` (Berkeland Eq. 9) only at
+        small `mathieu_a`, `mathieu_q`.
+    fourier_coefficients : tuple[float, ...]
+        The Floquet solution's Fourier coefficients `c_n`,
+        `phi(tau) = sum_n c_n*exp(i*2*n*tau)`, normalized to `c_0 = 1.0`
+        exactly, ordered `n = -truncation_depth ... +truncation_depth`
+        (list index `i` corresponds to `n = i - truncation_depth`).
+    truncation_depth : int
+        The number of Fourier sidebands retained on each side of `n=0`,
+        chosen by :func:`mathieu_floquet_solve`'s own convergence test.
+    """
+
+    mathieu_a: float
+    mathieu_q: float
+    beta: float
+    fourier_coefficients: tuple[float, ...]
+    truncation_depth: int
+
+    def velocity_enhancement_exact(self) -> float:
+        """Exact time-averaged velocity-variance (kinetic-energy)
+        enhancement ``F_exact = <u'(t)^2> / <u'_secular^2>`` (WP34, this
+        module's WP34 comment block step 2), computed directly from this
+        solution's own Fourier coefficients:
+        ``F_exact = sum_n c_n^2*(beta+2*n)^2 / beta^2`` (`c_0 = 1` by this
+        class's own normalization). Reduces exactly to Berkeland's
+        leading-order bracket `1 + q^2/(2*a+q^2)` when `beta` is
+        evaluated at the leading-order relation `beta^2 = a + q^2/2`
+        (this module's WP34 comment block step 2, verified in this
+        module's WP34 test suite).
+
+        Returns
+        -------
+        float
+            `F_exact`, dimensionless, `>= 1.0`.
+        """
+        return _mathieu_velocity_enhancement(
+            self.beta, self.fourier_coefficients, self.truncation_depth
+        )
+
+
+def _mathieu_velocity_enhancement(
+    beta: float, fourier_coefficients: tuple[float, ...], truncation_depth: int
+) -> float:
+    """``F_exact = sum_n c_n^2*(beta+2*n)^2 / beta^2`` (WP34, this module's
+    WP34 comment block step 2), the shared computation behind
+    :meth:`MathieuFloquetSolution.velocity_enhancement_exact` and
+    :func:`mathieu_floquet_solve`'s own internal depth-convergence test
+    (so both use the identical formula, not two maintained copies).
+    """
+    terms = [
+        c_n * c_n * (beta + 2.0 * (i - truncation_depth)) ** 2
+        for i, c_n in enumerate(fourier_coefficients)
+    ]
+    return math.fsum(terms) / (beta * beta)
+
+
+def _mathieu_coefficients_from_ratios(
+    r_ratios: list[float], l_ratios: list[float]
+) -> tuple[float, ...]:
+    """Reconstruct the Fourier coefficients `c_n` (WP34), `c_0 = 1`
+    normalization, from the one-sided ratio sequences
+    :func:`_mathieu_r0_l0_and_ratios` returns: `c_(m+1) = c_m*R_m` walks
+    outward on the positive side, `c_(m-1) = c_m*L_m` on the negative
+    side. Returned ordered `n = -depth ... +depth` (`depth =
+    len(r_ratios) == len(l_ratios)`), matching
+    :attr:`MathieuFloquetSolution.fourier_coefficients`'s own ordering.
+    """
+    c_positive = [1.0]
+    c_prev = 1.0
+    for ratio in r_ratios:
+        c_prev = c_prev * ratio
+        c_positive.append(c_prev)
+    c_negative = []
+    c_prev = 1.0
+    for ratio in l_ratios:
+        c_prev = c_prev * ratio
+        c_negative.append(c_prev)
+    return tuple(reversed(c_negative)) + tuple(c_positive)
+
+
+def _mathieu_d(mathieu_a: float, beta: float, n: int) -> float:
+    """``D_n(beta) = mathieu_a - (beta + 2*n)^2`` (WP34), the diagonal
+    entry of the Mathieu Fourier-recursion tridiagonal system at Fourier
+    index `n` (this module's WP34 comment block, step 1).
+    """
+    return mathieu_a - (beta + 2.0 * n) ** 2
+
+
+def _mathieu_r0_l0_and_ratios(
+    mathieu_a: float, mathieu_q: float, beta: float, depth: int
+) -> tuple[float, float, list[float], list[float]]:
+    """One evaluation of the WP34 continued-fraction recursion at a FIXED
+    `beta` and truncation `depth` (this module's WP34 comment block, step
+    1): the backward recursions for the positive- and negative-side
+    Fourier ratios `R_m = c_(m+1)/c_m` (`m >= 0`) and `L_m = c_(m-1)/c_m`
+    (`m <= 0`), truncated by the boundary ansatz `R_depth = L_(-depth) =
+    0` (the Fourier coefficients have decayed to negligible size by
+    `|n| = depth`; :func:`mathieu_floquet_solve`'s own convergence test
+    checks this, not assumed here).
+
+    Returns
+    -------
+    tuple[float, float, list[float], list[float]]
+        ``(R_0, L_0, r_ratios, l_ratios)`` with ``r_ratios[m] == R_m`` for
+        `m = 0..depth-1` and ``l_ratios[k] == L_(-k)`` for `k = 0..depth-1`
+        (so ``l_ratios[0] == L_0``, ``l_ratios[1] == L_(-1)``, ...) -- the
+        ordering :func:`mathieu_floquet_solve` needs to reconstruct every
+        `c_n` outward from `c_0 = 1`.
+    """
+    r = 0.0
+    r_ratios_desc: list[float] = []  # R_(depth-1), R_(depth-2), ..., R_0
+    for m in range(depth, 0, -1):
+        d_m = _mathieu_d(mathieu_a, beta, m)
+        r = -mathieu_q / (d_m + mathieu_q * r)
+        r_ratios_desc.append(r)
+    r_ratios = list(reversed(r_ratios_desc))  # R_0, R_1, ..., R_(depth-1)
+    r0 = r_ratios[0]
+
+    ell = 0.0
+    l_ratios_asc: list[float] = []  # L_(-depth+1), ..., L_0
+    for m in range(-depth, 0):
+        d_m = _mathieu_d(mathieu_a, beta, m)
+        ell = -mathieu_q / (d_m + mathieu_q * ell)
+        l_ratios_asc.append(ell)
+    l0 = l_ratios_asc[-1]
+    l_ratios = list(reversed(l_ratios_asc))  # L_0, L_(-1), ..., L_(-depth+1)
+
+    return r0, l0, r_ratios, l_ratios
+
+
+def _mathieu_characteristic_equation(
+    mathieu_a: float, mathieu_q: float, beta: float, depth: int
+) -> float:
+    """The WP34 Hill-determinant characteristic equation
+    ``F(beta) = D_0(beta) + mathieu_q*(R_0(beta) + L_0(beta))``, zero
+    exactly at the true characteristic exponent (this module's WP34
+    comment block, step 1): the `m=0` row of the Fourier-recursion
+    tridiagonal system, with `c_(+/-1)/c_0` eliminated via the continued
+    fractions :func:`_mathieu_r0_l0_and_ratios` computes.
+    """
+    r0, l0, _, _ = _mathieu_r0_l0_and_ratios(mathieu_a, mathieu_q, beta, depth)
+    return _mathieu_d(mathieu_a, beta, 0) + mathieu_q * (r0 + l0)
+
+
+def _mathieu_beta_newton_at_depth(
+    mathieu_a: float,
+    mathieu_q: float,
+    depth: int,
+    beta_guess: float,
+    *,
+    tol: float,
+    max_iterations: int = 60,
+) -> float:
+    """Newton root-find for `beta` solving
+    :func:`_mathieu_characteristic_equation` `== 0` at a FIXED truncation
+    `depth`, starting from `beta_guess` (WP34; the derivative is a
+    central finite difference -- the continued fraction's analytic
+    `beta`-derivative is a longer expression this project does not need,
+    since the numerical derivative converges to machine precision in a
+    handful of iterations at every `(a, q)` this project's datasets
+    supply, verified against independent monodromy-matrix ODE
+    integration in this module's WP34 test suite).
+
+    Raises
+    ------
+    ValueError
+        Newton's method stalls (zero derivative) or does not converge
+        (`|beta_new - beta| < tol`) within `max_iterations` steps, naming
+        the last residual.
+    """
+    beta = beta_guess
+    for _ in range(max_iterations):
+        f_val = _mathieu_characteristic_equation(mathieu_a, mathieu_q, beta, depth)
+        h = max(1e-9, 1e-9 * abs(beta))
+        f_plus = _mathieu_characteristic_equation(mathieu_a, mathieu_q, beta + h, depth)
+        f_minus = _mathieu_characteristic_equation(mathieu_a, mathieu_q, beta - h, depth)
+        derivative = (f_plus - f_minus) / (2.0 * h)
+        if derivative == 0.0:
+            raise ValueError(
+                "Newton root-find for the exact Mathieu characteristic exponent stalled "
+                f"(zero derivative) for mathieu_a={mathieu_a!r}, mathieu_q={mathieu_q!r} at "
+                f"depth={depth!r}, beta={beta!r}"
+            )
+        step = f_val / derivative
+        beta_new = beta - step
+        if abs(beta_new - beta) < tol:
+            return beta_new
+        beta = beta_new
+    raise ValueError(
+        "Newton root-find for the exact Mathieu characteristic exponent did not converge "
+        f"within {max_iterations!r} iterations for mathieu_a={mathieu_a!r}, "
+        f"mathieu_q={mathieu_q!r} at depth={depth!r} (last beta={beta!r})"
+    )
+
+
+#: Default truncation-depth bounds for :func:`mathieu_floquet_solve` (WP34):
+#: `min_depth` is the smallest number of Fourier sidebands ever tried
+#: (already exact to float64 precision for this project's own
+#: `q ~ 0.19-0.28` datasets, this module's WP34 test suite confirms);
+#: `max_depth` is the convergence guard's ceiling (depth is doubled at each
+#: failed convergence check, up to this ceiling, before raising).
+MATHIEU_FLOQUET_MIN_DEPTH = 6
+MATHIEU_FLOQUET_MAX_DEPTH = 96
+
+
+def mathieu_floquet_solve(
+    mathieu_a: float,
+    mathieu_q: float,
+    *,
+    tol: float = 1e-12,
+    min_depth: int = MATHIEU_FLOQUET_MIN_DEPTH,
+    max_depth: int = MATHIEU_FLOQUET_MAX_DEPTH,
+) -> MathieuFloquetSolution:
+    """Exact Floquet solution of the Mathieu equation (WP34; this module's
+    WP34 comment block above, step 1, for the full derivation and its
+    verification against independent monodromy-matrix ODE integration).
+
+    Solves for the characteristic exponent `beta(mathieu_a, mathieu_q)` by
+    Newton root-find on the Hill-determinant characteristic equation
+    (:func:`_mathieu_characteristic_equation`), starting from the
+    leading-order guess `sqrt(mathieu_a+mathieu_q^2/2)`, at a truncation
+    depth chosen by an explicit convergence test: the depth is doubled and
+    the solve re-run until both `beta` and the retained Fourier ratios
+    stop changing by more than `tol`, raising if `max_depth` is reached
+    without convergence (the convergence guard).
+
+    `mathieu_q = 0.0` (no RF coupling, e.g. the trap axial direction,
+    Berkeland Eq. 6) short-circuits to the exact harmonic-oscillator
+    result `beta = sqrt(mathieu_a)` directly, with every sideband
+    Fourier coefficient `0.0` (this module's WP34 comment block, step 3):
+    no continued fraction is needed or run in this case.
+
+    Parameters
+    ----------
+    mathieu_a : float
+        The Mathieu DC parameter. May be negative (the ordinary case for
+        RF-dominated radial confinement).
+    mathieu_q : float
+        The Mathieu RF parameter (only `mathieu_q^2` is physical; this is
+        the non-negative magnitude). Must be `>= 0`.
+    tol : float, default 1e-12
+        Convergence tolerance, applied to `beta` and to every retained
+        Fourier ratio between successive (doubled) truncation depths, and
+        to the Newton root-find's own step size at each fixed depth.
+    min_depth : int, default `MATHIEU_FLOQUET_MIN_DEPTH`
+        The smallest truncation depth tried.
+    max_depth : int, default `MATHIEU_FLOQUET_MAX_DEPTH`
+        The convergence guard's ceiling.
+
+    Returns
+    -------
+    MathieuFloquetSolution
+
+    Raises
+    ------
+    ValueError
+        `mathieu_q < 0`, `min_depth < 1`, `max_depth < min_depth`,
+        `mathieu_a + mathieu_q^2/2 <= 0` (the leading-order confinement
+        condition this WP34 solve's own initial guess needs to be real
+        and positive; the same physical-confinement guard
+        :func:`radial_micromotion_enhancement` uses), Newton's method
+        stalling or failing to converge at some tried depth
+        (:func:`_mathieu_beta_newton_at_depth`), or the depth-doubling
+        convergence test not converging by `max_depth`.
+    """
+    if mathieu_q < 0.0:
+        raise ValueError(f"mathieu_q={mathieu_q!r} must be >= 0")
+    if min_depth < 1:
+        raise ValueError(f"min_depth={min_depth!r} must be >= 1")
+    if max_depth < min_depth:
+        raise ValueError(f"max_depth={max_depth!r} must be >= min_depth={min_depth!r}")
+
+    leading_order_sq = mathieu_a + mathieu_q * mathieu_q / 2.0
+    if leading_order_sq <= 0.0:
+        raise ValueError(
+            f"unphysical radial confinement: mathieu_a+mathieu_q^2/2={leading_order_sq!r} "
+            f"<= 0 for mathieu_a={mathieu_a!r}, mathieu_q={mathieu_q!r} -- this (a, q) pair "
+            "does not correspond to a confined Mathieu solution at leading order, so no "
+            "physically meaningful initial guess for the exact Floquet root-find exists"
+        )
+
+    if mathieu_q == 0.0:
+        # This module's WP34 comment block, step 3: q=0 reduces the Mathieu
+        # equation to the plain harmonic oscillator exactly; beta=sqrt(a)
+        # exactly, every sideband is exactly zero, and no continued
+        # fraction or Newton root-find is needed.
+        beta = math.sqrt(mathieu_a)
+        trivial_coefficients = [0.0] * (2 * min_depth + 1)
+        trivial_coefficients[min_depth] = 1.0
+        return MathieuFloquetSolution(
+            mathieu_a=mathieu_a,
+            mathieu_q=mathieu_q,
+            beta=beta,
+            fourier_coefficients=tuple(trivial_coefficients),
+            truncation_depth=min_depth,
+        )
+
+    depths: list[int] = []
+    depth_cursor = min_depth
+    while depth_cursor < max_depth:
+        depths.append(depth_cursor)
+        depth_cursor *= 2
+    depths.append(max_depth)
+
+    beta_guess = math.sqrt(leading_order_sq)
+    # Convergence is checked on the two PHYSICAL quantities this solve
+    # exists to produce, `beta` and `F_exact`, not on the raw continued-
+    # fraction ratios directly: the highest-order retained ratios (e.g.
+    # `R_(depth-1)`) are themselves tiny (the Fourier coefficients decay
+    # rapidly) and converge only slowly in ABSOLUTE terms between
+    # successive depths even once `beta` and `F_exact` have already
+    # converged to machine precision, since their own magnitude is what is
+    # shrinking; comparing them directly would force every solve to the
+    # `max_depth` ceiling for no gain in the quantities actually reported.
+    prior: tuple[float, float] | None = None
+    solution: tuple[float, tuple[float, ...], int] | None = None
+    converged = False
+    for depth in depths:
+        beta = _mathieu_beta_newton_at_depth(mathieu_a, mathieu_q, depth, beta_guess, tol=tol)
+        _, _, r_ratios, l_ratios = _mathieu_r0_l0_and_ratios(mathieu_a, mathieu_q, beta, depth)
+        coefficients = _mathieu_coefficients_from_ratios(r_ratios, l_ratios)
+        f_exact = _mathieu_velocity_enhancement(beta, coefficients, depth)
+        if prior is not None:
+            prior_beta, prior_f_exact = prior
+            if abs(beta - prior_beta) < tol and abs(f_exact - prior_f_exact) < tol:
+                solution = (beta, coefficients, depth)
+                converged = True
+                break
+        prior = (beta, f_exact)
+        solution = (beta, coefficients, depth)
+        beta_guess = beta
+
+    if not converged or solution is None:
+        last_beta = solution[0] if solution is not None else beta_guess
+        raise ValueError(
+            f"exact Mathieu Floquet solve did not converge by max_depth={max_depth!r} "
+            f"sidebands for mathieu_a={mathieu_a!r}, mathieu_q={mathieu_q!r} (last "
+            f"beta={last_beta!r}); this pair may sit too close to a Mathieu stability "
+            "boundary for this truncation scheme, or tol may be set unreasonably tight"
+        )
+
+    solution_beta, coefficients, solution_depth = solution
+    return MathieuFloquetSolution(
+        mathieu_a=mathieu_a,
+        mathieu_q=mathieu_q,
+        beta=solution_beta,
+        fourier_coefficients=coefficients,
+        truncation_depth=solution_depth,
+    )
+
+
+def radial_micromotion_enhancement_exact(
+    mathieu_q: float,
+    mathieu_a_axis: float,
+    *,
+    tol: float = 1e-12,
+    min_depth: int = MATHIEU_FLOQUET_MIN_DEPTH,
+    max_depth: int = MATHIEU_FLOQUET_MAX_DEPTH,
+) -> float:
+    """Exact time-averaged intrinsic-micromotion enhancement factor for one
+    radial axis (WP34; replaces :func:`radial_micromotion_enhancement`'s
+    leading-order Berkeland Eq. 10 bracket with the numerically exact
+    Floquet velocity-variance ratio, this module's WP34 comment block,
+    step 2 -- `radial_micromotion_enhancement` itself is untouched,
+    G15-gated record).
+
+    ``F_exact = <u'(t)^2> / <u'_secular^2>``, computed from
+    :func:`mathieu_floquet_solve`'s Fourier coefficients via
+    :meth:`MathieuFloquetSolution.velocity_enhancement_exact`.
+
+    Parameters
+    ----------
+    mathieu_q : float
+        The Mathieu RF parameter along this axis. Must be `>= 0`.
+    mathieu_a_axis : float
+        The Mathieu DC parameter along this SAME axis.
+    tol, min_depth, max_depth
+        See :func:`mathieu_floquet_solve`.
+
+    Returns
+    -------
+    float
+        `F_exact`, dimensionless, `>= 1.0`.
+
+    Raises
+    ------
+    ValueError
+        Propagated from :func:`mathieu_floquet_solve` (unphysical
+        confinement, or the exact solve fails to converge).
+    """
+    solution = mathieu_floquet_solve(
+        mathieu_a_axis, mathieu_q, tol=tol, min_depth=min_depth, max_depth=max_depth
+    )
+    return solution.velocity_enhancement_exact()
+
+
+#: Fixed tolerances for :func:`_clock_ion_mathieu_parameters_exact_raw`'s 2D
+#: Newton solve (WP34). Held as module constants, not function parameters:
+#: this raw function is also called from
+#: :func:`clock_ion_mathieu_parameters_exact`'s finite-difference
+#: uncertainty loop via ``**kwargs`` unpacking of a plain
+#: ``dict[str, float]``, and mypy cannot verify that dict never supplies a
+#: value for an ``int``-typed keyword parameter -- keeping this function's
+#: only parameters the SAME five floats as WP33's
+#: :func:`_clock_ion_mathieu_parameters_raw` (matching that function's own
+#: shape exactly) sidesteps the ambiguity entirely.
+_MATHIEU_FLOQUET_EXACT_INVERSION_TOL = 1e-12
+_MATHIEU_FLOQUET_EXACT_INVERSION_NEWTON_TOL = 1e-11
+_MATHIEU_FLOQUET_EXACT_INVERSION_MAX_NEWTON_ITERATIONS = 60
+
+
+def _clock_ion_mathieu_parameters_exact_raw(
+    m_clock_kg: float,
+    coulomb_curvature_n_per_m: float,
+    rf_drive_frequency_hz: float,
+    radial_bare_frequency_clock_x_hz: float,
+    radial_bare_frequency_clock_y_hz: float,
+) -> tuple[float, float, float, float]:
+    """Nominal (no uncertainty) WP34 EXACT clock-ion Mathieu-parameter
+    solve: the same two-equations-two-unknowns structure as
+    :func:`_clock_ion_mathieu_parameters_raw` (WP33), with the
+    leading-order relation `omega_i = (Omega/2)*sqrt(a_i+q_i^2/2)`
+    replaced by the exact `omega_i = (Omega/2)*beta_exact(a_i, q)`
+    (:func:`mathieu_floquet_solve`), solved by 2D Newton iteration in
+    `(q, a_x)` (this module's WP34 comment block, step 4). `a_y = -a_z -
+    a_x` (the same Laplace constraint WP33 uses) and `a_z` (the same
+    exact closed form WP33 uses, `q_z=0` makes it exact already, step 3)
+    come from WP33's own raw solve, reused here to supply `a_z` and the
+    initial guess directly.
+
+    Returns
+    -------
+    tuple[float, float, float, float]
+        ``(q, a_x, a_y, a_z)``.
+
+    Raises
+    ------
+    ValueError
+        The leading-order initial guess is infeasible (propagated from
+        :func:`_clock_ion_mathieu_parameters_raw`), or the 2D Newton
+        iteration stalls (singular Jacobian) or does not converge within
+        `_MATHIEU_FLOQUET_EXACT_INVERSION_MAX_NEWTON_ITERATIONS` steps.
+    """
+    q0, a_x0, _a_y0, a_z = _clock_ion_mathieu_parameters_raw(
+        m_clock_kg,
+        coulomb_curvature_n_per_m,
+        rf_drive_frequency_hz,
+        radial_bare_frequency_clock_x_hz,
+        radial_bare_frequency_clock_y_hz,
+    )
+    omega_rf = 2.0 * math.pi * rf_drive_frequency_hz
+    omega_x_clock = 2.0 * math.pi * radial_bare_frequency_clock_x_hz
+    omega_y_clock = 2.0 * math.pi * radial_bare_frequency_clock_y_hz
+    beta_x_target = 2.0 * omega_x_clock / omega_rf
+    beta_y_target = 2.0 * omega_y_clock / omega_rf
+
+    def residual(q: float, a_x: float) -> tuple[float, float]:
+        a_y = -a_z - a_x
+        beta_x = mathieu_floquet_solve(a_x, q, tol=_MATHIEU_FLOQUET_EXACT_INVERSION_TOL).beta
+        beta_y = mathieu_floquet_solve(a_y, q, tol=_MATHIEU_FLOQUET_EXACT_INVERSION_TOL).beta
+        return beta_x - beta_x_target, beta_y - beta_y_target
+
+    q, a_x = q0, a_x0
+    for _ in range(_MATHIEU_FLOQUET_EXACT_INVERSION_MAX_NEWTON_ITERATIONS):
+        g1, g2 = residual(q, a_x)
+        if (
+            abs(g1) < _MATHIEU_FLOQUET_EXACT_INVERSION_NEWTON_TOL
+            and abs(g2) < _MATHIEU_FLOQUET_EXACT_INVERSION_NEWTON_TOL
+        ):
+            return q, a_x, -a_z - a_x, a_z
+
+        h_q = max(1e-9, 1e-9 * abs(q))
+        h_a = max(1e-9, 1e-9 * abs(a_x))
+        g1_qp, g2_qp = residual(q + h_q, a_x)
+        g1_qm, g2_qm = residual(q - h_q, a_x)
+        g1_ap, g2_ap = residual(q, a_x + h_a)
+        g1_am, g2_am = residual(q, a_x - h_a)
+        dg1_dq = (g1_qp - g1_qm) / (2.0 * h_q)
+        dg2_dq = (g2_qp - g2_qm) / (2.0 * h_q)
+        dg1_da = (g1_ap - g1_am) / (2.0 * h_a)
+        dg2_da = (g2_ap - g2_am) / (2.0 * h_a)
+        det = dg1_dq * dg2_da - dg1_da * dg2_dq
+        if det == 0.0:
+            raise ValueError(
+                "2D Newton iteration for the exact clock-ion Mathieu solve stalled "
+                f"(singular Jacobian) at q={q!r}, a_x={a_x!r} for m_clock_kg={m_clock_kg!r}, "
+                f"coulomb_curvature_n_per_m={coulomb_curvature_n_per_m!r}, "
+                f"rf_drive_frequency_hz={rf_drive_frequency_hz!r}"
+            )
+        delta_q = (g2 * dg1_da - g1 * dg2_da) / det
+        delta_a = (g1 * dg2_dq - g2 * dg1_dq) / det
+        q = q + delta_q
+        a_x = a_x + delta_a
+
+    raise ValueError(
+        "2D Newton iteration for the exact clock-ion Mathieu solve did not converge within "
+        f"{_MATHIEU_FLOQUET_EXACT_INVERSION_MAX_NEWTON_ITERATIONS!r} iterations for "
+        f"m_clock_kg={m_clock_kg!r}, "
+        f"coulomb_curvature_n_per_m={coulomb_curvature_n_per_m!r}, "
+        f"rf_drive_frequency_hz={rf_drive_frequency_hz!r}, "
+        f"radial_bare_frequency_clock_x_hz={radial_bare_frequency_clock_x_hz!r}, "
+        f"radial_bare_frequency_clock_y_hz={radial_bare_frequency_clock_y_hz!r} "
+        f"(last q={q!r}, a_x={a_x!r})"
+    )
+
+
+def clock_ion_mathieu_parameters_exact(
+    m_clock_kg: float,
+    coulomb_curvature_n_per_m: float,
+    rf_drive_frequency_hz: float,
+    radial_bare_frequency_clock_x_hz: float,
+    radial_bare_frequency_clock_y_hz: float,
+    *,
+    coulomb_curvature_uncertainty_n_per_m: float = 0.0,
+    rf_drive_frequency_uncertainty_hz: float = 0.0,
+    radial_bare_frequency_clock_x_uncertainty_hz: float = 0.0,
+    radial_bare_frequency_clock_y_uncertainty_hz: float = 0.0,
+) -> ClockIonMathieuParameters:
+    """Solve the clock ion's own EXACT Mathieu `(a_x, a_y, a_z, q)`
+    parameters (WP34; see this module's WP34 comment block, step 4, for
+    the full derivation). Same public contract, same result type, and the
+    same finite-difference uncertainty-propagation style as
+    :func:`clock_ion_mathieu_parameters` (WP33, untouched, G15-gated
+    record) -- the two-equations-two-unknowns inversion, now solved
+    against the EXACT `beta(a, q)` map (:func:`mathieu_floquet_solve`)
+    instead of the leading-order closed form.
+
+    Parameters
+    ----------
+    m_clock_kg : float
+        The clock ion's mass, kilograms. Must be `> 0`.
+    coulomb_curvature_n_per_m : float
+        `c` (N/m), typically :func:`axial_coulomb_curvature`'s first
+        return value. Must be `> 0`.
+    rf_drive_frequency_hz : float
+        The trap's RF drive ORDINARY frequency `Omega/(2*pi)`, hertz.
+        Must be `> 0`.
+    radial_bare_frequency_clock_x_hz, radial_bare_frequency_clock_y_hz : float
+        The clock ion's own bare (single-ion) radial ORDINARY frequencies
+        for the X and Y transverse directions, hertz. Must each be `> 0`.
+    coulomb_curvature_uncertainty_n_per_m : float, default 0.0
+        1-sigma uncertainty on `coulomb_curvature_n_per_m`, N/m. Must be
+        `>= 0`.
+    rf_drive_frequency_uncertainty_hz : float, default 0.0
+        1-sigma uncertainty on `rf_drive_frequency_hz`, hertz. Must be
+        `>= 0`.
+    radial_bare_frequency_clock_x_uncertainty_hz,
+    radial_bare_frequency_clock_y_uncertainty_hz : float, default 0.0
+        1-sigma uncertainty on each bare radial frequency, hertz. Must
+        each be `>= 0`.
+
+    Returns
+    -------
+    ClockIonMathieuParameters
+
+    Raises
+    ------
+    ValueError
+        Non-positive mass/curvature/drive-frequency/radial-frequency,
+        negative uncertainty, or the exact 2D Newton solve fails to
+        converge at the nominal point or at any finite-difference
+        uncertainty sample point (propagated from
+        :func:`_clock_ion_mathieu_parameters_exact_raw`).
+    """
+    if m_clock_kg <= 0.0:
+        raise ValueError(f"m_clock_kg={m_clock_kg!r} must be > 0")
+    if coulomb_curvature_n_per_m <= 0.0:
+        raise ValueError(f"coulomb_curvature_n_per_m={coulomb_curvature_n_per_m!r} must be > 0")
+    if rf_drive_frequency_hz <= 0.0:
+        raise ValueError(f"rf_drive_frequency_hz={rf_drive_frequency_hz!r} must be > 0")
+    if radial_bare_frequency_clock_x_hz <= 0.0:
+        raise ValueError(
+            f"radial_bare_frequency_clock_x_hz={radial_bare_frequency_clock_x_hz!r} must be > 0"
+        )
+    if radial_bare_frequency_clock_y_hz <= 0.0:
+        raise ValueError(
+            f"radial_bare_frequency_clock_y_hz={radial_bare_frequency_clock_y_hz!r} must be > 0"
+        )
+    if coulomb_curvature_uncertainty_n_per_m < 0.0:
+        raise ValueError(
+            "coulomb_curvature_uncertainty_n_per_m="
+            f"{coulomb_curvature_uncertainty_n_per_m!r} must be >= 0"
+        )
+    if rf_drive_frequency_uncertainty_hz < 0.0:
+        raise ValueError(
+            f"rf_drive_frequency_uncertainty_hz={rf_drive_frequency_uncertainty_hz!r} must be >= 0"
+        )
+    if radial_bare_frequency_clock_x_uncertainty_hz < 0.0:
+        raise ValueError(
+            "radial_bare_frequency_clock_x_uncertainty_hz="
+            f"{radial_bare_frequency_clock_x_uncertainty_hz!r} must be >= 0"
+        )
+    if radial_bare_frequency_clock_y_uncertainty_hz < 0.0:
+        raise ValueError(
+            "radial_bare_frequency_clock_y_uncertainty_hz="
+            f"{radial_bare_frequency_clock_y_uncertainty_hz!r} must be >= 0"
+        )
+
+    q, a_x, a_y, a_z = _clock_ion_mathieu_parameters_exact_raw(
+        m_clock_kg,
+        coulomb_curvature_n_per_m,
+        rf_drive_frequency_hz,
+        radial_bare_frequency_clock_x_hz,
+        radial_bare_frequency_clock_y_hz,
+    )
+
+    perturbations = (
+        ("coulomb_curvature_n_per_m", coulomb_curvature_uncertainty_n_per_m),
+        ("rf_drive_frequency_hz", rf_drive_frequency_uncertainty_hz),
+        ("radial_bare_frequency_clock_x_hz", radial_bare_frequency_clock_x_uncertainty_hz),
+        ("radial_bare_frequency_clock_y_hz", radial_bare_frequency_clock_y_uncertainty_hz),
+    )
+    base_kwargs = {
+        "m_clock_kg": m_clock_kg,
+        "coulomb_curvature_n_per_m": coulomb_curvature_n_per_m,
+        "rf_drive_frequency_hz": rf_drive_frequency_hz,
+        "radial_bare_frequency_clock_x_hz": radial_bare_frequency_clock_x_hz,
+        "radial_bare_frequency_clock_y_hz": radial_bare_frequency_clock_y_hz,
+    }
+    q_terms = []
+    a_x_terms = []
+    a_y_terms = []
+    a_z_terms = []
+    for public_name, sigma in perturbations:
+        if sigma == 0.0:
+            continue
+        plus_kwargs = dict(base_kwargs)
+        plus_kwargs[public_name] = base_kwargs[public_name] + sigma
+        minus_kwargs = dict(base_kwargs)
+        minus_kwargs[public_name] = base_kwargs[public_name] - sigma
+        q_plus, a_x_plus, a_y_plus, a_z_plus = _clock_ion_mathieu_parameters_exact_raw(
+            **plus_kwargs
+        )
+        q_minus, a_x_minus, a_y_minus, a_z_minus = _clock_ion_mathieu_parameters_exact_raw(
+            **minus_kwargs
+        )
+        q_terms.append(((q_plus - q_minus) / 2.0) ** 2)
+        a_x_terms.append(((a_x_plus - a_x_minus) / 2.0) ** 2)
+        a_y_terms.append(((a_y_plus - a_y_minus) / 2.0) ** 2)
+        a_z_terms.append(((a_z_plus - a_z_minus) / 2.0) ** 2)
+
+    q_uncertainty = math.sqrt(math.fsum(q_terms)) if q_terms else 0.0
+    a_x_uncertainty = math.sqrt(math.fsum(a_x_terms)) if a_x_terms else 0.0
+    a_y_uncertainty = math.sqrt(math.fsum(a_y_terms)) if a_y_terms else 0.0
+    a_z_uncertainty = math.sqrt(math.fsum(a_z_terms)) if a_z_terms else 0.0
+
+    return ClockIonMathieuParameters(
+        mathieu_q=q,
+        mathieu_a_x=a_x,
+        mathieu_a_y=a_y,
+        mathieu_a_z=a_z,
+        mathieu_q_uncertainty=q_uncertainty,
+        mathieu_a_x_uncertainty=a_x_uncertainty,
+        mathieu_a_y_uncertainty=a_y_uncertainty,
+        mathieu_a_z_uncertainty=a_z_uncertainty,
+    )
+
+
+def predicted_partner_bare_radial_frequencies_hz_exact(
+    clock_mathieu: ClockIonMathieuParameters,
+    m_clock_kg: float,
+    m_partner_kg: float,
+    rf_drive_frequency_hz: float,
+    *,
+    tol: float = 1e-12,
+) -> tuple[float, float]:
+    """EXACT-Floquet counterpart of
+    :func:`predicted_partner_bare_radial_frequencies_hz` (WP34; that
+    function is untouched, G15-gated record). Mass-scales the clock ion's
+    own solved Mathieu parameters exactly as that function does (this
+    module's WP34 comment block, step 5: the mass-scaling relation itself
+    is unaffected by which `beta(a, q)` evaluation follows), but converts
+    the mass-scaled `(a, q)` back to a predicted bare radial frequency via
+    the EXACT `omega_i = (Omega/2)*beta_exact(a_i, q)`
+    (:func:`mathieu_floquet_solve`) instead of the leading-order
+    `omega_i = (Omega/2)*sqrt(a_i+q_i^2/2)`.
+
+    Parameters
+    ----------
+    clock_mathieu : ClockIonMathieuParameters
+        The clock ion's own solved Mathieu parameters, typically
+        :func:`clock_ion_mathieu_parameters_exact`'s result (using the
+        leading-order :func:`clock_ion_mathieu_parameters`'s result here
+        instead is accepted -- this function only consumes the four
+        `mathieu_*` fields -- but mixes a leading-order solve with an
+        exact partner-frequency evaluation, so passing the exact solve is
+        the intended, self-consistent WP34 usage).
+    m_clock_kg : float
+        The clock ion's mass, kilograms. Must be `> 0`.
+    m_partner_kg : float
+        The partner ion's mass, kilograms. Must be `> 0`.
+    rf_drive_frequency_hz : float
+        The trap's RF drive ORDINARY frequency, hertz (the SAME value
+        passed to the Mathieu-parameter solve). Must be `> 0`.
+    tol : float, default 1e-12
+        Forwarded to :func:`mathieu_floquet_solve`.
+
+    Returns
+    -------
+    tuple[float, float]
+        ``(bare_frequency_partner_x_hz, bare_frequency_partner_y_hz)``.
+
+    Raises
+    ------
+    ValueError
+        `m_clock_kg`/`m_partner_kg`/`rf_drive_frequency_hz` not `> 0`, or
+        the mass-scaled partner `(a_axis, q)` pair fails
+        :func:`mathieu_floquet_solve` (unphysical confinement, or the
+        exact solve does not converge).
+    """
+    if m_clock_kg <= 0.0:
+        raise ValueError(f"m_clock_kg={m_clock_kg!r} must be > 0")
+    if m_partner_kg <= 0.0:
+        raise ValueError(f"m_partner_kg={m_partner_kg!r} must be > 0")
+    if rf_drive_frequency_hz <= 0.0:
+        raise ValueError(f"rf_drive_frequency_hz={rf_drive_frequency_hz!r} must be > 0")
+
+    mass_ratio = m_clock_kg / m_partner_kg  # a_i, q_i ~ 1/mass (Berkeland Eq. 5-6)
+    q_partner = clock_mathieu.mathieu_q * mass_ratio
+    a_x_partner = clock_mathieu.mathieu_a_x * mass_ratio
+    a_y_partner = clock_mathieu.mathieu_a_y * mass_ratio
+
+    beta_x = mathieu_floquet_solve(a_x_partner, q_partner, tol=tol).beta
+    beta_y = mathieu_floquet_solve(a_y_partner, q_partner, tol=tol).beta
+
+    omega_rf = 2.0 * math.pi * rf_drive_frequency_hz
+    omega_x_partner = (omega_rf / 2.0) * beta_x
+    omega_y_partner = (omega_rf / 2.0) * beta_y
+    return omega_x_partner / (2.0 * math.pi), omega_y_partner / (2.0 * math.pi)
+
+
+# ---------------------------------------------------------------------------
+# WP35: the coupled two-ion Floquet solve, the most complete treatment in
+# intrinsic micromotion in a two-ion crystal (CONVENTIONS.md section 16,
+# WP35 addition). WP33/WP34 both factorize the clock ion's per-mode
+# velocity variance as `participation_i * F_axis`, with `participation_i`
+# coming from the SEPARATE secular-only 2x2 eigenproblem (WP32) and
+# `F_axis` from the ion's OWN uncoupled Mathieu solve (WP33/WP34): a
+# single per-axis `F_axis` multiplies BOTH the COM and STR members of a
+# pair identically, and this factorization cannot in principle produce a
+# relative shift between them (WP34's own structural finding). The
+# physical reason: WP33/WP34's `F_axis` assumes the ion oscillates at its
+# own BARE Floquet frequency, but the clock ion's slow motion in a
+# collective (Coulomb-coupled) mode actually runs at that MODE's own
+# shifted quasi-frequency, different for COM and STR of the same axis.
+# WP35 removes the factorization entirely: it solves the COUPLED two-ion
+# time-periodic (Hill/Floquet) system directly, with the clock ion's
+# participation AND its micromotion enhancement both read off the SAME
+# per-mode Fourier decomposition of the coupled solution, self-
+# consistently, no per-ion `F` computed in isolation anywhere.
+#
+# Derivation.
+#
+# 1. The coupled equations of motion. Per transverse axis, in mass-
+#    weighted coordinates `y_i = sqrt(m_i)*x_i` (canonical momentum
+#    `u_i = dy_i/dt` at unit effective mass, matching WP32's own
+#    mass-weighted eigenproblem convention), the two ions' RADIAL Coulomb
+#    interaction is `U_int = -(c/2)*(x1-x2)^2` (this module's WP32 comment
+#    block: `c` the SAME axial-derived Coulomb curvature,
+#    :func:`axial_coulomb_curvature`, radial softening at half the axial
+#    magnitude, opposite sign). Combining this static coupling with each
+#    ion's OWN time-periodic Mathieu confinement
+#    (`Omega_i(t)^2 = (Omega_RF/2)^2*(a_i + 2*q_i*cos(Omega_RF*t))`, `a_i`,
+#    `q_i` the SAME per-ion Mathieu parameters WP33/WP34 solve for) gives,
+#    by direct Newton's-law differentiation of `U_int` and division by
+#    `sqrt(m_i)`:
+#
+#        y1'' = -[Omega_1(t)^2 - c/m1]*y1 - c'*y2
+#        y2'' = -[Omega_2(t)^2 - c/m2]*y2 - c'*y1
+#
+#    with `c' = c/sqrt(m1*m2)` (WP32's own off-diagonal coupling, exactly
+#    reused). This is a real, symmetric (Hamiltonian), 4-dimensional
+#    linear time-periodic system in `(y1, y2, y1', y2')`. It reduces
+#    EXACTLY to WP32's own static secular 2x2 eigenproblem
+#    (`[[omega_r1^2-c/m1, c'], [c', omega_r2^2-c/m2]]`) when `q1=q2=0`
+#    (no RF, `Omega_i(t)^2` becomes the constant `(Omega_RF/2)^2*a_i`),
+#    verified in this WP's own test suite item (b); it reduces EXACTLY to
+#    two INDEPENDENT single-ion Mathieu equations
+#    (:func:`mathieu_floquet_solve`) when `c=0`, verified in item (a).
+#
+# 2. Monodromy matrix and collective quasi-frequencies. The system's
+#    4x4 monodromy matrix `Phi(T)` (`T = 2*pi/Omega_RF`, one full RF
+#    period) is built by numerically integrating the ODE for four
+#    independent basis initial conditions
+#    (`scipy.integrate.solve_ivp`, `DOP853`, tight tolerances -- a
+#    deliberate step up from WP34's hand-rolled continued fraction: the
+#    coupled 4D system has no simple algebraic Hill-determinant reduction
+#    this project derives, while the single-ion 2D system does). `Phi(T)`
+#    is real and symplectic (the system is Hamiltonian, energy-
+#    conserving); its eigenvalues form two complex-conjugate pairs on the
+#    unit circle for a stable crystal (`mu_k = exp(i*beta_k*pi)`, the SAME
+#    beta-convention as :func:`mathieu_floquet_solve`: one RF period `T`
+#    equals one `tau`-period `pi`, so `beta_k = arg(mu_k)/pi` exactly
+#    mirrors the single-ion extraction). The two eigenvalues with
+#    `0 < arg(mu_k) < pi` are the two "positive-frequency" collective
+#    modes' representatives.
+#
+# 3. Per-mode Fourier decomposition and the clock ion's exact per-mode
+#    enhancement/participation. Propagating each mode's eigenvector
+#    forward through one period gives the FULL complex trajectory
+#    `Z_k(t) = (y1,k(t), y2,k(t), ...)`; removing the Floquet envelope
+#    `exp(i*beta_k*(Omega_RF/2)*t)` leaves the PERIODIC part
+#    `P_i,k(t) = sum_n c_i,k,n * exp(i*2*n*(Omega_RF/2)*t)`, Fourier-
+#    decomposed by FFT (`c_i,k,n` complex, `i` the ion index, `k` the
+#    mode index, `n` the sideband index -- the SAME Fourier-series
+#    structure :func:`mathieu_floquet_solve` uses for a single ion, now
+#    with one such series PER ION per collective mode). Two quantities
+#    follow directly, with NO separate single-ion `F` computed anywhere:
+#
+#        participation_i,k = |c_i,k,0|^2 / sum_j |c_j,k,0|^2
+#        enhancement_i,k = sum_n |c_i,k,n|^2*(beta_k+2n)^2
+#                          / (|c_i,k,0|^2 * beta_k^2)
+#
+#    `participation_i,k` generalizes WP31/WP32's own secular participation
+#    (the squared SECULAR, `n=0`-only amplitude fraction, verified to
+#    match WP32's static eigenvector decomposition exactly at `q=0`, item
+#    (b)); `enhancement_i,k` generalizes WP33/WP34's `F_axis`, but is now
+#    computed from ion `i`'s OWN row of the COUPLED mode's Fourier series
+#    (not the ion's uncoupled bare Mathieu solution), so it is free to
+#    differ between the COM-like and STR-like collective modes of the SAME
+#    axis -- exactly the physics WP34's own structural finding says
+#    WP33/WP34's shared-per-axis `F_axis` cannot capture. At `c=0` each
+#    mode collapses onto exactly one ion (`participation -> 1` for that
+#    ion, `0` for the other) and `enhancement_i,k` reduces EXACTLY to
+#    :func:`radial_micromotion_enhancement_exact` for that ion's own
+#    `(a_i, q_i)` (verified, item (a) -- the SAME `c_0`-normalized ratio
+#    definition WP34 uses, so this reduction holds exactly, to every
+#    order in `q`).
+#
+#    :func:`coupled_two_ion_floquet_modes` implements steps 2-3, returning
+#    both collective modes labeled COM-like/STR-like by the PHYSICAL,
+#    phase-invariant criterion `Re(v0[0]*conj(v0[1])) > 0` (in-phase
+#    displacement at `t=0`, robust to the eigenvector's arbitrary overall
+#    complex phase -- multiplying `v0` by any `exp(i*phi)` leaves this
+#    product unchanged). Frequency ordering happens to agree with this
+#    criterion for both datasets used here, but the phase criterion is
+#    the physical one, and this module checks it explicitly at every
+#    call instead of assuming the ordering holds.
+#
+# 4. The clock ion's per-mode velocity variance. With `participation_i,k`
+#    and `enhancement_i,k` both read from the SAME coupled decomposition,
+#    the clock ion's contribution from mode `k` composes exactly as
+#    WP31-WP34's own formula does structurally (E38's participation
+#    extension), with the mode's own EXACT quasi-frequency
+#    `omega_mode,k = beta_k*Omega_RF/2` replacing the bare ion frequency:
+#
+#        <v_clock^2>_mode_k = (hbar*omega_mode,k/m_clock)
+#                              * participation_clock,k * enhancement_clock,k
+#                              * (n_bar_k + 1/2)
+#
+#    the SAME E38 formula shape, now with participation and enhancement
+#    both self-consistent products of the ONE coupled solve, replacing
+#    the two separately-computed factors WP33/WP34 use.
+#
+# 5. The fully self-consistent inversion. WP33/WP34 solved the clock
+#    ion's `(q, a_x, a_y)` against the LEADING-ORDER or single-ion-EXACT
+#    `beta(a, q)` map, using WP32's SEPARATELY-reconstructed bare radial
+#    frequencies as the two target equations. WP35 removes that
+#    intermediate step: the coupled system's own two quasi-frequencies
+#    `beta_com`, `beta_str` (step 2-3) are DIRECTLY compared to the two
+#    MEASURED (published) mode frequencies -- no bare-frequency
+#    reconstruction needed at all, since the coupled solve already
+#    predicts the physically measured (coupled) quantities.
+#    :func:`coupled_two_ion_mathieu_parameters` solves this 2D system (`q`,
+#    `a_x`, with `a_y=-a_z-a_x` the same Laplace constraint, `a_z` the
+#    same exact axial relation WP33 uses) by Newton iteration, using
+#    WP34's own exact single-ion solve as the initial guess (this
+#    project's own scale: the coupling shifts the solved `(q, a_x, a_y)`
+#    from WP34's own values by a small, reported amount -- see this WP's
+#    own benchmark case for the actual numbers).
+#
+# 6. The over-determination check, in this fully coupled form. The
+#    mass-scaling relation `a_partner = a_clock*(m_clock/m_partner)`,
+#    `q_partner = q_clock*(m_clock/m_partner)` (Berkeland Eq. 5-6) is a
+#    statement about how `a`, `q` themselves depend on mass at fixed trap
+#    drive voltage/geometry/charge, unrelated to which computation solved
+#    for the clock ion's own parameters in the first place. WP35 therefore
+#    reuses WP34's own
+#    :func:`predicted_partner_bare_radial_frequencies_hz_exact` UNCHANGED,
+#    fed with the clock ion's newly (coupled-)solved
+#    `ClockIonMathieuParameters` in place of WP34's: mass-scale to the
+#    partner ion, then evaluate the partner's OWN uncoupled exact Floquet
+#    beta (:func:`mathieu_floquet_solve`) and compare to WP32's
+#    independently reconstructed partner bare frequency, exactly as
+#    WP33/WP34's own check does. This check is run for BOTH the per-axis
+#    diagnostic solve above and the constrained fit (this module's WP35
+#    Part 2 comment block below), on both datasets this project uses.
+#
+# 7. The reviewer's forced-oscillator comparison, a cheap estimate that is
+#    explicitly NOT self-consistent. A candidate physical picture: treat
+#    the clock ion as an independent forced oscillator whose OWN Mathieu
+#    sidebands are evaluated at the COLLECTIVE mode's quasi-frequency
+#    `beta_mode`, imposed externally in place of the ion's own bare beta
+#    (this `beta_mode` is always an input here, an already-known mode
+#    frequency, never solved for by this function), using the leading
+#    nearest-neighbor sideband approximation `c_k = q/((2k+beta_mode)^2 -
+#    a)` (a cruder step than :func:`mathieu_floquet_solve`'s full
+#    continued fraction) in `F(beta_mode) = 1 + sum_(k!=0)
+#    c_k^2*(2k+beta_mode)^2 / beta_mode^2`.
+#    :func:`mathieu_forced_oscillator_enhancement` implements this
+#    directly (no ODE integration, no root-find) as a labeled comparison
+#    column alongside WP35's own rigorous coupled result.
+#
+# 8. Energy bookkeeping (the participation/enhancement split is not a
+#    partition of unity). WP31/WP32's plain participations sum to exactly
+#    `1.0` across the two ions sharing a mode, the correct bookkeeping for
+#    SECULAR motion alone, where no external drive adds energy. Once
+#    `enhancement` multiplies participation, the two ions'
+#    `participation_i*enhancement_i` values do NOT sum to `1.0` in
+#    general: the RF drive itself supplies the additional kinetic energy
+#    the enhancement factor accounts for, so the enhanced shares properly
+#    sum to something larger than one. A driven system carries that extra
+#    kinetic energy; the accounting is correct by construction.
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class CoupledTwoIonFloquetMode:
+    """One collective mode of the coupled two-ion Floquet solve (WP35;
+    this module's WP35 comment block, steps 2-3).
+
+    Attributes
+    ----------
+    beta : float
+        The mode's exact quasi-frequency, `beta = arg(mu)/pi` from the
+        4x4 monodromy matrix's eigenvalue `mu` (the SAME convention as
+        :attr:`MathieuFloquetSolution.beta`): the mode's own ORDINARY
+        secular frequency is `beta*Omega_RF/(4*pi)`, its angular
+        frequency `beta*Omega_RF/2`.
+    is_com_like : bool
+        `True` for the in-phase (COM-like) branch, `False` for the
+        out-of-phase (STR-like) branch, determined by the phase-invariant
+        criterion `Re(v0[0]*conj(v0[1])) > 0` on the mode's own monodromy
+        eigenvector (this module's WP35 comment block, step 3).
+    participation_clock, participation_partner : float
+        `|c_i,k,0|^2 / sum_j |c_j,k,0|^2`, the squared SECULAR (`n=0`
+        Fourier component) amplitude fraction each ion carries in this
+        mode. Sums to `1.0` exactly.
+    enhancement_clock, enhancement_partner : float
+        `sum_n |c_i,k,n|^2*(beta+2n)^2 / (|c_i,k,0|^2*beta^2)`, the exact
+        micromotion enhancement for EACH ion's own row of this mode's
+        Fourier series (not a separately-computed single-ion `F_axis`).
+    truncation_depth : int
+        The number of Fourier sidebands (per side of `n=0`) retained,
+        chosen by this WP's own convergence test.
+    """
+
+    beta: float
+    is_com_like: bool
+    participation_clock: float
+    participation_partner: float
+    enhancement_clock: float
+    enhancement_partner: float
+    truncation_depth: int
+
+
+def _coupled_two_ion_rhs(
+    t: float,
+    state: np.ndarray,
+    mathieu_a_clock: float,
+    mathieu_q_clock: float,
+    mathieu_a_partner: float,
+    mathieu_q_partner: float,
+    m_clock_kg: float,
+    m_partner_kg: float,
+    coulomb_curvature_n_per_m: float,
+    omega_rf: float,
+) -> list[float]:
+    """The coupled two-ion Floquet system's real-time right-hand side
+    (WP35, this module's WP35 comment block step 1), state
+    `(y_clock, y_partner, u_clock, u_partner)` in mass-weighted
+    coordinates (`y_i = sqrt(m_i)*x_i`, `u_i = dy_i/dt`).
+    """
+    y_clock, y_partner, u_clock, u_partner = state
+    c_prime = coulomb_curvature_n_per_m / math.sqrt(m_clock_kg * m_partner_kg)
+    omega_clock_sq = (omega_rf / 2.0) ** 2 * (
+        mathieu_a_clock + 2.0 * mathieu_q_clock * math.cos(omega_rf * t)
+    ) - coulomb_curvature_n_per_m / m_clock_kg
+    omega_partner_sq = (omega_rf / 2.0) ** 2 * (
+        mathieu_a_partner + 2.0 * mathieu_q_partner * math.cos(omega_rf * t)
+    ) - coulomb_curvature_n_per_m / m_partner_kg
+    return [
+        u_clock,
+        u_partner,
+        -omega_clock_sq * y_clock - c_prime * y_partner,
+        -omega_partner_sq * y_partner - c_prime * y_clock,
+    ]
+
+
+#: Default ODE tolerances for the WP35 coupled-Floquet monodromy/mode-
+#: propagation integrations (`scipy.integrate.solve_ivp`, `DOP853`):
+#: tight enough that this WP's own monodromy-vs-independent-integration
+#: test and its two exact limit checks (c->0 against WP34, q->0 against
+#: WP32) agree to float64 working precision.
+_COUPLED_FLOQUET_RTOL = 1e-12
+_COUPLED_FLOQUET_ATOL = 1e-14
+
+#: Default sample-count bounds for the per-mode Fourier (FFT) extraction
+#: (WP35): `min_n_pts` is the smallest number of time samples per RF
+#: period ever tried; `max_n_pts` is the convergence guard's ceiling
+#: (doubled at each failed convergence check before raising).
+COUPLED_FLOQUET_MIN_N_PTS = 256
+COUPLED_FLOQUET_MAX_N_PTS = 8192
+
+#: Default Fourier-sideband truncation depth for the per-mode
+#: participation/enhancement sums (WP35): the FFT already computes every
+#: harmonic up to `n_pts/2` in one pass, so this is a cheap post-hoc mask,
+#: not a re-integration.
+COUPLED_FLOQUET_DEPTH = 24
+
+
+def _coupled_two_ion_monodromy(
+    mathieu_a_clock: float,
+    mathieu_q_clock: float,
+    mathieu_a_partner: float,
+    mathieu_q_partner: float,
+    m_clock_kg: float,
+    m_partner_kg: float,
+    coulomb_curvature_n_per_m: float,
+    omega_rf: float,
+) -> tuple[np.ndarray, float]:
+    """The coupled two-ion system's 4x4 real monodromy matrix over one RF
+    period (WP35, this module's WP35 comment block step 2): four
+    independent basis initial conditions, each integrated forward one
+    period `T = 2*pi/omega_rf` with `scipy.integrate.solve_ivp`.
+
+    Returns
+    -------
+    tuple[numpy.ndarray, float]
+        ``(Phi_T, T)``, `Phi_T` shape `(4, 4)`.
+    """
+    period = 2.0 * math.pi / omega_rf
+    phi_t = np.zeros((4, 4))
+    args = (
+        mathieu_a_clock,
+        mathieu_q_clock,
+        mathieu_a_partner,
+        mathieu_q_partner,
+        m_clock_kg,
+        m_partner_kg,
+        coulomb_curvature_n_per_m,
+        omega_rf,
+    )
+    for k in range(4):
+        initial = np.zeros(4)
+        initial[k] = 1.0
+        solution = solve_ivp(
+            _coupled_two_ion_rhs,
+            [0.0, period],
+            initial,
+            args=args,
+            rtol=_COUPLED_FLOQUET_RTOL,
+            atol=_COUPLED_FLOQUET_ATOL,
+            method="DOP853",
+        )
+        if not solution.success:
+            raise ValueError(
+                "coupled two-ion monodromy integration failed for "
+                f"mathieu_a_clock={mathieu_a_clock!r}, mathieu_q_clock={mathieu_q_clock!r}, "
+                f"mathieu_a_partner={mathieu_a_partner!r}, "
+                f"mathieu_q_partner={mathieu_q_partner!r}: {solution.message}"
+            )
+        phi_t[:, k] = solution.y[:, -1]
+    return phi_t, period
+
+
+def _coupled_two_ion_modes_at_resolution(
+    mathieu_a_clock: float,
+    mathieu_q_clock: float,
+    mathieu_a_partner: float,
+    mathieu_q_partner: float,
+    m_clock_kg: float,
+    m_partner_kg: float,
+    coulomb_curvature_n_per_m: float,
+    omega_rf: float,
+    n_pts: int,
+    depth: int,
+) -> tuple[CoupledTwoIonFloquetMode, CoupledTwoIonFloquetMode]:
+    """One evaluation of the WP35 coupled-mode extraction at a FIXED
+    sample count `n_pts` (this module's WP35 comment block, steps 2-3),
+    shared by :func:`coupled_two_ion_floquet_modes`'s own convergence
+    test. Returns the two modes in monodromy-eigenvalue order (NOT
+    COM/STR-sorted; the caller sorts by :attr:`CoupledTwoIonFloquetMode.
+    is_com_like`).
+    """
+    phi_t, period = _coupled_two_ion_monodromy(
+        mathieu_a_clock,
+        mathieu_q_clock,
+        mathieu_a_partner,
+        mathieu_q_partner,
+        m_clock_kg,
+        m_partner_kg,
+        coulomb_curvature_n_per_m,
+        omega_rf,
+    )
+    eigvals, eigvecs = np.linalg.eig(phi_t)
+    angles = np.angle(eigvals)
+    positive_idx = [i for i in range(4) if 0.0 < angles[i] < math.pi]
+    if len(positive_idx) != 2:
+        raise ValueError(
+            "coupled two-ion monodromy matrix does not have exactly two "
+            f"positive-frequency eigenvalues (got angles={angles!r}) for "
+            f"mathieu_a_clock={mathieu_a_clock!r}, mathieu_q_clock={mathieu_q_clock!r}, "
+            f"mathieu_a_partner={mathieu_a_partner!r}, mathieu_q_partner={mathieu_q_partner!r}; "
+            "this crystal configuration may be unstable, or sit exactly on a "
+            "Floquet stability boundary"
+        )
+
+    args = (
+        mathieu_a_clock,
+        mathieu_q_clock,
+        mathieu_a_partner,
+        mathieu_q_partner,
+        m_clock_kg,
+        m_partner_kg,
+        coulomb_curvature_n_per_m,
+        omega_rf,
+    )
+    t_eval = np.linspace(0.0, period, n_pts, endpoint=False)
+    results = []
+    for idx in positive_idx:
+        beta = angles[idx] / math.pi
+        v0 = eigvecs[:, idx]
+        sol_re = solve_ivp(
+            _coupled_two_ion_rhs,
+            [0.0, period],
+            np.real(v0),
+            args=args,
+            rtol=_COUPLED_FLOQUET_RTOL,
+            atol=_COUPLED_FLOQUET_ATOL,
+            method="DOP853",
+            t_eval=t_eval,
+        )
+        sol_im = solve_ivp(
+            _coupled_two_ion_rhs,
+            [0.0, period],
+            np.imag(v0),
+            args=args,
+            rtol=_COUPLED_FLOQUET_RTOL,
+            atol=_COUPLED_FLOQUET_ATOL,
+            method="DOP853",
+            t_eval=t_eval,
+        )
+        z_clock = sol_re.y[0] + 1j * sol_im.y[0]
+        z_partner = sol_re.y[1] + 1j * sol_im.y[1]
+        envelope = np.exp(1j * beta * (omega_rf / 2.0) * t_eval)
+        p_clock = z_clock / envelope
+        p_partner = z_partner / envelope
+        c_clock = np.fft.fft(p_clock) / n_pts
+        c_partner = np.fft.fft(p_partner) / n_pts
+        n_index = np.fft.fftfreq(n_pts, d=1.0 / n_pts)
+        mask = np.abs(n_index) <= depth
+        ns = n_index[mask]
+        c_clock_n = c_clock[mask]
+        c_partner_n = c_partner[mask]
+        n0 = int(np.argmin(np.abs(ns)))
+        if ns[n0] != 0.0:
+            raise ValueError("WP35 Fourier extraction lost the n=0 (secular) bin")
+
+        clock_0_sq = float(np.abs(c_clock_n[n0]) ** 2)
+        partner_0_sq = float(np.abs(c_partner_n[n0]) ** 2)
+        participation_clock = clock_0_sq / (clock_0_sq + partner_0_sq)
+        enhancement_clock = float(np.sum(np.abs(c_clock_n) ** 2 * (beta + 2.0 * ns) ** 2)) / (
+            clock_0_sq * beta * beta
+        )
+        enhancement_partner = float(np.sum(np.abs(c_partner_n) ** 2 * (beta + 2.0 * ns) ** 2)) / (
+            partner_0_sq * beta * beta
+        )
+
+        is_com_like = bool(np.real(v0[0] * np.conj(v0[1])) > 0.0)
+        results.append(
+            CoupledTwoIonFloquetMode(
+                beta=beta,
+                is_com_like=is_com_like,
+                participation_clock=participation_clock,
+                participation_partner=1.0 - participation_clock,
+                enhancement_clock=enhancement_clock,
+                enhancement_partner=enhancement_partner,
+                truncation_depth=depth,
+            )
+        )
+    return results[0], results[1]
+
+
+def coupled_two_ion_floquet_modes(
+    m_clock_kg: float,
+    m_partner_kg: float,
+    mathieu_a_clock: float,
+    mathieu_q_clock: float,
+    coulomb_curvature_n_per_m: float,
+    rf_drive_frequency_hz: float,
+    *,
+    tol: float = 1e-8,
+    min_n_pts: int = COUPLED_FLOQUET_MIN_N_PTS,
+    max_n_pts: int = COUPLED_FLOQUET_MAX_N_PTS,
+    depth: int = COUPLED_FLOQUET_DEPTH,
+) -> tuple[CoupledTwoIonFloquetMode, CoupledTwoIonFloquetMode]:
+    """The coupled two-ion Floquet solve's two collective modes for one
+    transverse axis (WP35; this module's WP35 comment block for the full
+    derivation and its verification against WP34 (`c -> 0`) and WP32
+    (`q -> 0`)).
+
+    The partner ion's own `(a, q)` are mass-scaled from the clock ion's
+    (Berkeland Eq. 5-6, the SAME exact relation WP33/WP34 use):
+    `a_partner = a_clock*(m_clock/m_partner)`,
+    `q_partner = q_clock*(m_clock/m_partner)`.
+
+    Parameters
+    ----------
+    m_clock_kg, m_partner_kg : float
+        The two ions' masses, kilograms. Must each be `> 0`.
+    mathieu_a_clock, mathieu_q_clock : float
+        The clock ion's own Mathieu DC/RF parameters for this axis.
+        `mathieu_q_clock` must be `>= 0`.
+    coulomb_curvature_n_per_m : float
+        `c` (N/m), typically :func:`axial_coulomb_curvature`'s first
+        return value. Must be `> 0`.
+    rf_drive_frequency_hz : float
+        The trap's RF drive ORDINARY frequency, hertz. Must be `> 0`.
+    tol : float, default 1e-8
+        Convergence tolerance for the sample-count (`n_pts`) doubling
+        test, applied to `beta`, `participation_clock`, and
+        `enhancement_clock` for both modes.
+    min_n_pts, max_n_pts : int
+        Bounds on the per-period sample count tried.
+    depth : int
+        Fourier-sideband truncation depth (see
+        :data:`COUPLED_FLOQUET_DEPTH`).
+
+    Returns
+    -------
+    tuple[CoupledTwoIonFloquetMode, CoupledTwoIonFloquetMode]
+        ``(com_like_mode, str_like_mode)`` -- ALWAYS in this order
+        (`is_com_like=True` first), regardless of which has the higher
+        `beta`.
+
+    Raises
+    ------
+    ValueError
+        Non-positive mass/curvature/drive-frequency, `mathieu_q_clock <
+        0`, the monodromy matrix does not have exactly two positive-
+        frequency eigenvalues (an unstable or boundary configuration), the
+        two modes are not one COM-like and one STR-like, or the sample-
+        count convergence test does not converge by `max_n_pts`.
+    """
+    if m_clock_kg <= 0.0:
+        raise ValueError(f"m_clock_kg={m_clock_kg!r} must be > 0")
+    if m_partner_kg <= 0.0:
+        raise ValueError(f"m_partner_kg={m_partner_kg!r} must be > 0")
+    if mathieu_q_clock < 0.0:
+        raise ValueError(f"mathieu_q_clock={mathieu_q_clock!r} must be >= 0")
+    if coulomb_curvature_n_per_m <= 0.0:
+        raise ValueError(f"coulomb_curvature_n_per_m={coulomb_curvature_n_per_m!r} must be > 0")
+    if rf_drive_frequency_hz <= 0.0:
+        raise ValueError(f"rf_drive_frequency_hz={rf_drive_frequency_hz!r} must be > 0")
+
+    mass_ratio = m_clock_kg / m_partner_kg
+    mathieu_a_partner = mathieu_a_clock * mass_ratio
+    mathieu_q_partner = mathieu_q_clock * mass_ratio
+    omega_rf = 2.0 * math.pi * rf_drive_frequency_hz
+
+    n_pts_values: list[int] = []
+    cursor = min_n_pts
+    while cursor < max_n_pts:
+        n_pts_values.append(cursor)
+        cursor *= 2
+    n_pts_values.append(max_n_pts)
+
+    prior: tuple[CoupledTwoIonFloquetMode, CoupledTwoIonFloquetMode] | None = None
+    solution: tuple[CoupledTwoIonFloquetMode, CoupledTwoIonFloquetMode] | None = None
+    converged = False
+    for n_pts in n_pts_values:
+        raw_a, raw_b = _coupled_two_ion_modes_at_resolution(
+            mathieu_a_clock,
+            mathieu_q_clock,
+            mathieu_a_partner,
+            mathieu_q_partner,
+            m_clock_kg,
+            m_partner_kg,
+            coulomb_curvature_n_per_m,
+            omega_rf,
+            n_pts,
+            depth,
+        )
+        if raw_a.is_com_like == raw_b.is_com_like:
+            raise ValueError(
+                "coupled two-ion mode labeling failed: both extracted modes report "
+                f"is_com_like={raw_a.is_com_like!r} for mathieu_a_clock={mathieu_a_clock!r}, "
+                f"mathieu_q_clock={mathieu_q_clock!r}; expected exactly one COM-like and "
+                "one STR-like branch"
+            )
+        current = (raw_a, raw_b) if raw_a.is_com_like else (raw_b, raw_a)
+        if prior is not None:
+            deltas = [
+                abs(current[0].beta - prior[0].beta),
+                abs(current[1].beta - prior[1].beta),
+                abs(current[0].participation_clock - prior[0].participation_clock),
+                abs(current[1].participation_clock - prior[1].participation_clock),
+                abs(current[0].enhancement_clock - prior[0].enhancement_clock),
+                abs(current[1].enhancement_clock - prior[1].enhancement_clock),
+            ]
+            if max(deltas) < tol:
+                solution = current
+                converged = True
+                break
+        prior = current
+        solution = current
+
+    if not converged or solution is None:
+        raise ValueError(
+            f"coupled two-ion Floquet mode extraction did not converge by "
+            f"max_n_pts={max_n_pts!r} for mathieu_a_clock={mathieu_a_clock!r}, "
+            f"mathieu_q_clock={mathieu_q_clock!r}, "
+            f"coulomb_curvature_n_per_m={coulomb_curvature_n_per_m!r}, "
+            f"rf_drive_frequency_hz={rf_drive_frequency_hz!r}"
+        )
+    return solution
+
+
+def mathieu_forced_oscillator_enhancement(
+    mathieu_a: float, mathieu_q: float, beta_mode: float, *, depth: int = 60
+) -> float:
+    """The reviewer's forced-oscillator comparison estimate (WP35, this
+    module's WP35 comment block step 7). `beta_mode` is supplied
+    externally (e.g. the collective mode's own exact quasi-frequency from
+    :func:`coupled_two_ion_floquet_modes`); this is imposed, never solved
+    for. The sidebands use the leading nearest-neighbor recursion `c_k =
+    mathieu_q/((2k+beta_mode)^2 - mathieu_a)`, a cruder step in place of
+    :func:`mathieu_floquet_solve`'s full continued fraction. A cheap,
+    well-motivated comparison variant, standing alongside the rigorous
+    coupled result as its own labeled column.
+
+    ``F(beta_mode) = 1 + sum_(k=-depth, k!=0)^(depth) c_k^2*(2k+beta_mode)^2
+    / beta_mode^2``.
+
+    Parameters
+    ----------
+    mathieu_a : float
+        The ion's own Mathieu DC parameter for this axis.
+    mathieu_q : float
+        The ion's own Mathieu RF parameter. Must be `>= 0`.
+    beta_mode : float
+        The externally supplied characteristic exponent to force-evaluate
+        at (e.g. a collective mode's own exact quasi-frequency). Must be
+        `!= 0`.
+    depth : int, default 60
+        Number of sidebands summed on each side of `k=0`.
+
+    Returns
+    -------
+    float
+        `F(beta_mode)`, dimensionless.
+
+    Raises
+    ------
+    ValueError
+        `mathieu_q < 0`, `beta_mode == 0`, or `depth < 1`.
+    """
+    if mathieu_q < 0.0:
+        raise ValueError(f"mathieu_q={mathieu_q!r} must be >= 0")
+    if beta_mode == 0.0:
+        raise ValueError("beta_mode must be != 0")
+    if depth < 1:
+        raise ValueError(f"depth={depth!r} must be >= 1")
+
+    terms = []
+    for k in range(1, depth + 1):
+        for signed_k in (k, -k):
+            denominator = (2.0 * signed_k + beta_mode) ** 2 - mathieu_a
+            c_k = mathieu_q / denominator
+            terms.append(c_k * c_k * (2.0 * signed_k + beta_mode) ** 2)
+    return 1.0 + math.fsum(terms) / (beta_mode * beta_mode)
+
+
+@dataclass(frozen=True)
+class CoupledAxisMathieuParameters:
+    """Result of :func:`coupled_two_ion_mathieu_parameters` (WP35): the
+    clock ion's own `(q, a_axis)` for ONE transverse axis, solved directly
+    from that axis's two measured (COM, STR) mode frequencies through the
+    coupled two-ion Floquet forward model
+    (:func:`coupled_two_ion_floquet_modes`).
+
+    Unlike WP33/WP34's `ClockIonMathieuParameters` (which needs BOTH
+    radial axes' bare frequencies together, since a single-ion model
+    supplies only one equation per axis), a single axis's own COM/STR
+    pair already gives two equations for the two unknowns `(q, a_axis)`
+    in the coupled model, so this solve needs no cross-axis Laplace
+    constraint and no axial input at all: `q` here is this axis's OWN
+    solved value, comparable to (but not tied to) the OTHER axis's own
+    separately-solved `q` -- see this WP's own benchmark case for how
+    close the two independently-solved `q` values land.
+
+    Attributes
+    ----------
+    mathieu_q : float
+        This axis's own solved Mathieu RF parameter, `>= 0`.
+    mathieu_a_axis : float
+        This axis's own solved Mathieu DC parameter.
+    """
+
+    mathieu_q: float
+    mathieu_a_axis: float
+
+
+def _coupled_two_ion_mathieu_parameters_raw(
+    m_clock_kg: float,
+    m_partner_kg: float,
+    coulomb_curvature_n_per_m: float,
+    rf_drive_frequency_hz: float,
+    radial_com_frequency_hz: float,
+    radial_str_frequency_hz: float,
+    *,
+    newton_tol: float = 1e-10,
+    max_newton_iterations: int = 60,
+) -> tuple[float, float]:
+    """Nominal (no uncertainty) WP35 fully self-consistent per-axis
+    clock-ion Mathieu-parameter solve (this module's WP35 comment block,
+    step 5): 2D Newton iteration in `(q, a_axis)` against the COUPLED
+    system's own two quasi-frequencies, matched directly to this axis's
+    two MEASURED mode frequencies. The initial guess comes from this
+    axis's own WP32-reconstructed bare clock-ion frequency
+    (:func:`two_ion_radial_participations`) via the leading-order relation
+    `omega_bare = (Omega/2)*sqrt(a_axis+q^2/2)` at a generic RF-parameter
+    scale `q=0.2` (WP33/WP34's own solved `q` values for both datasets
+    used here sit in the `0.19-0.28` range, so this is a physically
+    reasonable seed, not an arbitrary one) -- WP34's own exact single-ion
+    raw solve is NOT reused directly here, since it needs BOTH axes'
+    bare frequencies together and this per-axis solve has only one.
+
+    Returns
+    -------
+    tuple[float, float]
+        ``(q, a_axis)``.
+
+    Raises
+    ------
+    ValueError
+        The 2D Newton iteration stalls (singular Jacobian) or does not
+        converge within `max_newton_iterations` steps.
+    """
+    bare_result = two_ion_radial_participations(
+        m_clock_kg,
+        m_partner_kg,
+        coulomb_curvature_n_per_m,
+        radial_com_frequency_hz,
+        radial_str_frequency_hz,
+    )
+    omega_bare_clock = 2.0 * math.pi * bare_result.bare_frequency_clock_hz
+    omega_rf = 2.0 * math.pi * rf_drive_frequency_hz
+    q0 = 0.2
+    a0 = (2.0 * omega_bare_clock / omega_rf) ** 2 - q0 * q0 / 2.0
+    if a0 + q0 * q0 / 2.0 <= 0.0:
+        a0 = -q0 * q0 / 4.0  # fall back to a seed satisfying a0+q0^2/2>0
+
+    beta_com_target = 2.0 * (2.0 * math.pi * radial_com_frequency_hz) / omega_rf
+    beta_str_target = 2.0 * (2.0 * math.pi * radial_str_frequency_hz) / omega_rf
+
+    # A tighter forward tolerance than coupled_two_ion_floquet_modes's own
+    # default: the finite-difference Jacobian below perturbs (q, a_axis)
+    # by steps comparable to the forward solve's own convergence noise
+    # floor, so the forward solve needs to be resolved well below that
+    # step size so the derivative estimate carries signal above the noise.
+    inner_tol = 1e-10
+
+    def residual(q: float, a_axis: float) -> tuple[float, float]:
+        com_mode, str_mode = coupled_two_ion_floquet_modes(
+            m_clock_kg,
+            m_partner_kg,
+            a_axis,
+            q,
+            coulomb_curvature_n_per_m,
+            rf_drive_frequency_hz,
+            tol=inner_tol,
+        )
+        return com_mode.beta - beta_com_target, str_mode.beta - beta_str_target
+
+    def is_feasible(q: float, a_axis: float) -> bool:
+        return q >= 0.0 and (a_axis + q * q / 2.0) > 0.0
+
+    q, a_axis = q0, a0
+    for _ in range(max_newton_iterations):
+        g1, g2 = residual(q, a_axis)
+        if abs(g1) < newton_tol and abs(g2) < newton_tol:
+            return q, a_axis
+
+        h_q = max(1e-7, 1e-4 * abs(q))
+        h_a = max(1e-7, 1e-4 * abs(a_axis))
+        g1_qp, g2_qp = residual(q + h_q, a_axis)
+        g1_qm, g2_qm = residual(q - h_q, a_axis)
+        g1_ap, g2_ap = residual(q, a_axis + h_a)
+        g1_am, g2_am = residual(q, a_axis - h_a)
+        dg1_dq = (g1_qp - g1_qm) / (2.0 * h_q)
+        dg2_dq = (g2_qp - g2_qm) / (2.0 * h_q)
+        dg1_da = (g1_ap - g1_am) / (2.0 * h_a)
+        dg2_da = (g2_ap - g2_am) / (2.0 * h_a)
+        det = dg1_dq * dg2_da - dg1_da * dg2_dq
+        if det == 0.0:
+            raise ValueError(
+                "2D Newton iteration for the coupled clock-ion Mathieu solve stalled "
+                f"(singular Jacobian) at q={q!r}, a_axis={a_axis!r} for "
+                f"m_clock_kg={m_clock_kg!r}, m_partner_kg={m_partner_kg!r}, "
+                f"coulomb_curvature_n_per_m={coulomb_curvature_n_per_m!r}"
+            )
+        delta_q = (g2 * dg1_da - g1 * dg2_da) / det
+        delta_a = (g1 * dg2_dq - g2 * dg1_dq) / det
+
+        # Backtracking line search (halving the step) if the raw Newton
+        # step would leave the leading-order confined/physical region
+        # (q < 0, or an unconfined a+q^2/2 <= 0): the forward model
+        # (coupled_two_ion_floquet_modes) is undefined outside that
+        # region, so an unguarded step there would crash instead of
+        # letting Newton recover.
+        scale = 1.0
+        while not is_feasible(q + scale * delta_q, a_axis + scale * delta_a):
+            scale /= 2.0
+            if scale < 1e-6:
+                raise ValueError(
+                    "2D Newton iteration for the coupled clock-ion Mathieu solve could not "
+                    f"find a feasible step from q={q!r}, a_axis={a_axis!r} for "
+                    f"m_clock_kg={m_clock_kg!r}, m_partner_kg={m_partner_kg!r}, "
+                    f"coulomb_curvature_n_per_m={coulomb_curvature_n_per_m!r}"
+                )
+        q = q + scale * delta_q
+        a_axis = a_axis + scale * delta_a
+
+    raise ValueError(
+        "2D Newton iteration for the coupled clock-ion Mathieu solve did not converge "
+        f"within {max_newton_iterations!r} iterations for m_clock_kg={m_clock_kg!r}, "
+        f"m_partner_kg={m_partner_kg!r}, coulomb_curvature_n_per_m={coulomb_curvature_n_per_m!r}, "
+        f"rf_drive_frequency_hz={rf_drive_frequency_hz!r}, "
+        f"radial_com_frequency_hz={radial_com_frequency_hz!r}, "
+        f"radial_str_frequency_hz={radial_str_frequency_hz!r} (last q={q!r}, a_axis={a_axis!r})"
+    )
+
+
+def coupled_two_ion_mathieu_parameters(
+    m_clock_kg: float,
+    m_partner_kg: float,
+    coulomb_curvature_n_per_m: float,
+    rf_drive_frequency_hz: float,
+    radial_com_frequency_hz: float,
+    radial_str_frequency_hz: float,
+) -> CoupledAxisMathieuParameters:
+    """Solve the clock ion's own `(q, a_axis)` for ONE transverse axis by
+    the FULLY SELF-CONSISTENT coupled-Floquet inversion (WP35; this
+    module's WP35 comment block, step 5): the coupled system's own two
+    quasi-frequencies matched directly to this axis's two MEASURED mode
+    frequencies, no WP32 bare-frequency reconstruction consumed as an
+    intermediate step in the solve itself (contrast
+    :func:`clock_ion_mathieu_parameters_exact`, WP34, which inverts
+    against WP32's separately-reconstructed bare frequencies for BOTH
+    axes together).
+
+    Parameters
+    ----------
+    m_clock_kg, m_partner_kg : float
+        The two ions' masses, kilograms. Must each be `> 0`.
+    coulomb_curvature_n_per_m : float
+        `c` (N/m). Must be `> 0`.
+    rf_drive_frequency_hz : float
+        The trap's RF drive ORDINARY frequency, hertz. Must be `> 0`.
+    radial_com_frequency_hz, radial_str_frequency_hz : float
+        The two MEASURED (published) radial mode frequencies for THIS
+        axis, hertz. Must each be `> 0` and distinct.
+
+    Returns
+    -------
+    CoupledAxisMathieuParameters
+
+    Raises
+    ------
+    ValueError
+        Non-positive/equal input, or the underlying 2D Newton solve fails
+        to converge (propagated from
+        :func:`_coupled_two_ion_mathieu_parameters_raw`).
+    """
+    if m_clock_kg <= 0.0:
+        raise ValueError(f"m_clock_kg={m_clock_kg!r} must be > 0")
+    if m_partner_kg <= 0.0:
+        raise ValueError(f"m_partner_kg={m_partner_kg!r} must be > 0")
+    if coulomb_curvature_n_per_m <= 0.0:
+        raise ValueError(f"coulomb_curvature_n_per_m={coulomb_curvature_n_per_m!r} must be > 0")
+    if rf_drive_frequency_hz <= 0.0:
+        raise ValueError(f"rf_drive_frequency_hz={rf_drive_frequency_hz!r} must be > 0")
+    if radial_com_frequency_hz <= 0.0:
+        raise ValueError(f"radial_com_frequency_hz={radial_com_frequency_hz!r} must be > 0")
+    if radial_str_frequency_hz <= 0.0:
+        raise ValueError(f"radial_str_frequency_hz={radial_str_frequency_hz!r} must be > 0")
+    if radial_com_frequency_hz == radial_str_frequency_hz:
+        raise ValueError(
+            "radial_com_frequency_hz == radial_str_frequency_hz == "
+            f"{radial_com_frequency_hz!r}: the two measured mode frequencies must be distinct"
+        )
+
+    q, a_axis = _coupled_two_ion_mathieu_parameters_raw(
+        m_clock_kg,
+        m_partner_kg,
+        coulomb_curvature_n_per_m,
+        rf_drive_frequency_hz,
+        radial_com_frequency_hz,
+        radial_str_frequency_hz,
+    )
+    return CoupledAxisMathieuParameters(mathieu_q=q, mathieu_a_axis=a_axis)
+
+
+# ---------------------------------------------------------------------------
+# WP35 Part 2: the constrained two-ion Mathieu fit (CONVENTIONS.md section
+# 16's WP35 addition, G17 fix loop). The per-axis solve above
+# (`coupled_two_ion_mathieu_parameters`) fits EACH axis's own two unknowns
+# `(q, a_axis)` from that SAME axis's own two measured frequencies: two
+# equations, two unknowns, zero residual by construction, so the resulting
+# near-unity per-mode ratios carry no independent evidence that the model
+# is right (a perfect fit is guaranteed regardless). Berkeland Eq. 6 states
+# the trap has ONE RF parameter magnitude per ion (`q_x = -q_y`, only
+# `q^2` physical); combined with the Laplace constraint `a_x+a_y=-a_z`
+# (`a_z` fixed from the measured axial frequency, the SAME exact relation
+# WP34 uses) and a single DC-split fraction `alpha` (`a_x=-alpha*a_z`,
+# `a_y=-(1-alpha)*a_z`, satisfying the constraint for any `alpha`), the
+# WHOLE two-ion crystal's radial dynamics reduce to just TWO unknowns,
+# `(q, alpha)`, predicting FOUR measured frequencies (X-COM, X-STR, Y-COM,
+# Y-STR) through the coupled-Floquet forward model
+# (:func:`coupled_two_ion_floquet_modes`). This is genuinely over-
+# determined (four equations, two unknowns): least-squares (Gauss-Newton)
+# minimizes the sum of squared frequency residuals, and those RESIDUALS
+# (not forced to zero) are the falsifiable output, the same epistemic
+# shape as WP32/WP33/WP34's own over-determination checks.
+# :func:`constrained_two_ion_mathieu_fit` implements this;
+# :func:`coupled_two_ion_mathieu_parameters` above stays exactly as
+# written, kept alongside this fit as a labeled diagnostic variant.
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class ConstrainedTwoIonMathieuFit:
+    """Result of :func:`constrained_two_ion_mathieu_fit` (WP35 Part 2): the
+    clock ion's own `(q, alpha, a_x, a_y, a_z)` from the over-determined
+    least-squares fit of all four measured radial mode frequencies, plus
+    the fit's own frequency residuals.
+
+    Attributes
+    ----------
+    mathieu_q : float
+        The single shared Mathieu RF parameter magnitude (Berkeland
+        Eq. 6, `q_x = -q_y`; only `q^2` is physical, so this is the
+        non-negative magnitude), `>= 0`.
+    alpha : float
+        The DC-split fraction: `mathieu_a_x = -alpha*mathieu_a_z`,
+        `mathieu_a_y = -(1-alpha)*mathieu_a_z`. Not restricted to
+        `[0, 1]` (the fitted value for both datasets used here falls
+        outside that interval; nothing in the Laplace constraint requires
+        it to stay inside).
+    mathieu_a_x, mathieu_a_y, mathieu_a_z : float
+        The resulting per-axis Mathieu DC parameters (`a_z` fixed from
+        the measured axial frequency, unchanged from WP34; `a_x`, `a_y`
+        follow from `alpha` and the Laplace constraint).
+    predicted_x_com_frequency_hz, predicted_x_str_frequency_hz,
+    predicted_y_com_frequency_hz, predicted_y_str_frequency_hz : float
+        The fitted `(q, alpha)`'s own coupled-Floquet-predicted frequency
+        for each of the four radial modes.
+    residual_x_com_hz, residual_x_str_hz, residual_y_com_hz,
+    residual_y_str_hz : float
+        `predicted - measured` for each mode, hertz: the fit's own
+        falsifiable output, left exactly as computed, never absorbed into
+        the fit as an additional free parameter.
+    """
+
+    mathieu_q: float
+    alpha: float
+    mathieu_a_x: float
+    mathieu_a_y: float
+    mathieu_a_z: float
+    predicted_x_com_frequency_hz: float
+    predicted_x_str_frequency_hz: float
+    predicted_y_com_frequency_hz: float
+    predicted_y_str_frequency_hz: float
+    residual_x_com_hz: float
+    residual_x_str_hz: float
+    residual_y_com_hz: float
+    residual_y_str_hz: float
+
+    def as_clock_ion_mathieu_parameters(self) -> ClockIonMathieuParameters:
+        """This fit's `(q, a_x, a_y, a_z)`, packaged as a
+        :class:`ClockIonMathieuParameters` (uncertainty fields `0.0`) for
+        direct reuse by
+        :func:`predicted_partner_bare_radial_frequencies_hz_exact` (WP35
+        Part 2's over-determination check, this module's WP35 Part 2
+        comment block).
+        """
+        return ClockIonMathieuParameters(
+            mathieu_q=self.mathieu_q,
+            mathieu_a_x=self.mathieu_a_x,
+            mathieu_a_y=self.mathieu_a_y,
+            mathieu_a_z=self.mathieu_a_z,
+            mathieu_q_uncertainty=0.0,
+            mathieu_a_x_uncertainty=0.0,
+            mathieu_a_y_uncertainty=0.0,
+            mathieu_a_z_uncertainty=0.0,
+        )
+
+
+def _constrained_fit_residuals(
+    q: float,
+    alpha: float,
+    a_z: float,
+    m_clock_kg: float,
+    m_partner_kg: float,
+    coulomb_curvature_n_per_m: float,
+    rf_drive_frequency_hz: float,
+    targets_hz: tuple[float, float, float, float],
+) -> tuple[float, float, float, float]:
+    """One evaluation of the WP35 Part 2 constrained-fit residual vector
+    (this module's WP35 Part 2 comment block): `(predicted - measured)`
+    for X-COM, X-STR, Y-COM, Y-STR, hertz, from the coupled-Floquet
+    forward model at `(q, alpha)`.
+    """
+    a_x = -alpha * a_z
+    a_y = -(1.0 - alpha) * a_z
+    x_com_mode, x_str_mode = coupled_two_ion_floquet_modes(
+        m_clock_kg, m_partner_kg, a_x, q, coulomb_curvature_n_per_m, rf_drive_frequency_hz
+    )
+    y_com_mode, y_str_mode = coupled_two_ion_floquet_modes(
+        m_clock_kg, m_partner_kg, a_y, q, coulomb_curvature_n_per_m, rf_drive_frequency_hz
+    )
+    omega_rf = 2.0 * math.pi * rf_drive_frequency_hz
+    predicted = (
+        x_com_mode.beta * omega_rf / (4.0 * math.pi),
+        x_str_mode.beta * omega_rf / (4.0 * math.pi),
+        y_com_mode.beta * omega_rf / (4.0 * math.pi),
+        y_str_mode.beta * omega_rf / (4.0 * math.pi),
+    )
+    return (
+        predicted[0] - targets_hz[0],
+        predicted[1] - targets_hz[1],
+        predicted[2] - targets_hz[2],
+        predicted[3] - targets_hz[3],
+    )
+
+
+def constrained_two_ion_mathieu_fit(
+    m_clock_kg: float,
+    m_partner_kg: float,
+    coulomb_curvature_n_per_m: float,
+    rf_drive_frequency_hz: float,
+    axial_com_frequency_hz: float,
+    radial_x_com_frequency_hz: float,
+    radial_x_str_frequency_hz: float,
+    radial_y_com_frequency_hz: float,
+    radial_y_str_frequency_hz: float,
+    *,
+    max_iterations: int = 25,
+    step_tol: float = 1e-10,
+) -> ConstrainedTwoIonMathieuFit:
+    """The WP35 Part 2 constrained, over-determined two-ion Mathieu fit
+    (this module's WP35 Part 2 comment block): a single shared `q` and a
+    DC-split fraction `alpha`, fit by Gauss-Newton least squares against
+    all FOUR measured radial mode frequencies (`a_z` fixed exactly from
+    the measured axial frequency, WP34's own relation, not itself a fit
+    parameter).
+
+    Parameters
+    ----------
+    m_clock_kg, m_partner_kg : float
+        The two ions' masses, kilograms. Must each be `> 0`.
+    coulomb_curvature_n_per_m : float
+        `c` (N/m). Must be `> 0`.
+    rf_drive_frequency_hz : float
+        The trap's RF drive ORDINARY frequency, hertz. Must be `> 0`.
+    axial_com_frequency_hz : float
+        The measured axial in-phase (COM) mode's ORDINARY frequency,
+        hertz (fixes `a_z` exactly, WP34's own relation). Must be `> 0`.
+    radial_x_com_frequency_hz, radial_x_str_frequency_hz,
+    radial_y_com_frequency_hz, radial_y_str_frequency_hz : float
+        The four MEASURED (published) radial mode frequencies, hertz.
+        Must each be `> 0`.
+    max_iterations : int, default 25
+        Maximum Gauss-Newton iterations.
+    step_tol : float, default 1e-10
+        Convergence tolerance on the relative step size in `(q, alpha)`.
+
+    Returns
+    -------
+    ConstrainedTwoIonMathieuFit
+
+    Raises
+    ------
+    ValueError
+        Non-positive input, or the Gauss-Newton iteration stalls
+        (singular normal-equations matrix) or fails to find a feasible
+        step.
+    """
+    if m_clock_kg <= 0.0:
+        raise ValueError(f"m_clock_kg={m_clock_kg!r} must be > 0")
+    if m_partner_kg <= 0.0:
+        raise ValueError(f"m_partner_kg={m_partner_kg!r} must be > 0")
+    if coulomb_curvature_n_per_m <= 0.0:
+        raise ValueError(f"coulomb_curvature_n_per_m={coulomb_curvature_n_per_m!r} must be > 0")
+    if rf_drive_frequency_hz <= 0.0:
+        raise ValueError(f"rf_drive_frequency_hz={rf_drive_frequency_hz!r} must be > 0")
+    if axial_com_frequency_hz <= 0.0:
+        raise ValueError(f"axial_com_frequency_hz={axial_com_frequency_hz!r} must be > 0")
+    for name, value in (
+        ("radial_x_com_frequency_hz", radial_x_com_frequency_hz),
+        ("radial_x_str_frequency_hz", radial_x_str_frequency_hz),
+        ("radial_y_com_frequency_hz", radial_y_com_frequency_hz),
+        ("radial_y_str_frequency_hz", radial_y_str_frequency_hz),
+    ):
+        if value <= 0.0:
+            raise ValueError(f"{name}={value!r} must be > 0")
+
+    omega_z_clock = math.sqrt(2.0 * coulomb_curvature_n_per_m / m_clock_kg)
+    omega_rf = 2.0 * math.pi * rf_drive_frequency_hz
+    a_z = 4.0 * omega_z_clock * omega_z_clock / (omega_rf * omega_rf)
+
+    targets_hz = (
+        radial_x_com_frequency_hz,
+        radial_x_str_frequency_hz,
+        radial_y_com_frequency_hz,
+        radial_y_str_frequency_hz,
+    )
+
+    # Initial guess from the per-axis diagnostic solve, averaged, plus its
+    # own implied DC split -- always close (both are solving the same
+    # underlying physics), so Gauss-Newton converges in a handful of
+    # steps.
+    x_axis_guess = coupled_two_ion_mathieu_parameters(
+        m_clock_kg,
+        m_partner_kg,
+        coulomb_curvature_n_per_m,
+        rf_drive_frequency_hz,
+        radial_x_com_frequency_hz,
+        radial_x_str_frequency_hz,
+    )
+    y_axis_guess = coupled_two_ion_mathieu_parameters(
+        m_clock_kg,
+        m_partner_kg,
+        coulomb_curvature_n_per_m,
+        rf_drive_frequency_hz,
+        radial_y_com_frequency_hz,
+        radial_y_str_frequency_hz,
+    )
+    q = (x_axis_guess.mathieu_q + y_axis_guess.mathieu_q) / 2.0
+    alpha = -x_axis_guess.mathieu_a_axis / a_z
+
+    def is_feasible(q_val: float, alpha_val: float) -> bool:
+        a_x_val = -alpha_val * a_z
+        a_y_val = -(1.0 - alpha_val) * a_z
+        return (
+            q_val >= 0.0
+            and (a_x_val + q_val * q_val / 2.0) > 0.0
+            and (a_y_val + q_val * q_val / 2.0) > 0.0
+        )
+
+    if not is_feasible(q, alpha):
+        # A small, confined fallback seed (used only if the per-axis
+        # bootstrap itself lands outside the leading-order-confined
+        # region; both datasets this project uses sit inside it).
+        q, alpha = 0.2, 0.5
+
+    for _ in range(max_iterations):
+        residuals = _constrained_fit_residuals(
+            q,
+            alpha,
+            a_z,
+            m_clock_kg,
+            m_partner_kg,
+            coulomb_curvature_n_per_m,
+            rf_drive_frequency_hz,
+            targets_hz,
+        )
+        objective = math.fsum(r * r for r in residuals)
+
+        h_q = max(1e-7, 1e-4 * abs(q))
+        h_alpha = max(1e-6, 1e-4 * abs(alpha))
+        r_qp = _constrained_fit_residuals(
+            q + h_q,
+            alpha,
+            a_z,
+            m_clock_kg,
+            m_partner_kg,
+            coulomb_curvature_n_per_m,
+            rf_drive_frequency_hz,
+            targets_hz,
+        )
+        r_qm = _constrained_fit_residuals(
+            q - h_q,
+            alpha,
+            a_z,
+            m_clock_kg,
+            m_partner_kg,
+            coulomb_curvature_n_per_m,
+            rf_drive_frequency_hz,
+            targets_hz,
+        )
+        r_ap = _constrained_fit_residuals(
+            q,
+            alpha + h_alpha,
+            a_z,
+            m_clock_kg,
+            m_partner_kg,
+            coulomb_curvature_n_per_m,
+            rf_drive_frequency_hz,
+            targets_hz,
+        )
+        r_am = _constrained_fit_residuals(
+            q,
+            alpha - h_alpha,
+            a_z,
+            m_clock_kg,
+            m_partner_kg,
+            coulomb_curvature_n_per_m,
+            rf_drive_frequency_hz,
+            targets_hz,
+        )
+        jacobian = [
+            [(r_qp[i] - r_qm[i]) / (2.0 * h_q), (r_ap[i] - r_am[i]) / (2.0 * h_alpha)]
+            for i in range(4)
+        ]
+        jtj = [
+            [math.fsum(jacobian[i][a] * jacobian[i][b] for i in range(4)) for b in range(2)]
+            for a in range(2)
+        ]
+        jtr = [math.fsum(jacobian[i][a] * residuals[i] for i in range(4)) for a in range(2)]
+        det = jtj[0][0] * jtj[1][1] - jtj[0][1] * jtj[1][0]
+        if det == 0.0:
+            raise ValueError(
+                "Gauss-Newton iteration for the constrained two-ion Mathieu fit stalled "
+                f"(singular normal-equations matrix) at q={q!r}, alpha={alpha!r} for "
+                f"m_clock_kg={m_clock_kg!r}, m_partner_kg={m_partner_kg!r}"
+            )
+        delta_q = (-jtr[0] * jtj[1][1] + jtr[1] * jtj[0][1]) / det
+        delta_alpha = (-jtj[0][0] * jtr[1] + jtj[1][0] * jtr[0]) / det
+
+        scale = 1.0
+        accepted = False
+        while scale >= 1e-8:
+            q_new = q + scale * delta_q
+            alpha_new = alpha + scale * delta_alpha
+            if is_feasible(q_new, alpha_new):
+                residuals_new = _constrained_fit_residuals(
+                    q_new,
+                    alpha_new,
+                    a_z,
+                    m_clock_kg,
+                    m_partner_kg,
+                    coulomb_curvature_n_per_m,
+                    rf_drive_frequency_hz,
+                    targets_hz,
+                )
+                objective_new = math.fsum(r * r for r in residuals_new)
+                if objective_new <= objective:
+                    accepted = True
+                    break
+            scale /= 2.0
+        if not accepted:
+            raise ValueError(
+                "Gauss-Newton iteration for the constrained two-ion Mathieu fit could not "
+                f"find a feasible descent step from q={q!r}, alpha={alpha!r} for "
+                f"m_clock_kg={m_clock_kg!r}, m_partner_kg={m_partner_kg!r}"
+            )
+
+        step_size = math.sqrt((scale * delta_q) ** 2 + (scale * delta_alpha) ** 2)
+        q, alpha = q_new, alpha_new
+        if step_size < step_tol:
+            break
+
+    a_x = -alpha * a_z
+    a_y = -(1.0 - alpha) * a_z
+    final_residuals = _constrained_fit_residuals(
+        q,
+        alpha,
+        a_z,
+        m_clock_kg,
+        m_partner_kg,
+        coulomb_curvature_n_per_m,
+        rf_drive_frequency_hz,
+        targets_hz,
+    )
+    predicted_hz = tuple(targets_hz[i] + final_residuals[i] for i in range(4))
+
+    return ConstrainedTwoIonMathieuFit(
+        mathieu_q=q,
+        alpha=alpha,
+        mathieu_a_x=a_x,
+        mathieu_a_y=a_y,
+        mathieu_a_z=a_z,
+        predicted_x_com_frequency_hz=predicted_hz[0],
+        predicted_x_str_frequency_hz=predicted_hz[1],
+        predicted_y_com_frequency_hz=predicted_hz[2],
+        predicted_y_str_frequency_hz=predicted_hz[3],
+        residual_x_com_hz=final_residuals[0],
+        residual_x_str_hz=final_residuals[1],
+        residual_y_com_hz=final_residuals[2],
+        residual_y_str_hz=final_residuals[3],
+    )

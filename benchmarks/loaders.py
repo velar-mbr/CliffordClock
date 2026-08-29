@@ -789,3 +789,42 @@ BREWER_AL_ION_TDS_PER_QUANTUM_CITATION = (
     "principles; the z (axial) rows do not carry this footnote, consistent with "
     "q_z=0 (no axial intrinsic micromotion, WP33's own F_axial=1 result)."
 )
+
+# ---------------------------------------------------------------------------
+# WP34 addendum: input-rounding bounds on the published frequencies that feed
+# the exact-Floquet reconstruction chain (CONVENTIONS.md section 16's WP34
+# addition). Marshall's Table S2 and main text, and Brewer's Table S2 and
+# main text, each publish their mode/RF-drive frequencies to a fixed number
+# of decimal places (MHz) with no stated measurement uncertainty; the
+# half-last-digit bound below is a ROUNDING bound on the published number
+# (the true value could differ from the printed one by up to half its last
+# digit), not a measured 1-sigma uncertainty -- a distinct kind of quantity,
+# labeled as such everywhere it is consumed
+# (`benchmarks/run_motional_al_ion.py`'s WP34 case).
+# ---------------------------------------------------------------------------
+
+#: Half-last-digit rounding bound on EVERY entry of
+#: `MARSHALL_AL_ION_MODES_MHZ_NBAR`'s frequency column: all six are
+#: published to 2 decimal places in MHz (e.g. "2.16"), so the bound is
+#: 0.01 MHz / 2 = 0.005 MHz = 5000 Hz, uniformly. A ROUNDING bound (the
+#: printed value could be off by up to this much before rounding), not a
+#: measured uncertainty -- Table S2 states no per-frequency uncertainty at
+#: all.
+MARSHALL_AL_ION_MODES_ROUNDING_BOUND_HZ = 5.0e3
+
+#: Half-last-digit rounding bound on `MARSHALL_AL_ION_RF_DRIVE_FREQUENCY_HZ`:
+#: published as "70.86 MHz" (2 decimal places), so 0.01 MHz / 2 = 0.005 MHz
+#: = 5000 Hz, the same convention as `MARSHALL_AL_ION_MODES_ROUNDING_BOUND_HZ`
+#: above.
+MARSHALL_AL_ION_RF_DRIVE_FREQUENCY_ROUNDING_BOUND_HZ = 5.0e3
+
+#: Half-last-digit rounding bound on every entry of `BREWER_AL_ION_MODES_MHZ`'s
+#: frequency column: all six are published to 2 decimal places in MHz
+#: (e.g. "3.31"), giving the same 0.005 MHz = 5000 Hz bound as Marshall's
+#: table above.
+BREWER_AL_ION_MODES_ROUNDING_BOUND_HZ = 5.0e3
+
+#: Half-last-digit rounding bound on `BREWER_AL_ION_RF_DRIVE_FREQUENCY_HZ`:
+#: published as "40.72 MHz" (2 decimal places), 0.01 MHz / 2 = 0.005 MHz =
+#: 5000 Hz.
+BREWER_AL_ION_RF_DRIVE_FREQUENCY_ROUNDING_BOUND_HZ = 5.0e3

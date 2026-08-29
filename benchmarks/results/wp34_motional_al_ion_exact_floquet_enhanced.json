@@ -1,0 +1,141 @@
+{
+  "wp34_motional_al_ion_exact_floquet_enhanced_schema": "1.0",
+  "generated_at_utc": "2026-08-24T17:19:55.090691+00:00",
+  "case_class": "arithmetic_reproduction",
+  "marshall_2504_13071_exact_floquet_enhanced_case": {
+    "case_class": "arithmetic_reproduction",
+    "clock_mathieu": {
+      "mathieu_q": 0.19008302401903907,
+      "mathieu_a_x": -0.005809270371234204,
+      "mathieu_a_y": 0.0022273242314721445,
+      "mathieu_a_z": 0.0035819461397620595,
+      "mathieu_q_uncertainty": 0.0,
+      "mathieu_a_x_uncertainty": 0.0,
+      "mathieu_a_y_uncertainty": 0.0,
+      "mathieu_a_z_uncertainty": 0.0
+    },
+    "clock_mathieu_leading_order": {
+      "mathieu_q": 0.19127799732774156,
+      "mathieu_a_x": -0.005884496084657496,
+      "mathieu_a_y": 0.0023025499448954367,
+      "mathieu_a_z": 0.0035819461397620595,
+      "mathieu_q_uncertainty": 0.0,
+      "mathieu_a_x_uncertainty": 0.0,
+      "mathieu_a_y_uncertainty": 0.0,
+      "mathieu_a_z_uncertainty": 0.0
+    },
+    "enhancement_x": 2.4676839728241307,
+    "enhancement_y": 1.8934430212847928,
+    "enhancement_x_leading_order": 2.474206597939098,
+    "enhancement_y_leading_order": 1.8882050328916802,
+    "bare_frequency_partner_x_predicted_hz": 4341117.492998679,
+    "bare_frequency_partner_y_predicted_hz": 5475275.342765603,
+    "bare_frequency_partner_x_reconstructed_hz": 4360931.835761294,
+    "bare_frequency_partner_y_reconstructed_hz": 5497385.853262768,
+    "partner_x_relative_deviation": -0.004543602952041002,
+    "partner_y_relative_deviation": -0.004022004474006867,
+    "per_mode": [
+      {
+        "name": "axial_com",
+        "is_axial": true,
+        "participation": 0.5383182958618564,
+        "enhancement": 1.0,
+        "predicted_shift_per_quantum": -9.566690214148586e-20,
+        "published_shift_per_quantum": -9.5e-20,
+        "residual_fractional": -6.669021414858614e-22,
+        "ratio_predicted_over_published": 1.0070200225419563,
+        "predicted_shift_per_quantum_rounding_uncertainty": 2.214511623645509e-22
+      },
+      {
+        "name": "axial_str",
+        "is_axial": true,
+        "participation": 0.4616817041381436,
+        "enhancement": 1.0,
+        "predicted_shift_per_quantum": -1.4244353778671586e-19,
+        "published_shift_per_quantum": -1.42e-19,
+        "residual_fractional": -4.435377867158599e-22,
+        "ratio_predicted_over_published": 1.0031235055402525,
+        "predicted_shift_per_quantum_rounding_uncertainty": 1.899247170489492e-22
+      },
+      {
+        "name": "x_com",
+        "is_axial": false,
+        "participation": 0.21383374360296137,
+        "enhancement": 2.4676839728241307,
+        "predicted_shift_per_quantum": -1.8320910368283826e-19,
+        "published_shift_per_quantum": -1.77e-19,
+        "residual_fractional": -6.20910368283826e-21,
+        "ratio_predicted_over_published": 1.035079681823945,
+        "predicted_shift_per_quantum_rounding_uncertainty": 5.036303679504851e-21
+      },
+      {
+        "name": "x_str",
+        "is_axial": false,
+        "participation": 0.7861662563970391,
+        "enhancement": 2.4676839728241307,
+        "predicted_shift_per_quantum": -5.554589936278338e-19,
+        "published_shift_per_quantum": -6.48e-19,
+        "residual_fractional": 9.25410063721662e-20,
+        "ratio_predicted_over_published": 0.857189804981225,
+        "predicted_shift_per_quantum_rounding_uncertainty": 4.5473591514975184e-21
+      },
+      {
+        "name": "y_com",
+        "is_axial": false,
+        "participation": 0.1662947736122066,
+        "enhancement": 1.8934430212847928,
+        "predicted_shift_per_quantum": -1.391149954515951e-19,
+        "published_shift_per_quantum": -1.42e-19,
+        "residual_fractional": 2.8850045484048853e-21,
+        "ratio_predicted_over_published": 0.979683066560529,
+        "predicted_shift_per_quantum_rounding_uncertainty": 4.164492441909321e-21
+      },
+      {
+        "name": "y_str",
+        "is_axial": false,
+        "participation": 0.8337052263877938,
+        "enhancement": 1.8934430212847928,
+        "predicted_shift_per_quantum": -6.169176472232669e-19,
+        "published_shift_per_quantum": -6.53e-19,
+        "residual_fractional": 3.6082352776733063e-20,
+        "ratio_predicted_over_published": 0.9447437170340994,
+        "predicted_shift_per_quantum_rounding_uncertainty": 3.5701377067570746e-21
+      }
+    ],
+    "predicted_total_nominal": -1.063589886484582e-17,
+    "predicted_total_uncertainty_nbar_fractional": 3.3682525420067224e-19,
+    "predicted_total_uncertainty_rounding_fractional": 7.32452933997654e-21,
+    "predicted_total_uncertainty_combined_fractional": 3.369048836057436e-19,
+    "predicted_total_band_lo": -1.0972803748451563e-17,
+    "predicted_total_band_hi": -1.0298993981240076e-17,
+    "total_bands_overlap": false,
+    "total_kpi_verdict": "NOT MET",
+    "per_mode_citation": "Marshall et al., arXiv:2504.13071v2 (2025), Supplemental Material Table S2, \"Frequency shift per quantum (10^-19)\" row: -0.95, -1.42, -1.77, -6.48, -1.42, -6.53 for Axial COM, Axial STR, X COM, X STR, Y COM, Y STR respectively (same mode order as MARSHALL_AL_ION_MODES_MHZ_NBAR). This is the paper's own PUBLISHED per-mode time-dilation weight (distinct from the unrelated 'Geometric factor kappa' row, a Doppler-cooling-laser geometry factor, MARSHALL_AL_ION_MODES_CITATION's own caveat). Re-fetched and confirmed against the arXiv PDF text this session.",
+    "enhancement_caveat": "WP34 SCOPE NOTE: this case replaces WP33's leading-order Mathieu bracket (F_axis = 1 + q^2/(2*a_axis+q^2)) with the numerically exact Floquet velocity-variance enhancement (cliffordclock.integrator.omega.radial_micromotion_enhancement_exact), and WP33's closed-form (q, a_x, a_y) inversion with a 2D Newton solve against the exact Mathieu characteristic exponent (clock_ion_mathieu_parameters_exact), the SAME two-equations-two-unknowns structure. The exact beta(a, q) map has no closed-form inverse, so this step requires a numerical solve. Both the exact continued-fraction solve and the exact partner-frequency over-determination check were verified this session against independent monodromy-matrix ODE integration (agreement to float64 precision); see cliffordclock.integrator.omega's own WP34 comment block for the full derivation. This case ALSO adds an input-rounding uncertainty channel WP33 did not carry: Marshall's published frequencies are given to a fixed number of decimal places with no stated measurement uncertainty, so each one carries an unavoidable rounding bound (half its last printed digit), propagated by finite differences through the full reconstruction chain and combined in quadrature with the existing phonon-number (thermometry) uncertainty, reported as a SEPARATE labeled component (see this case's own predicted_total_uncertainty_nbar_fractional/predicted_total_uncertainty_rounding_fractional/predicted_total_uncertainty_combined_fractional fields): a bound on rounding, distinct from a measured uncertainty and labeled separately for that reason. Reported per-mode and total-level agreement below is whatever this reconstruction gives against Marshall's own published per-mode and total rows; see this case's own enhancement_note and structural_note for the results stated in full, with no tuning.",
+    "enhancement_note": "Per-mode comparison against Marshall et al.'s own published 'Frequency shift per quantum' row (Table S2), exact-Floquet enhancement: the two AXIAL modes are unchanged (enhancement=1.0 identically, q_z=0). The four RADIAL modes use EXACT participation*enhancement (exact F_x=2.4677 vs leading-order 2.4742; exact F_y=1.8934 vs leading-order 1.8882); the resulting total lands at 1.62 sigma from the published total (NOT MET), against 1.62 sigma for WP33's own leading-order treatment of this SAME radial-spectrum reconstruction (re-evaluated here for an apples-to-apples comparison, thermometry uncertainty only). The two totals stay close: the exact-vs-leading-order correction to F_x/F_y here is at the sub-1%-relative level, since this project's own (a, q) sit well inside Berkeland's stated leading-order validity regime, too small to move the total-level verdict. Reported as run, no tuning.",
+    "partner_prediction_note": "Over-determination check (exact): mass-scaling the clock ion's own EXACT-solved Mathieu parameters (q=0.190083, a_x=-5.809270e-03, a_y=+2.227324e-03, a_z=+3.581946e-03) to the partner ion (Mg25+) and evaluating the EXACT beta(a, q) predicts bare radial frequencies of 4.341117e+06 Hz (X) and 5.475275e+06 Hz (Y), against WP32's own SEPARATELY reconstructed 4.360932e+06 Hz (X) and 5.497386e+06 Hz (Y); relative deviations -0.4544% (X) and -0.4022% (Y). WP33's own leading-order solve, re-evaluated for this same dataset, gives deviations -0.5691% (X) and -0.5332% (Y): the exact treatment moves the over-determination check's own margin, both branches staying sub-1%-relative, well inside the few-percent band the published mode frequencies' own ~3-significant-figure reporting precision supports.",
+    "rounding_uncertainty_note": "Input-rounding uncertainty channel (Part 2 of this WP): propagating each published frequency's half-last-digit rounding bound (+/-5000 Hz on each of the six mode frequencies, +/-5000 Hz on the RF drive frequency) through the full reconstruction chain gives a total-level rounding uncertainty of +/-7.325e-21 (fractional), against the thermometry (n_bar) channel's own +/-3.368e-19: the rounding bound is roughly 46x smaller than the thermometry uncertainty here, so it leaves the reported band essentially where the thermometry channel alone would place it. It is still reported as its OWN separately labeled component here, since Marshall et al.'s Table S2 states no uncertainty at all for these inputs. This channel is a BOUND on rounding, distinct from a measured uncertainty, and is labeled as such throughout this case's own record.",
+    "structural_note": "Structural question (does the exact treatment split COM from STR within an axis): the answer is NO, by construction: F_axis depends only on the axis's own (a, q), so the identical F_x multiplies both x_com and x_str, and the identical F_y multiplies both y_com and y_str, in both the leading-order and exact treatments. The X-axis per-mode ratios here are x_com=+1.0351 (+3.51%) and x_str=+0.8572 (-14.28%), opposite-sign deviations from 1.0 within the same axis, essentially unchanged from WP33's leading-order pattern: a single per-axis multiplicative enhancement factor scales an existing within-axis deviation, and cannot flip its sign. This locates the remaining scatter outside the single-per-axis-enhancement-factor model implemented here (WP33's and WP34's own F_axis, applied identically to both a pair's COM and STR members). A genuinely per-mode mechanism, still within Mathieu-order physics but coupling the two ions' motion beyond that single shared factor, remains open; the published rows' own per-mode calibration chain (for example Marshall's own COM/STR mode-frequency measurement or per-mode Doppler-cooling-limit corrections) is another candidate this case does not rule out either. The Y-axis ratios (y_com=+0.9797, y_str=+0.9447) both land on the same side of 1.0, so this sign flip is specific to the X branch. Given this, the TOTAL is the right level at which to compare this project's reconstruction against Marshall's published number; the individual per-mode rows carry this additional, uncorrected scatter."
+  },
+  "brewer_1902_07694_consistency_check": {
+    "clock_mathieu": {
+      "mathieu_q": 0.24580456384919216,
+      "mathieu_a_x": -0.0077306678810559895,
+      "mathieu_a_y": 0.002706860544848602,
+      "mathieu_a_z": 0.005023807336207387,
+      "mathieu_q_uncertainty": 0.0,
+      "mathieu_a_x_uncertainty": 0.0,
+      "mathieu_a_y_uncertainty": 0.0,
+      "mathieu_a_z_uncertainty": 0.0
+    },
+    "enhancement_x": 2.336502547627479,
+    "enhancement_y": 1.9223666424798134,
+    "partner_x_relative_deviation": -0.007514162033230819,
+    "partner_y_relative_deviation": -0.005676344005812841,
+    "per_mode_ratio_x_com": 0.8962920109146374,
+    "per_mode_ratio_x_str": 0.881599012469943,
+    "per_mode_ratio_y_com": 0.8796389961297555,
+    "per_mode_ratio_y_str": 0.936153151863627,
+    "missing_input_note": "Brewer et al.'s own total-level secular-motion row (-17.3(2.9)e-19) is NOT reproduced here, unchanged reason from WP33's own Brewer check: Table S2 publishes a 95%-CI BOUND on n_bar_0 combined with a per-mode heating rate through Brewer's own time-dependent Eq. 3, a different input shape from the static n_bar point estimate this project's formula consumes. What IS available, the RF drive frequency, all six mode frequencies, and a per-mode TDS/quantum row that already includes the transverse intrinsic-micromotion shift (footnote a), is what this consistency check uses: the exact over-determination check and the exact per-mode ratios above, both independent of n_bar."
+  }
+}
