@@ -140,6 +140,39 @@ earns its place only when it carries a real correspondence the reader
 computes with (an integrating sphere for a mirror-walled chamber);
 decorative imagery never does.
 
+## The clarity read (its own pass, not a side effect)
+
+Correct prose can still be unreadable. After every rule above, read
+each paragraph once more with a different question: could a strong
+graduate student from outside this subfield follow it on first read,
+without backtracking? A sentence that stacks a claim, its cause, a
+qualifier on the cause, and a comparison into one breath fails this
+even when every clause is true. The repair: one claim per sentence,
+cause in its own sentence, and a plain-English guide sentence ahead of
+any dense stretch so the reader knows what the details are about to
+establish. Example of the failure, from a real review: "The
+participation-corrected total above does not, because the two radial
+STR modes carry the largest published per-mode magnitudes, exactly
+where the closed form's mass-ratio-only approximation departs most
+from the true, RF/DC-geometry-dependent radial eigenvector." The
+repair: "The participation-corrected total misses, and for a specific
+reason. The radial STR modes carry the largest published per-mode
+values. They are also the modes where the mass-ratio formula is least
+reliable, because the true radial eigenvector depends on trap geometry
+the formula does not include."
+
+## "Exactly" and "precisely" (blocker by default)
+
+These two words almost always either inflate a point into a
+superlative or glue an extra clause onto a sentence that was already
+done. Delete them wherever they modify emphasis ("exactly where the
+approximation departs most", "precisely the tool a lab needs"). The
+survivors are technical uses that change a checkable claim: "exact" as
+the antonym of approximate ("the exact Floquet solution"), and
+"exactly" stating a mathematical identity the reader can verify
+("participations sum to one exactly"). When in doubt, delete and
+reread; the sentence is stronger.
+
 ## Word salad (blocker when found)
 
 A sentence carrying three ideas, or a paragraph where every sentence has
