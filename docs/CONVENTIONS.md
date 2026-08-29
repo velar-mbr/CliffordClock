@@ -1,6 +1,6 @@
 # Physics & Numerical Conventions: CliffordClock
 
-**Version:** 1.12.0 · **Status: reviewed and approved** (2026-08-11, per
+**Version:** 1.13.0 · **Status: reviewed and approved** (2026-08-11, per
 the project's G9 theory sign-off record, following
 the owner's trigger after reviewing the Fortier/Luiten/Margolis survey
 (Optica 13, 143 (2026)): mm-scale extended samples and their gravitational
@@ -2149,9 +2149,91 @@ paper's own published result):
   than the harmonic potential's as radial temperature rises, grounded in
   the papers' own equations.
 
+### E41 addendum: a differentiable JAX implementation (v1.13.0, WP37)
+
+Phase 2's spectrum fitting needs gradients of the light shift with
+respect to its physical inputs, and `jax.grad` cannot trace the adaptive,
+data-dependent convergence loops E41's own reference implementation
+uses. `cliffordclock.integrator.lattice_light_shift_jax` reimplements
+this section's BO+WKB chain (the axial separation, the WKB radial
+quantization and Eq. 11 density of states, Eq. 21's `X`/`Y`/`Z` factors,
+and Eq. 6's light shift) in `jax.numpy`, differentiable end to end and
+compatible with `jax.jit`. No new physics: every formula is the one this
+section already specifies, evaluated by a different numerical route.
+Model A's closed-form Eq. 1 is ported alongside it (pure coefficient
+algebra, no eigenproblem), so the differentiable module carries both
+community models.
+
+**Fixed resolution in place of adaptive convergence.** The reference
+module's own numerics double a grid resolution until a convergence guard
+is satisfied. That data-dependent loop length is what
+`jax.jit`/`jax.grad` cannot trace, so this module fixes the axial
+finite-difference grid at 1281 points and the radial quadrature at 321
+points instead. An offline convergence study
+(`tests/test_lattice_light_shift_jax.py::TestOfflineConvergenceStudy`),
+run once against the reference module's own converged output, chose this
+resolution and verified it directly. The study found the reference
+module's own default convergence guard settles at axial grid 1295 and
+321 radial points at all four of Bothwell et al. 2025's Table I points;
+matching that resolution reproduces the reference's `X`/`Y`/`Z` to
+better than `1.57e-7` relative, worst case (`Y`, `u0=112.2 E_R`),
+comfortably inside this module's `1e-6` agreement bar.
+
+**The turning-radius root-find** (Eq. 10's `Rnz(E)`, the inverse of
+`Unz(rho)`) is differentiated via `jax.lax.custom_root`'s implicit-
+function-theorem path around a fixed-iteration-count bisection: the
+closed-form-bracketed formulation this work package's own instructions
+name directly. A fixed-iteration bisection supplies the root's numeric
+value; the implicit function theorem supplies its gradient from the
+root-finding function's own derivative there. See the module's own
+docstring for the derivation and for a kink the reference module's
+"clamp an unbound state's energy to `0.0`" convention introduces at the
+root-find's `E=0` endpoint, and the unclamped-eigenvalue fix this
+module's own tests found necessary to keep `jax.grad` finite there.
+
+**Validated at the four G18 table points, Yb-171.** `jax.grad` of the
+light shift with respect to `u0` and `Tr` matches central finite
+differences of the REFERENCE implementation at the same four points:
+independent numerical methods on each side, the strongest available
+check. The worst-case agreement is `4.9e-8` relative, four orders of
+magnitude inside the `1e-4` gate requirement. The forward evaluation
+jit-compiles and returns bitwise-identical output across repeated calls
+on the same inputs.
+
+Scope, unchanged from this section's own: no spectrum or lineshape model
+(WP38, waiting on a research round this work package does not do), no
+pipeline wiring. See
+`cliffordclock/integrator/lattice_light_shift_jax.py`'s own module
+docstring for the full derivation and
+`tests/test_lattice_light_shift_jax.py` for the agreement, gradient,
+jit-determinism, and offline convergence-study tests.
+
 
 ---
 *Changelog:*
+*1.13.0 (2026-08-29): WP37, specified directly by the project owner (no
+separate formalism sign-off ceremony recorded for this entry): §17
+extended with a differentiable JAX implementation of the same E41 BO+WKB
+physics (`cliffordclock.integrator.lattice_light_shift_jax`), built for
+Phase 2's gradient-based spectrum fitting. No new physics claim: every
+formula is the one this section already specifies, and Model A's Eq. 1
+is ported alongside it. Every formula is evaluated at a fixed grid
+resolution in place of the reference module's adaptive convergence
+loops. An offline convergence study, run against the reference
+implementation's own converged output, chose and verified that
+resolution. Separately, `jax.grad` of the light shift with respect to `u0` and
+`Tr`, checked against central finite differences of the REFERENCE
+implementation at all four G18 table points, matches to `4.9e-8`
+relative, worst case; `X`/`Y`/`Z` agree with the reference to better than
+`1.57e-7` relative at the same points. Found and fixed in the same entry:
+an intermittent `NaN` gradient, caused by differentiating the turning-
+radius root-find through the reference module's own energy-clamping
+convention. The clamp flattens the axial energy to `0.0` identically across
+an entire ray of radii beyond the true band edge, so the root-find's
+implicit-function-theorem gradient divided by zero whenever the fixed-
+iteration bisection landed on that flat side, at the root-find's `E=0`
+endpoint specifically. The fix: root-find against the unclamped
+eigenvalue, the same physical root, with no flat region to land on.*
 *1.12.0 (2026-08-29): WP36 Phase 1, specified directly by the project
 owner (no separate formalism sign-off ceremony recorded for this entry):
 §17 added (E40 the Katori-lineage harmonic/operational lattice-light-shift
