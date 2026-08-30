@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: AGPL-3.0-or-later
-"""The whole CliffordClock model, expanded from the ten-line listing in
+"""The whole CliffordClock model, expanded from the six-line listing in
 ``docs/MODEL.md`` into a runnable script. Two terms are enough to
 reproduce a published result: gravitational redshift (``p = g h / c^2``)
 and second-order Doppler (``p = -v^2 / 2c^2``). A small ensemble of atoms,
@@ -130,7 +130,7 @@ def print_case(case: dict[str, float]) -> None:
 
 def main() -> None:
     rng = np.random.default_rng(seed=0)
-    print("CliffordClock model, ten lines: raising a clock's gravitational")
+    print("CliffordClock model, six lines: raising a clock's gravitational")
     print("redshift, against Chou et al. 2010 (Science 329, 1630).")
     print_case(compute_case(0.33, rng))
     print("  Chou et al. 2010 measured (4.1 +/- 1.6)e-17 for this rise.")

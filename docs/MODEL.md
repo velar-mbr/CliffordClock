@@ -68,7 +68,7 @@ Five places take this further:
   six-page companion paper comparing this composition law with the
   field's additive budget tables, with case studies where the
   difference in structure paid.
-- [`examples/ten_line_clock.py`](../examples/ten_line_clock.py): a
+- [`examples/six_line_clock.py`](../examples/six_line_clock.py): a
   runnable, self-contained version of the code above, in plain NumPy,
   reproducing a published gravitational-redshift measurement.
 - [`docs/terms/`](terms/): a one-page reference per systematic (BBR,

@@ -74,7 +74,7 @@ of scope: the same composition extended to the atomic-environment
 terms of a clock's full budget, evaluated per quantum state, with
 fringe contrast recovered from the phase variance of the same object, in
 an open implementation checked against published budgets. Code,
-tests, and the ten-line composition rule itself are public under the
+tests, and the six-line composition rule are public under the
 AGPLv3.
 \end{abstract}
 
@@ -152,7 +152,7 @@ against published numbers, where the fuller composition changes what
 a lab would conclude. Section \ref{sec:prior} places this against
 relativistic-timing practice, which already composes rate factors for
 gravitational and kinematic terms. Section \ref{sec:close} gives the
-composition rule in ten lines of code.
+composition rule in six lines of code.
 
 \section{The composition law}
 \label{sec:law}
@@ -491,9 +491,16 @@ shift calculation itself. The implementation is open, and every
 claim above is checked against a published budget in the repository's
 own test suite. No claim is made that this is the only way to compose a
 clock's systematics, or the first time a rate scalar has been
-composed for any of its individual terms.
+composed for any of its individual terms. The claim that is made is
+about bookkeeping. One rate scalar per atom carries the whole budget:
+every effect enters it the same way, and adding an effect means adding
+one factor. Effects that share the same underlying motion stay
+correlated because they multiply the same per-mode rate, which is what
+closed the budget of Sec.~\ref{sec:motional}, and the shift and the
+fringe contrast come out of one calculation. The full rule fits in the
+listing of the next section, short enough to check by reading it.
 
-\section{The composition, in ten lines}
+\section{The composition, in six lines}
 \label{sec:close}
 
 Every equation of Sec.~\ref{sec:law}, the multiplicative rate, the
@@ -518,7 +525,7 @@ visibility = abs(mean(exp(1j * array(phases))))
 
 Each entry of \texttt{terms} is one systematic's own physics, computed
 from its own formalism exactly as any published budget row is; the
-composition itself is the four lines that use them. The source code,
+composition is everything else in the listing. The source code,
 test suite, and the companion validation paper underlying every number
 in this paper are available at
 \url{https://github.com/velar-mbr/CliffordClock} under the GNU

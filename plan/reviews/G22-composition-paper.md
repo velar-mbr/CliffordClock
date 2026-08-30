@@ -23,7 +23,7 @@ row for row, verdicts included. The E39 visibility case (N = 4000, five
 swept r values, 0.65% worst deviation) matches notebook 13. The
 Bothwell 0.85-sigma method disagreement was recomputed from the repo's
 own quoted values and confirmed at 0.846 sigma. Listing 1 matches the
-canonical ten-line listing byte for byte.
+canonical six-line listing byte for byte.
 
 ## Citations: PASS after one FATAL
 
