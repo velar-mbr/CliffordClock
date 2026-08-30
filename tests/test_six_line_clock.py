@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 """Tests for ``examples/six_line_clock.py``, the runnable expansion of the
-six-line model listing in ``docs/MODEL.md``.
+six-line composition listing in ``docs/MODEL.md``.
 
 Loads the script by file path, since it is a standalone example outside
 the ``cliffordclock`` package, and checks its headline numbers: the

@@ -22,9 +22,10 @@ Free and open source (AGPLv3), Python, `pip install`-able.
 ## Start here
 
 - **[Quickstart](#quickstart)**: install and run a real case in a minute.
-- **[How it works](docs/MODEL.md)**: the whole physical model, in
-  [six lines of Python](examples/six_line_clock.py), with a six-page
-  [companion paper](paper/composition/main.pdf) comparing this
+- **[How it works](docs/MODEL.md)**: the composition rule, in
+  [six lines of Python](examples/six_line_clock.py); every systematic
+  is a published model plugged into it. A six-page
+  [companion paper](paper/composition/main.pdf) compares this
   composition with the field's budget tables.
 - **[The physics, term by term](docs/terms/)**: one page per systematic,
   formula and source.
@@ -168,8 +169,10 @@ calculation to machine precision today, and it exists for physics a
 single number per point cannot express; details in
 [`docs/coupling.md`](https://github.com/velar-mbr/CliffordClock/blob/main/docs/coupling.md) and
 [`docs/CONVENTIONS.md`](https://github.com/velar-mbr/CliffordClock/blob/main/docs/CONVENTIONS.md).
-The whole model, six lines of Python and a paragraph on why the standard
-additive budget is its first-order expansion, is in
+The rule that composes all of these terms into the reported shift and
+visibility is six lines of Python; each term inside it is a published
+physics model of its own. That rule, and why the standard additive
+budget is its first-order expansion, is in
 [`docs/MODEL.md`](https://github.com/velar-mbr/CliffordClock/blob/main/docs/MODEL.md), with a
 runnable version at
 [`examples/six_line_clock.py`](https://github.com/velar-mbr/CliffordClock/blob/main/examples/six_line_clock.py).
@@ -247,7 +250,7 @@ runnable version at
   paper. How the field sums an error budget, how this engine composes
   one, and why the two agree to first order, in six pages.
 - [`docs/tutorial.md`](https://github.com/velar-mbr/CliffordClock/blob/main/docs/tutorial.md): start here
-- [`docs/MODEL.md`](https://github.com/velar-mbr/CliffordClock/blob/main/docs/MODEL.md): the whole physical model, in six lines of Python
+- [`docs/MODEL.md`](https://github.com/velar-mbr/CliffordClock/blob/main/docs/MODEL.md): the six-line composition rule, and what the rest of the code is
 - [`docs/index.md`](https://github.com/velar-mbr/CliffordClock/blob/main/docs/index.md): full documentation map
 - [`docs/validation.md`](https://github.com/velar-mbr/CliffordClock/blob/main/docs/validation.md): what's been checked
   against what

@@ -30,7 +30,9 @@ across atoms; the visibility is the modulus of the mean phasor, the
 distribution's coherence. For small spreads, that modulus is set by the
 phase variance.
 
-This is the whole model:
+This is the composition rule. It is the part of the model these six
+lines carry in full; each `p` inside it stands for a published physics
+model of its own:
 
 ```python
 def clock_phase(worldline, terms, nu_0):
