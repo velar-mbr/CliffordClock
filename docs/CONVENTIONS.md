@@ -1,6 +1,11 @@
 # Physics & Numerical Conventions: CliffordClock
 
-**Version:** 1.13.0 · **Status: reviewed and approved** (2026-08-11, per
+**Version:** 1.14.0 · **plus §18's E42 addition (2026-08-29, WP38 Phase
+2)**, the differentiable sideband-spectrum forward model (harmonic and
+BO+WKB paths) built on §17's E41 JAX core, specified directly by the
+project owner, likewise not carrying its own separate formalism sign-off
+record; see §18's own changelog entry for the full record. **Status:
+reviewed and approved** (2026-08-11, per
 the project's G9 theory sign-off record, following
 the owner's trigger after reviewing the Fortier/Luiten/Margolis survey
 (Optica 13, 143 (2026)): mm-scale extended samples and their gravitational
@@ -2208,9 +2213,272 @@ docstring for the full derivation and
 `tests/test_lattice_light_shift_jax.py` for the agreement, gradient,
 jit-determinism, and offline convergence-study tests.
 
+## 18. Sideband-spectrum forward model (v1.14.0, WP38 Phase 2)
+
+Motivation (project owner, following the project's internal lattice-
+light-shift research dossier's Phase 2 addendum): E41's BO+WKB model has
+no analytic lineshape to fit sideband spectroscopy against (Beloy et al.
+2020's own stated conclusion, carried forward at E41's end above); the
+field's thermometry is instead done in the harmonic model (E40's own
+Blatt-lineage machinery) and fed into a separately-evaluated,
+better-justified light shift, a stacked model-mismatch error Goti et al.
+2025 quantifies directly ("discrepancies up to a factor of two in
+extracted temperatures... relative frequency deviations up to 8e-17").
+This section specifies the differentiable sideband-spectrum forward
+model that closes that gap: gradients of the clock-transition excitation
+spectrum with respect to trap depth and temperature, through BOTH the
+harmonic validation anchor and the BO+WKB capability, on the same JAX
+core E41's addendum already established.
+
+Implemented in `cliffordclock.integrator.sideband_spectrum_jax`.
+Cross-validated in `benchmarks/run_sideband_spectrum.py`. Fitting
+demonstration in `benchmarks/run_sideband_fit.py`.
+
+### E42: the sideband-spectrum forward model, two paths
+
+Provenance: Blatt, Thomsen, Campbell, Ludlow, Swallows, Martin, Boyd, Ye,
+"Rabi spectroscopy and excitation inhomogeneity in a one-dimensional
+optical lattice clock," PRA 80, 052703 (2009), arXiv:0906.1419 (the
+harmonic path: every equation transcribed verbatim from the typeset PDF,
+all 12 pages read directly, page image by page image); Goti, Petrucciani,
+Condio, Levi, Calonico, Pizzocaro, "Atomic thermometry in optical lattice
+clocks," arXiv:2508.08164 (v2, 2 Sept 2025) (the BO+WKB path: Eqs. 1-9
+transcribed verbatim, the first 8 pages of the typeset PDF read
+directly).
+
+**The shared harmonic-oscillator motional spectrum** (Blatt Eq. 3; Goti
+Eq. 1, the identical formula, `h` factored out):
+
+    E_{nx,ny,nz}/h ~= nu_z*(nz+1/2) + nu_r*(nx+ny+1)
+                       - (nu_rec/2)*(nz^2+nz+1/2)
+                       - nu_rec*(nu_r/nu_z)*(nx+ny+1)*(nz+1/2)
+
+with `nu_z = 2*nu_rec*sqrt(u0)` (Blatt Eq. 4), `nu_r =
+sqrt(U0/(m*pi^2*w0^2))` (Blatt Eq. 5), `nu_rec = E_R/h`. The longitudinal
+energy gap (Blatt Eq. 8; Goti Eq. 2, identical), generalized to the
+combined radial quantum number `n_r = n_x+n_y`:
+
+    gamma(nz) = nu_z - nu_rec*(nz+1) - nu_rec*(nu_r/nu_z)*(n_r+1)
+
+Implemented in `blatt_trap_frequencies_hz`, `longitudinal_energy_hz`,
+`blue_sideband_detuning_hz` (this formula), `red_sideband_detuning_hz`
+(the algebraic symmetry `-gamma(nz-1)`, derived directly from the same
+Eq. 3/Eq. 1; neither paper numbers this symmetry separately).
+
+**Path A, the harmonic validation anchor.** The carrier
+(`harmonic_carrier_excitation_probability`, Blatt Eqs. 13-20,
+transcribed verbatim): Rabi frequency `Omega_{nx,nz} = Omega_0 *
+e^(-eta_z^2/2) * e^(-eta_x^2/2) * L_{nx}(eta_x^2) * L_{nz}(eta_z^2)`
+(Eq. 14, `L_n` the physicists' Laguerre polynomial, evaluated by the
+standard three-term recurrence, `laguerre_values`, since `jax` ships no
+built-in generalized Laguerre), the single-motional-state Rabi-flopping
+probability `p_e(n,delta,t) = [Omega^2/(Omega^2+delta^2)] *
+sin^2[pi*t*sqrt(Omega^2+delta^2)]` (Eq. 17), and the thermally-averaged
+`P_e(delta,t) = sum_{nx,nz} q_{nx}(Tr)*q_{nz}(Tz)*p_e(n,delta,t)` (Eq.
+18, Boltzmann weights Eqs. 19-20). The sideband
+(`harmonic_sideband_shape`, Blatt Appendix A Eqs. A1-A2; Goti Eq. 4's
+population weight, restated from the same Blatt appendix): a
+population-normalized sum of power-broadened Lorentzians, `shape(delta)
+= sum_{nz,nr} w(nz,nr) / (1 + [(delta-detuning(nz,nr))/gamma]^2)`, `w`
+from Goti Eq. 4 (`(nr+1)*exp[-h*nu_r*(nr+1)/(kB*Tr)] *
+exp[-goti_e00_hz(nz)/(kB*Tz)]`, `goti_e00_hz` Goti Eq. 1 at `nx=ny=0`).
+This is the FULL `(nz, nr)` sum (Eqs. A1-A2). Eqs. A3-A5 go on to reduce
+that sum further, to the shallow-sideband-edge slope alone; this
+project keeps the full sum, since a differentiable forward model useful
+for fitting an entire sideband needs the full lineshape. Blatt et al.
+2009's own text
+following their Eq. 12, "there is no contribution from the longitudinal
+ground state to the red sideband," is implemented directly: the red
+sideband's own `n_z=0` population weight is zeroed before normalizing.
+
+**Path B, the BO+WKB capability.** Goti et al. 2025's Eqs. 5-9,
+transcribed verbatim:
+
+    delta_nu = [U_{nz'}(rc) - U_{nz}(rc)] / h,  rc = R_{nz}(E)        (Eq. 5)
+    sigma_blue(delta) proportional-to
+        sum_{nz} integral_E G_{nz}(E)*p_{nz}(E)
+                 / (1+[(delta-delta_nu(E))/gamma]^2) dE                (Eq. 8)
+    p_{nz}(E) proportional-to
+        exp[-(E-U_{nz}(0))/(kB*Tr)] * exp[-U_{nz}(0)/(kB*Tz)]          (Eq. 9)
+
+with `G_{nz}(E) = (m/(2*hbar^2))*[R_{nz}(E)]^2` (Goti Eq. 8's own density
+of states, algebraically identical to Beloy et al. 2020 Eq. 11, already
+implemented as `lattice_light_shift_jax.bo_wkb_density_of_states_jax`).
+Implemented in `bowkb_sideband_shape`, via a NEW numerical route:
+`build_band_energy_table` precomputes each needed axial band's
+`U_nz(rho)/E_R` on a small, fixed radial grid (one batched `jax.vmap`
+over `jax.numpy.linalg.eigh`, `AXIAL_GRID_N_SPECTRUM=321` axial points,
+`RHO_TABLE_N=129` radial points), and `condon_point_m`/`condon_detuning_hz`
+find the classical turning radius/Franck-Condon point by
+`jax.numpy.interp` against that table. `lattice_light_shift_jax.turning_radius_m_jax`
+instead finds the same physical quantity through per-energy bisection.
+This turns roughly `N_z*N_E*BISECTION_ITERS` dense eigensolves per
+spectrum call into roughly `N_z*RHO_TABLE_N`, the resolution/tractability
+trade this section's own module docstring derives in full (a spectrum
+needs many Franck-Condon evaluations per call; a single light-shift
+evaluation, E41's own use case, needs one turning radius per `(nz, Tr)`
+pair). The integration domain evaluates the EXACT target-band-boundedness
+condition directly (`U_{nz'}(rc) <= 0`), masked on the same fixed energy
+quadrature grid every query `delta` reuses; Eq. 8 itself approximates
+that same condition through an `E_max=-h*delta` cutoff, valid, their
+own words, "for a deep vertical lattice."
+
+**A known, stated resolution limit near the band top.** This section's
+own cross-validation (`benchmarks/run_sideband_spectrum.py`'s tier 2)
+excludes points near the band top from its tolerance check and reports
+them separately, with a flag every reader can find in that check's own
+rows; folding those points into one looser tolerance would hide the
+reason for the difference. Within about 5 `E_R` of a band's top (`E -> 0`, the classical turning
+radius growing without bound as the local trap depth vanishes), the
+finite, linearly-spaced radial table's linear interpolation loses
+accuracy fast, and `bowkb_sideband_shape`'s own energy quadrature keeps
+a `2%`-of-band-depth margin below `E=0` for this reason (see that
+function's own docstring and the benchmark case's own docstring for the
+measured numbers).
+
+**No BO+WKB carrier formula exists in either paper.** Both
+`harmonic_full_spectrum` and `bowkb_full_spectrum` share the SAME
+carrier component (`harmonic_carrier_excitation_probability`): neither
+Beloy et al. 2020 nor Goti et al. 2025 proposes a distinct BO+WKB
+carrier treatment, and the Lamb-Dicke-regime carrier is dominated by the
+ground axial band, where the harmonic and true `cos^2` potentials
+already agree closely (E41's own G18-gated harmonic-limit consistency
+check).
+
+**Amplitude convention.** Neither paper fixes one. Both state their own
+sideband cross section `\propto` (proportional to), a shape with a
+scale left open; Blatt et al. 2009's own Fig. 2 fits the carrier and
+each sideband with independently fitted amplitudes.
+`harmonic_sideband_shape`/`bowkb_sideband_shape` return a
+population-normalized shape bounded `[0, 1]`; `harmonic_full_spectrum`/
+`bowkb_full_spectrum` take explicit `blue_amplitude`/`red_amplitude`
+scale arguments, mirroring that same per-feature fitting practice.
+
+### Cross-validation against an independent implementation (Deliverable 2)
+
+`benchmarks/run_sideband_spectrum.py` cross-validates against
+`large-lattice-model` (github.com/inrim/large-lattice-model, MIT
+license, (c) 2021-2024 Marco Pizzocaro, INRIM), a real, public,
+third-party implementation of Beloy et al. 2020's model. It solves the
+axial eigenproblem with EXACT Mathieu-function characteristic values, a
+different numerical method from this project's own finite-difference
+solver, and is cited as reference [50] in Goti et al. 2025's own Fig.
+4/Fig. 7 fits. This project reads only that repository's numeric
+OUTPUT, generated once in a separate environment
+(`benchmarks/fixtures/wp38_inrim_large_lattice_model_reference.json`,
+commit hash pinned in that fixture's own `provenance` field); no code
+from that repository enters this project. This comparison earns a NEW
+evidentiary class, `independent_implementation_reproduction`. This
+project's established `arithmetic_reproduction` class is reserved for a
+PAPER's own published number; this new class reproduces an independent
+CODE implementation's output at matched inputs.
+
+Three tiers, tightest to loosest:
+
+1. **Band-bottom eigenvalue** (`independent_implementation_reproduction`):
+   this project's ALREADY G18-gated finite-difference solver
+   (`lattice_light_shift.axial_energies_er`) vs. large-lattice-model's
+   exact Mathieu-characteristic-value `U(0,D,nz)`, at `D in {56.8, 80,
+   100, 150} E_R`, `nz in {0,1,2,3}`. Worst relative error `1.06e-7`
+   (tolerance `1e-4`). **MET.**
+2. **Franck-Condon detuning** (`independent_implementation_reproduction`):
+   this WORK PACKAGE's own `condon_detuning_hz` (spectrum-scale
+   resolution) vs. large-lattice-model's `DeltaU(R(E,D,0),D,0,1)`.
+   Worst relative error `4.7e-3` (tolerance `2e-2`), excluding points
+   within `5 E_R` of the band top (the resolution limit noted above;
+   those points carry their own `near_band_top` flag in the full row
+   listing). **MET.**
+3. **Full sideband shape** (`computable_comparison`): the two sides use
+   different, documented lineshape conventions (see the benchmark's own
+   `CONVENTION_BRIDGES` for the Lorentzian peak-height factor of `2`,
+   the state-dependent vs. fixed linewidth, and the integration-domain
+   cutoff). This project's `computable_comparison` class covers a
+   comparison bridged across a convention gap like this one. Peak
+   positions agree within
+   `500 Hz` on a `~33 kHz` sideband (`1.5%`), and shape correlation is
+   `>= 0.93` across both moderate-depth conditions checked.
+
+### Fitting demonstration (Deliverable 3)
+
+`benchmarks/run_sideband_fit.py` runs a synthetic round-trip: the same
+forward model generates the spectrum and fits it back
+(`generator == fitter`), across a small, fixed grid of truth `(u0, Tr)`
+pairs and deterministic noise seeds (`numpy.random.default_rng(seed)`).
+Both parameters are fit back by `scipy.optimize.minimize` (`L-BFGS-B`,
+`jac=True`) supplied EXACT gradients from `jax.value_and_grad` of the
+forward model, with Laplace/Hessian-based 1-sigma uncertainties
+(`jax.hessian` of the negative log-likelihood at the optimum, checked
+for positive definiteness with `np.linalg.eigvalsh` before inversion).
+12/12 fits (6 grid points, harmonic and BO+WKB paths) converged, and
+recovered parameters land within their own reported 2-sigma uncertainty
+in 11/12 cases. The one exception, harmonic path, `u0=100`, `seed=0`,
+lands outside for a specific reason: `L-BFGS-B` stops at a SADDLE point
+of the negative log-likelihood there, with Hessian eigenvalues
+`[-8.72, 2.636e13]`, one negative. The Laplace approximation requires a
+positive-definite Hessian, so it is invalid at that optimum.
+`run_sideband_fit.py`'s own `hessian_positive_definite` flag catches
+this directly (`False` for that one case), and both artifacts (JSON and
+Markdown) report its uncertainty as `nan`, with the Markdown table
+flagging the row by name.
+
+**Stated at its calibration.** This demonstrates the first
+GRADIENT-based (autodiff) fit of a BO+WKB-class sideband lineshape.
+`large-lattice-model`'s own `fit.py` (`get_fit_sidebands`) already
+supplies a working, non-differentiable fitter (a numba-jitted forward
+model paired with a finite-difference-Jacobian `scipy.optimize`
+routine), and Goti et al. 2025 used that code to fit real IT-Yb1
+spectroscopy (Figs. 4, 7).
+
+**The Goti et al. 2025 real-scan fit, assessed here.** Figs. 4 and 7
+plot real sideband scans as discrete scatter markers, the strongest
+figure-digitization candidate found across both research sweeps. This
+project's own check of the underlying PDF's text/vector layer found the
+paper's prose and equations, and no separately recoverable per-marker
+coordinate stream. Extracting exact coordinates from these figures
+would need pixel-level digitization of the published art, placing that
+extraction in the figure-digitization class: weaker evidence than
+either this section's synthetic fits or the independent-implementation
+cross-validation above. This work package's own instruction says
+plainly: do not force it. No real-scan fit is shipped; the raw scan
+data behind those figures is recorded as the named partnership ask,
+should INRIM be approached.
 
 ---
 *Changelog:*
+*1.14.0 (2026-08-29): WP38 Phase 2, specified directly by the project
+owner (no separate formalism sign-off ceremony recorded for this entry):
+§18 added (E42 the sideband-spectrum forward model), the differentiable
+clock-transition excitation spectrum (carrier plus red/blue axial
+sidebands) on the E41 JAX core, two labeled paths: the harmonic
+validation anchor (Blatt et al. 2009's full carrier Rabi-flopping
+machinery, Eqs. 13-20, and the full Appendix A1-A2 sideband
+population/Lorentzian sum, the full `(n_z,n_r)` quantum-number sum
+Eqs. A3-A5 go on to reduce further for the shallow-edge case alone) and
+the BO+WKB capability (Goti et al. 2025 Eqs. 5-9, a NEW
+table-interpolation numerical route replacing per-energy bisection for
+spectrum-scale tractability, with its own documented resolution limit
+within ~5 E_R of a band's top). Cross-validated against `large-lattice-model`
+(github.com/inrim/large-lattice-model, MIT, INRIM), a real independent
+open-source implementation using exact Mathieu-function characteristic
+values: a new evidentiary class, `independent_implementation_reproduction`
+(distinct from this project's paper-Table `arithmetic_reproduction`),
+MET at `1.06e-7` (band-bottom eigenvalues) and `4.7e-3` (Franck-Condon
+detunings) relative error, plus a `computable_comparison`-class full-shape
+check (peak position within 1.5%, shape correlation >= 0.93) bridging
+three documented lineshape-convention differences. A synthetic
+gradient-based fitting demonstration (`scipy.optimize.minimize` with
+`jax`-supplied exact gradients, Laplace/Hessian uncertainties, a fixed
+grid of truth values and deterministic noise seeds) recovers both `(u0,
+Tr)` within 2-sigma in 11/12 cases, stated as the first GRADIENT-based
+(not the first) fit of a BO+WKB-class sideband lineshape, since
+`large-lattice-model`'s own non-differentiable fitter already exists and
+was used for Goti et al. 2025's own real IT-Yb1 fits. The Goti et al.
+2025 real-scan fit (Figs. 4, 7) was assessed and declined: the
+underlying PDF carries no recoverable per-marker coordinate stream, so a
+defensible extraction would require pixel-level digitization, a weaker
+evidentiary class than this section's own synthetic and
+independent-implementation checks; the raw scan data is recorded as the
+named partnership ask.*
 *1.13.0 (2026-08-29): WP37, specified directly by the project owner (no
 separate formalism sign-off ceremony recorded for this entry): §17
 extended with a differentiable JAX implementation of the same E41 BO+WKB

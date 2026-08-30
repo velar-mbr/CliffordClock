@@ -61,6 +61,11 @@ fitted parameters.
   stated on every report
 - [x] **Millimetre-scale lattice samples** with per-site frequency maps,
   checked against the published Bothwell mm-scale redshift measurement
+- [x] **Sideband-spectrum fitting** for lattice-clock trap depth and
+  radial temperature, by gradient descent through the same differentiable
+  BO+WKB model the lattice light shift uses, cross-validated against an
+  independent open-source implementation; a synthetic demonstration
+  today, with real-scan fitting awaiting shared data (notebook 15)
 - [x] **Real interrogation times**: a 1-second run costs seconds of
   compute
 - [x] **Beyond the mean shift**: per-atom distributions, T₂*, and the
@@ -201,6 +206,16 @@ single number per point cannot express; details in
   Bothwell et al. 2025's own trap-depth-reduction table), then compared
   directly through the density-of-states difference that drives the two
   models apart as radial temperature rises.
+- [`notebooks/15_sideband_fitting.ipynb`](https://github.com/velar-mbr/CliffordClock/blob/main/notebooks/15_sideband_fitting.ipynb):
+  fitting the full lattice model to sideband spectra (E42) by gradient
+  descent, so a lab's own thermometry and its own light shift share one
+  model. Both lineshape paths generate a carrier-plus-sidebands spectrum
+  on the differentiable JAX core. The forward model is cross-validated
+  against `large-lattice-model` (INRIM), an independent open-source
+  implementation, then fit to a synthetic spectrum with exact autodiff
+  gradients and Laplace uncertainties, including the one case whose own
+  Hessian-positive-definiteness check catches a fit that should not be
+  trusted.
 
 ## Documentation
 

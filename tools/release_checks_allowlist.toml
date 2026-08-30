@@ -67,10 +67,20 @@ minor = [
 # another, and both mean "machine zero". The suite's WP16 identity tests
 # guard the actual bound, so the demo print is volatile the same way the
 # wall-clock lines are.
+# Notebook 15's own timing prints (bowkb_sideband_shape's eigensolve cost,
+# the cross-validation report's build time, and one live L-BFGS-B fit's
+# wall time) are the same class as notebook 02's wall-clock line: the
+# duration is machine-dependent, and the fit's own recovered numbers
+# (checked separately, printed on adjacent lines) are what the notebook
+# actually demonstrates.
 volatile_patterns = [
     'wall time\s*:\s*[0-9][0-9.]* s',
     'notebook runtime\s*:\s*[0-9][0-9.]* s',
     'mean-shift relative difference\s*:\s*[-+0-9.e]+',
+    'harmonic_full_spectrum:\s*[0-9][0-9.]* s',
+    'bowkb_full_spectrum:\s*[0-9][0-9.]* s',
+    'build_report\(\):\s*[0-9][0-9.]* s',
+    'run_one_fit \(bowkb[^)]*\):\s*[0-9][0-9.]* s,',
 ]
 
 [headline_check]
