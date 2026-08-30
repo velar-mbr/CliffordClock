@@ -501,6 +501,7 @@ phase integral, the shift as a mean, and the visibility as a
 modulus of the mean phasor, is this short:
 
 \begin{widetext}
+\noindent\begin{minipage}{\linewidth}
 \footnotesize
 \begin{verbatim}
 def clock_phase(worldline, terms, nu_0):
@@ -512,6 +513,7 @@ shift = mean(phases) / (2.0 * pi * NU_0 * T) - 1.0
 visibility = abs(mean(exp(1j * array(phases))))
 \end{verbatim}
 \normalsize
+\end{minipage}
 \end{widetext}
 
 Each entry of \texttt{terms} is one systematic's own physics, computed
