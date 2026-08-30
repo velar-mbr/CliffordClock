@@ -6,9 +6,8 @@ Loads the script by file path, since it is a standalone example outside
 the ``cliffordclock`` package, and checks its headline numbers: the
 analytic gravitational-redshift formula, the composed (product) ensemble
 shift against that analytic value, and the gap between the composed shift
-and its additive (first-order) approximation. CliffordClock reports that
-gap only as a magnitude, the model's cross term. A subprocess run covers
-the script the way a lab user invokes it.
+and its additive (first-order) approximation, the model's cross term.
+A subprocess run covers the script the way a lab user invokes it.
 """
 
 from __future__ import annotations
@@ -77,9 +76,7 @@ def test_composed_vs_additive_gap_is_far_below_any_effect_row(height_diff_m: flo
     is the model's cross term. Both terms here are small (grav ~1e-17 to
     1e-18, Doppler ~1e-18), so the analytic cross term sits near 1e-35,
     and this test's own construction shows the gap comes out at or below
-    1e-28. CliffordClock's per-effect budgets report this gap as a
-    magnitude, and this assertion is the check that the magnitude holds.
-    This bound is meaningful: the composed and additive shifts it
+    1e-28. This bound is meaningful: the composed and additive shifts it
     separates sit at 1e-17 to 1e-18, nine to eleven orders of magnitude
     above it."""
     rng = np.random.default_rng(seed=0)
