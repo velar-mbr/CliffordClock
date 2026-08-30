@@ -5,12 +5,14 @@
 reproduce a published result: gravitational redshift (``p = g h / c^2``)
 and second-order Doppler (``p = -v^2 / 2c^2``). A small ensemble of atoms,
 raised in height and sharing one draw of near-ground-state secular
-velocities, reproduces two numbers from Chou et al. 2010 (Science 329,
-1630): the shift from raising a clock by 33 cm, and by 1 cm. It also
-prints the gap between the full product and its first-order (additive)
-sum: the model's cross term, which CliffordClock reports as a magnitude
-only. Plain NumPy only, seeded and deterministic, runs in well under a
-second.
+velocities, reproduces the 33 cm case from Chou et al. 2010 (Science 329,
+1630): predicted ``g*dh/c^2 = 3.6e-17``, measured ``(4.1 +/- 1.6)e-17``.
+A second, 1 cm case is this script's own illustration of the same
+formula at the 1e-18 scale; Chou et al. mention 1 cm only as a future
+geodetic-resolution goal. Each case also prints the gap between the full
+product and its first-order (additive) sum, the model's cross term, a
+signed float alongside its analytic estimate. Plain NumPy only, seeded
+and deterministic, runs in well under a second.
 """
 
 from __future__ import annotations
@@ -128,9 +130,13 @@ def print_case(case: dict[str, float]) -> None:
 
 def main() -> None:
     rng = np.random.default_rng(seed=0)
-    print("CliffordClock model, ten lines, reproducing Chou et al. 2010")
-    print("(Science 329, 1630): raising a clock's gravitational redshift.")
+    print("CliffordClock model, ten lines: raising a clock's gravitational")
+    print("redshift, against Chou et al. 2010 (Science 329, 1630).")
     print_case(compute_case(0.33, rng))
+    print("  Chou et al. 2010 measured (4.1 +/- 1.6)e-17 for this rise.")
+    print("\n1 cm case: this script's own illustration of the same formula")
+    print("at the 1e-18 scale. Chou et al. mention 1 cm only as a future")
+    print("geodetic-resolution goal.")
     print_case(compute_case(0.01, rng))
 
 

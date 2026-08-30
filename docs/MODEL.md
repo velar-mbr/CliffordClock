@@ -7,13 +7,15 @@ shift from stray fields, the second-order Doppler shift from motion, the
 AC Stark shift from a lattice trap, the electric quadrupole shift, and
 gravitational redshift each contribute a small fractional correction `p`.
 Every correction is evaluated at the atom's own position and velocity at
-that instant. This per-term factor is what the rest of this codebase calls the
-pivot: the object the relativity literature calls the lapse function or
-the redshift factor, the ratio between an atom's local clock rate and a
-freely running reference rate. The clock rate at time `t` is the bare
-transition frequency times the product of `(1 + p)` over every active
-term, and an atom's accumulated phase is that rate integrated along its
-own path through the interrogation.
+that instant. The product of `(1 + p)` over every active term is what the
+rest of this codebase calls the pivot: the object the relativity
+literature calls the lapse function or the redshift factor, the ratio
+between an atom's local clock rate and a freely running reference rate.
+Each small `p` is a pivot perturbation, the fractional piece one
+systematic effect contributes to that ratio. The clock rate at time `t`
+is the bare transition frequency times the pivot, and an atom's
+accumulated phase is that rate integrated along its own path through the
+interrogation.
 
 Two more steps turn one atom's phase into the numbers a lab reports. An
 ensemble of atoms samples the trap, each atom with its own trajectory and
@@ -23,9 +25,10 @@ frequency shift. The same set of phases, treated as unit vectors on the
 complex plane and averaged, gives a vector, and its length is the Ramsey
 fringe visibility. Phases that stay aligned average to length one; phases
 spread out by the ensemble's spread in position and velocity average to
-something shorter. The shift is the first moment of the phase
-distribution across atoms; the visibility is the second moment of the
-same distribution, its coherence.
+something shorter. The shift is the mean of the phase distribution
+across atoms; the visibility is the modulus of the mean phasor, the
+distribution's coherence. For small spreads, that modulus is set by the
+phase variance.
 
 This is the whole model:
 

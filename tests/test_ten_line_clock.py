@@ -110,8 +110,9 @@ def test_compute_case_is_deterministic() -> None:
 
 def test_script_runs_as_a_subprocess_and_prints_the_two_cases() -> None:
     """The script a lab user runs (``python
-    examples/ten_line_clock.py``) exits cleanly, well under the 5-second
-    budget its module docstring promises, and prints both height cases."""
+    examples/ten_line_clock.py``) exits cleanly, well under a second as
+    its module docstring promises, inside this test's 5-second subprocess
+    timeout, and prints both height cases."""
     result = subprocess.run(
         [sys.executable, str(_SCRIPT_PATH)],
         capture_output=True,
