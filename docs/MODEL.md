@@ -66,8 +66,8 @@ Five places take this further:
 
 - [`paper/composition/main.pdf`](../paper/composition/main.pdf): a
   six-page companion paper comparing this composition law with the
-  field's additive budget tables, with case studies where the
-  difference in structure paid.
+  field's additive budget tables, with three validated case studies
+  of what the composed form changes.
 - [`examples/six_line_clock.py`](../examples/six_line_clock.py): a
   runnable, self-contained version of the code above, in plain NumPy,
   reproducing a published gravitational-redshift measurement.
