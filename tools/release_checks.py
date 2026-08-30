@@ -1630,7 +1630,7 @@ MYPY_ERROR_COUNT_RE = re.compile(r"Found (\d+) error")
 #: generator tests (registered via `pyproject.toml`'s `slow` pytest
 #: marker) pushed total runtime past 30 minutes on top of the fast tests.
 #: Each lane gets its own timeout, sized the same way CI's two jobs are
-#: (a 15-minute-class budget for the deselected-slow lane, an
+#: (a 30-minute budget for the unsharded deselected-slow lane, an
 #: hour-plus-headroom budget for the slow lane alone).
 PYTEST_LANES: list[tuple[str, str, float]] = [
     ("fast", "not slow", 1800.0),
