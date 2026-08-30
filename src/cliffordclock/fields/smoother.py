@@ -12,7 +12,7 @@ Implements the full decomposition of CONVENTIONS.md E11-E13:
 - ``FieldSmoother.evaluate`` is the sum of the two, ``E = E_0 + δE_smooth``.
 
 Fit vs. evaluate split (binding): fitting the RBF coefficients (baseline
-least squares, RBF linear solve) is done with plain NumPy — SciPy/NumPy
+least squares, RBF linear solve) is done with plain NumPy; SciPy/NumPy
 may be used freely there. Evaluation is a pure JAX function of (fitted
 coefficients, centers, query position), so ``jax.jacfwd`` differentiates
 *through the fit result* to get ``∇E``: this is what guarantees ``E`` and
@@ -189,7 +189,7 @@ def _tps_kernel_sq_jax(r2: jnp.ndarray) -> jnp.ndarray:
     singularity at a coincident center can be masked *before* the
     ``sqrt``. This matters for the gradient, not the value:
     ``d(sqrt)/d(r²)`` is infinite at ``r² = 0``, so the previous
-    formulation — ``r = sqrt(r²)`` in the caller, ``log(0)`` masked here —
+    formulation (``r = sqrt(r²)`` in the caller, ``log(0)`` masked here)
     made ``jax.jacfwd`` produce an all-NaN gradient (``0 · ∞`` in the
     tangent chain) whenever a query point landed exactly on an RBF
     center, even though the primal ``φ`` value was finite.
@@ -252,7 +252,7 @@ class FieldSmoother:
             Ingested field data (``load_field_csv`` or ``synthetic.py``).
         method : str, default "auto"
             ``"rbf"`` (thin-plate-spline RBF on the baseline residual) or
-            ``"auto"`` (currently always resolves to ``"rbf"`` — tensor
+            ``"auto"`` (currently always resolves to ``"rbf"``; tensor
             B-splines are documented future work, not implemented here).
         smoothing : float, default 0.0
             Tikhonov regularization added to the RBF linear system's

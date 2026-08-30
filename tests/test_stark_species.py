@@ -97,8 +97,8 @@ def test_alpha_au_to_si_round_trips_yb_literature_a_u_value() -> None:
 
 def test_alpha_au_to_si_matches_codata_4pi_eps0_a0_cubed() -> None:
     """ALPHA_AU_TO_SI = 4 pi eps0 a0^3 (CONVENTIONS.md E14b), independently
-    recomputed from CODATA 2022 eps0 and a0 -- not merely re-asserting the
-    literal constant, since that would be tautological.
+    recomputed from CODATA 2022 eps0 and a0: re-asserting the literal
+    constant instead would be tautological, so this test derives it.
     """
     eps0_2022 = 8.8541878128e-12  # F/m, CODATA
     a0_2022 = 5.29177210544e-11  # m, Bohr radius, CODATA 2022

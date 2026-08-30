@@ -9,8 +9,9 @@ composition (E33's pattern), mirroring ``bbr_pivot_perturbation`` exactly.
 This file covers the G9 sign-off's BINDING regressions: the computed-
 magnitude regression (never a document literal), the sign regression (with
 the physical "higher runs faster" statement), the rotor "scalar pivot
-only" scope (identically zero boost contribution at v=0, not merely
-small), the ~10 m extent warn, and composition additivity vs
+only" scope (an identically zero boost contribution at v=0, a stronger
+guarantee than merely being small), the ~10 m extent warn, and composition
+additivity vs
 Stark/BBR/quadrupole -- plus the pipeline-level config parsing/validation,
 cross-mode agreement, byte-exactness of shipped examples, and report-note
 content for ``environment.gravity``.

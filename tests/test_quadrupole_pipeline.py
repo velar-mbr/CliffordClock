@@ -275,7 +275,8 @@ def test_quadrupole_fast_path_and_worldline_agree_exactly(tmp_path: Path) -> Non
     (`tests/test_e2e.py::test_step0_stark_dc_fast_path_and_worldline_agree_exactly`)
     extended to include a nonzero quadrupole term: both paths evaluate the
     SAME `_quadrupole_pivot_from_grad` call at v=0, so the reduction is
-    exact (`rtol=0, atol=0`), not merely close.
+    exact (`rtol=0, atol=0`): an equality, not values that merely land
+    close.
     """
     grad = [[0.0, 0.0, 0.0], [0.0, 0.0, 0.0], [0.0, 0.0, 5.0e8]]
     field = {

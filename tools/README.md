@@ -24,7 +24,11 @@ python tools/release_checks.py --list       # list check names
 Exit code is nonzero if any check's status is `FAIL`. Checks:
 
 1. `prose-scan`: em dash / dash-as-punctuation / honest-family words /
-   configurable meta-slop phrases over public files.
+   configurable meta-slop phrases over public files, plus every module,
+   class, and function docstring under `src/`, `tests/`, `benchmarks/`,
+   and `examples/` (extracted via `ast`, wrap-aware, minus the
+   dash-as-punctuation check, which false-positives on docstring
+   scaffolding like a NumPy-style section underline).
 2. `tolerance-scan`: bare `pytest.approx(..., rel=...)` without `abs=`
    and `assert_allclose(...)` without `atol=` over `tests/**`.
 3. `citation-check`: public-file author-surname+year bylines checked
@@ -38,7 +42,10 @@ Exit code is nonzero if any check's status is `FAIL`. Checks:
    diffs against committed content (timestamps ignored).
 7. `notebooks-check`: re-executes `notebooks/*.ipynb` and byte-compares
    (normalized) outputs; flags runtime > 180s.
-8. `suite-check`: runs pytest/ruff/mypy and parses exact counts.
+8. `suite-check`: runs pytest in two lanes (fast: `-m "not slow"`,
+   1800s timeout; slow: `-m slow`, 5400s timeout, mirroring
+   `.github/workflows/ci.yml`'s own two-job split), then ruff/mypy, and
+   parses exact counts; fails if either lane, ruff, or mypy fails.
 
 Config: `bibliography.toml` (pinned citation records) and
 `release_checks_allowlist.toml` (deliberate prose-scan keeps, the

@@ -326,7 +326,8 @@ def test_ka4_second_order_doppler_matches_equipartition() -> None:
     See the module-level derivation comment above for the equipartition
     result ``-<v^2>/(2c^2) = -3 k_B T / (2 m c^2)`` and why the pipeline's
     secular-mode (orbit-time-averaged) ensemble mean converges to exactly
-    that value, not merely approximates it.
+    that value: an equality, not an approximation that merely gets close
+    to it.
     """
     species = get_species(_KA4_SPECIES)
     temperature_k = _KA4_TEMPERATURE_UK * 1.0e-6

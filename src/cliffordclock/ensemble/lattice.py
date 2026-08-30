@@ -202,8 +202,8 @@ def extended_lattice_nodes(
     `n_sites` separate calls -- both cheaper and, since every site's local
     quadrature is then bit-for-bit the same array (only translated), makes
     `ExtendedLatticeGeometry.local_weights` exactly shared/reusable by
-    every site (see that field's docstring), not merely numerically close
-    across sites.
+    every site (see that field's docstring): the same array, not
+    independently computed values that happen to agree numerically.
 
     Site centers are evenly spaced at `site_spacing_m` along `site_axis`
     (unit-normalized internally), symmetric about `trap.center`:

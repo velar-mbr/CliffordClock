@@ -239,7 +239,7 @@ def load_field_csv(path: str | Path) -> FieldGrid:
         On any malformed input: missing/empty file, missing required
         column(s), non-numeric cell, wrong column count on a data row,
         non-finite (NaN/Inf) coordinate or field value, duplicate
-        ``(x, y, z)`` points (an internally inconsistent "grid" — the same
+        ``(x, y, z)`` points (an internally inconsistent "grid": the same
         location cannot carry two different field values), or near- (but
         not exactly-) duplicate points with disagreeing values (see
         :func:`check_near_duplicate_points`).

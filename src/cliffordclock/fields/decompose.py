@@ -2,18 +2,18 @@
 """Background/perturbation field decomposition (CONVENTIONS.md E11).
 
 (E11) ``E_total(r) = E_0(r) + δE(r)``: ``E_0`` is a low-order analytical
-baseline (uniform + linear terms — a degree-1 vector polynomial in each
+baseline (uniform + linear terms: a degree-1 vector polynomial in each
 component) fitted to the data by ordinary least squares, and ``δE`` is the
 residual left for the RBF smoother (``smoother.py``) to handle.
 
 Rationale: the downstream physics (CONVENTIONS.md §7) evaluates fractional
 frequency shifts at the ~1e-18 level from ``δE·μ`` terms. If the smoother
-had to represent the field's full dynamic range — including its dominant
-uniform/linear part, which is already exactly representable in closed
-form — its residuals and their gradients would carry the same dynamic
-range, and the fit conditioning (and thus the 1e-18-level arithmetic that
-consumes ``∇E``) would degrade. Subtracting the exact analytical baseline
-first keeps ``δE`` small and well-conditioned for the smoother to fit.
+had to represent the field's full dynamic range, including its dominant
+uniform/linear part (already exactly representable in closed form), its
+residuals and their gradients would carry the same dynamic range, and the
+fit conditioning (and thus the 1e-18-level arithmetic that consumes
+``∇E``) would degrade. Subtracting the exact analytical baseline first
+keeps ``δE`` small and well-conditioned for the smoother to fit.
 """
 
 from __future__ import annotations

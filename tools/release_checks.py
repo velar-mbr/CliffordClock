@@ -2,14 +2,17 @@
 """Mechanized release-review checks for CliffordClock (WP28).
 
 This module mechanizes every check a human reviewer repeats by hand for a
-release/beta review: em-dash/honest-family/meta-slop prose greps, bare-
+release/beta review: em-dash/honest-family/meta-slop prose greps (across
+markdown, notebooks, the paper, and Python docstrings alike), bare-
 ``pytest.approx``/missing-``atol`` tolerance scans, citation-byline vs. a
 pinned bibliography, headline-phrase consistency, internal-only
 ``plan/``/``internal/`` path-reference leaks, benchmark-JSON determinism,
-notebook re-execution, and the suite/lint/mypy invocation, so an agent
-review spends its tokens on physics and judgment, not on grepping. See
-the project's mechanized-checks review checklist and the WP28 sprint
-record for the originating spec.
+notebook re-execution, and the suite/lint/mypy invocation (pytest split
+into a fast lane, ``-m "not slow"``, and a slow lane, ``-m slow``,
+mirroring `.github/workflows/ci.yml`'s own two-job split, each with its
+own subprocess timeout), so an agent review spends its tokens on physics
+and judgment, not on grepping. See the project's mechanized-checks
+review checklist and the WP28 sprint record for the originating spec.
 
 Zero new runtime dependencies: this module uses only the standard library
 plus ``nbconvert`` for ``notebooks-check`` (already an optional project
@@ -29,6 +32,7 @@ Exit code is nonzero if any check's status is ``FAIL``.
 from __future__ import annotations
 
 import argparse
+import ast
 import json
 import re
 import subprocess
@@ -148,6 +152,66 @@ def public_notebook_files() -> list[Path]:
     if not nb_dir.exists():
         return []
     return sorted(nb_dir.glob("*.ipynb"))
+
+
+#: The four Python source trees prose-scan's docstring pass covers (WP28
+#: docstring upgrade): everywhere a module-, class-, or function-level
+#: docstring is authored prose a reader (or a future maintainer grepping
+#: for a banned phrase) might actually read. ``paper/figures/`` and
+#: ``tools/`` are deliberately excluded: the former is plotting-script
+#: scaffolding outside this project's normal review surface (see its own
+#: mypy-scope comment), and the latter is this scanner's own package,
+#: which would make the scanner self-referential in the way the
+#: allowlist file already has to guard against for its other checks.
+_DOCSTRING_SOURCE_DIRS = ("src", "tests", "benchmarks", "examples")
+
+
+def python_source_files() -> list[Path]:
+    """Every ``*.py`` file under :data:`_DOCSTRING_SOURCE_DIRS`, sorted."""
+    files: list[Path] = []
+    for dirname in _DOCSTRING_SOURCE_DIRS:
+        root = REPO_ROOT / dirname
+        if not root.exists():
+            continue
+        files.extend(sorted(p for p in root.rglob("*.py") if "__pycache__" not in p.parts))
+    return files
+
+
+def python_docstrings(py_path: Path) -> list[tuple[int, str]]:
+    """Return ``[(start_line, docstring_text), ...]`` for every module-,
+    class-, and function-level docstring an AST parse of ``py_path`` finds.
+
+    Uses :mod:`ast` rather than a string/regex scan so only genuine
+    docstrings (the first statement of a module/class/function body, when
+    it is a bare string literal) are scanned; an ordinary string
+    assignment or an f-string built to look like one is not a docstring to
+    Python and is not one here either. ``start_line`` is the 1-indexed
+    source line where the docstring's string literal itself begins (not
+    the ``def``/``class`` line above it, and not line 1 for a module
+    docstring preceded by a license header comment), so a finding points
+    at the text a reader would actually see. A file that fails to parse
+    (a syntax error, or non-UTF-8 bytes) contributes no docstrings rather
+    than failing the whole scan.
+    """
+    try:
+        source = py_path.read_text(errors="replace")
+        tree = ast.parse(source, filename=str(py_path))
+    except (SyntaxError, ValueError, UnicodeDecodeError):
+        return []
+    out: list[tuple[int, str]] = []
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Module | ast.ClassDef | ast.FunctionDef | ast.AsyncFunctionDef):
+            continue
+        doc = ast.get_docstring(node, clean=False)
+        if doc is None:
+            continue
+        # node.body[0] is the Expr(Constant(str)) holding the docstring;
+        # ast.get_docstring only returns its text, not its location, so
+        # the literal's own lineno is read directly off that Constant.
+        first_stmt = node.body[0]
+        lineno = first_stmt.value.lineno  # type: ignore[attr-defined]
+        out.append((lineno, doc))
+    return out
 
 
 def notebook_markdown_text(nb_path: Path) -> list[tuple[str, str]]:
@@ -524,6 +588,82 @@ def _scan_clarity_heuristics(
     return findings
 
 
+def _scan_docstring_text(
+    relpath: str,
+    text: str,
+    start_line: int,
+    *,
+    meta_slop_fatal: list[str],
+    meta_slop_minor: list[str],
+    allowed: list[str],
+) -> list[Finding]:
+    """Em dash / honest-family / meta-slop scan over one docstring's text.
+
+    Mirrors :func:`_scan_prose_text`'s wrap-joined meta-slop matching (the
+    incident this exists for: a banned "rather than" split across a hard
+    line-wrap inside a test docstring, invisible to a scanner that only
+    covered markdown and to a naive single-line grep), but deliberately
+    narrower in two ways.
+
+    First, :data:`DASH_PUNCT_RE` (the ASCII ``--``/``---`` "dash as
+    em/en-dash substitute" check) is left out entirely. A markdown/tex
+    prose scan gets to that check only after fenced code blocks and inline
+    spans are stripped away; a raw Python docstring has no such stripping
+    pass, and NumPy/Sphinx-style docstrings routinely carry legitimate
+    ASCII double/triple hyphens with no code fence around them at all: a
+    section-heading underline (``Parameters\\n----------``), an
+    argparse-style ``--flag`` mentioned in prose, or a bare-hyphen numeric
+    range. Running the punctuation check here would false-positive on
+    exactly the docstring content this project's own style already
+    relies on, so it is skipped for docstrings specifically, not
+    silenced via the allowlist. Second, the clarity-read heuristics
+    (long sentences, "because" plus a comma chain) and the
+    exactly/precisely emphasis-word check are also left out: both are
+    MINOR candidates for a *human* read of *user-facing* prose (the
+    prose-review skill's "The clarity read"), and a docstring is not the
+    audience-facing surface those heuristics were tuned against.
+
+    The Unicode em dash and honest-family checks carry neither failure
+    mode (an em dash or "honestly" is never legitimate docstring
+    scaffolding), so both stay, at the same line-local granularity
+    :func:`_scan_prose_text` uses for them.
+    """
+    lines = text.split("\n")
+    findings: list[Finding] = []
+    for offset, line in enumerate(lines):
+        snippet = line.strip()
+        if not snippet or _is_allowed(snippet, allowed):
+            continue
+        lineno = start_line + offset
+        if EM_DASH in line:
+            findings.append(
+                Finding(
+                    relpath, lineno, f"Unicode em dash (U+2014) in docstring: {snippet[:120]!r}"
+                )
+            )
+        if HONEST_FAMILY_RE.search(line):
+            findings.append(
+                Finding(relpath, lineno, f"honest-family word in docstring: {snippet[:120]!r}")
+            )
+    # Meta-slop phrases match against wrap-joined paragraphs, same as
+    # markdown prose (see _wrapped_paragraphs), so a phrase split across a
+    # hard-wrapped docstring line cannot escape either. The helper returns
+    # findings with a line number local to this docstring's own text
+    # (1-indexed from its first line); shift each to the file's real line.
+    meta_findings = _scan_meta_slop_phrases(
+        relpath,
+        lines,
+        meta_slop_fatal=meta_slop_fatal,
+        meta_slop_minor=meta_slop_minor,
+        allowed=allowed,
+        where="docstring",
+    )
+    for finding in meta_findings:
+        finding.line = start_line + (finding.line or 1) - 1
+    findings.extend(meta_findings)
+    return findings
+
+
 def _scan_prose_text(
     relpath: str,
     raw_text: str,
@@ -606,24 +746,30 @@ def prose_scan(allowlist: dict[str, Any]) -> CheckResult:
     """Em dash / dash-as-punctuation / honest-family / meta-slop / clarity scan.
 
     Scans README.md, docs/**/*.md, benchmarks/**/*.md, notebook markdown
-    cells, and paper/main.tex prose (after LaTeX-comment stripping). The
-    dash, honest-family, and emphasis-word (``exactly``/``precisely``)
-    checks are line-local; meta-slop phrases and the clarity-read
-    heuristics (long sentences, "because" plus a 3+-comma qualifier
-    chain -- see :func:`_scan_clarity_heuristics`) match against
-    wrap-joined paragraphs (see :func:`_wrapped_paragraphs`) so a phrase
-    or sentence split across a markdown hard line-wrap is still caught,
-    and meta-slop additionally matches against ``#`` comment prose inside
-    fenced code blocks (see :data:`_FENCE_COMMENT_RE` for the decision
-    record). The clarity-read heuristics and the emphasis-word check are
-    always MINOR (prose-review skill, "The clarity read" and "'Exactly'
-    and 'precisely'"): they surface candidates for the human clarity
-    read, never a verdict the scanner is positioned to make.
+    cells, paper/main.tex prose (after LaTeX-comment stripping), and every
+    module/class/function docstring under :data:`_DOCSTRING_SOURCE_DIRS`
+    (extracted via :mod:`ast`, see :func:`python_docstrings`). The dash,
+    honest-family, and emphasis-word (``exactly``/``precisely``) checks
+    are line-local; meta-slop phrases and the clarity-read heuristics
+    (long sentences, "because" plus a 3+-comma qualifier chain -- see
+    :func:`_scan_clarity_heuristics`) match against wrap-joined paragraphs
+    (see :func:`_wrapped_paragraphs`) so a phrase or sentence split across
+    a markdown hard line-wrap is still caught, and meta-slop additionally
+    matches against ``#`` comment prose inside fenced code blocks (see
+    :data:`_FENCE_COMMENT_RE` for the decision record). The clarity-read
+    heuristics and the emphasis-word check are always MINOR (prose-review
+    skill, "The clarity read" and "'Exactly' and 'precisely'"): they
+    surface candidates for the human clarity read, never a verdict the
+    scanner is positioned to make. Docstrings run a narrower version of
+    this same wrap-joined matching (em dash, honest-family, meta-slop
+    only, no dash-as-punctuation, clarity heuristics, or emphasis-word
+    check; see :func:`_scan_docstring_text` for why).
     """
     meta_slop_cfg = allowlist.get("meta_slop", {})
     meta_slop_fatal = list(meta_slop_cfg.get("fatal", []))
     meta_slop_minor = list(meta_slop_cfg.get("minor", []))
     allow_map = allowlist.get("prose_scan", {}).get("allow", {})
+    docstring_allow_map = allowlist.get("prose_scan", {}).get("allow_docstrings", {})
 
     findings: list[Finding] = []
     for md_path in public_markdown_files():
@@ -665,6 +811,19 @@ def prose_scan(allowlist: dict[str, Any]) -> CheckResult:
                 allowed=allow_map.get(rel, []),
             )
         )
+    for py_path in python_source_files():
+        rel = str(py_path.relative_to(REPO_ROOT))
+        for start_line, doc_text in python_docstrings(py_path):
+            findings.extend(
+                _scan_docstring_text(
+                    rel,
+                    doc_text,
+                    start_line,
+                    meta_slop_fatal=meta_slop_fatal,
+                    meta_slop_minor=meta_slop_minor,
+                    allowed=docstring_allow_map.get(rel, []),
+                )
+            )
     return CheckResult("prose-scan", _status_from_findings(findings), findings)
 
 
@@ -1465,42 +1624,81 @@ PYTEST_SUMMARY_RE = re.compile(
 RUFF_ERROR_COUNT_RE = re.compile(r"Found (\d+) error")
 MYPY_ERROR_COUNT_RE = re.compile(r"Found (\d+) error")
 
+#: Two-lane split mirroring `.github/workflows/ci.yml`'s own `test` /
+#: `test-slow` jobs: the suite outgrew a single 1800s subprocess timeout
+#: on a healthy repo once the slow-marked coupled-Floquet, JAX-core, and
+#: generator tests (registered via `pyproject.toml`'s `slow` pytest
+#: marker) pushed total runtime past 30 minutes on top of the fast tests.
+#: Each lane gets its own timeout, sized the same way CI's two jobs are
+#: (a 30-minute budget for the unsharded deselected-slow lane, an
+#: hour-plus-headroom budget for the slow lane alone).
+PYTEST_LANES: list[tuple[str, str, float]] = [
+    ("fast", "not slow", 1800.0),
+    ("slow", "slow", 5400.0),
+]
+
 
 def _last_nonempty_line(text: str) -> str:
     lines = [line for line in text.strip().split("\n") if line.strip()]
     return lines[-1] if lines else ""
 
 
-def suite_check(allowlist: dict[str, Any]) -> CheckResult:  # noqa: ARG001
-    """Run pytest, ``ruff check``, ``ruff format --check``, and mypy;
-    parse exact counts out of each tool's own summary line and report them.
+def _run_pytest_lane(name: str, marker_expr: str, timeout_s: float) -> tuple[str, list[Finding]]:
+    """Run one ``pytest -m <marker_expr>`` lane; return its detail line and
+    findings (a FAIL finding on nonzero exit, or on the lane exceeding its
+    own ``timeout_s``, named so a timeout report says which lane hung
+    rather than leaving the reader to guess between the two subprocesses).
     """
     findings: list[Finding] = []
-    detail_lines: list[str] = []
+    try:
+        proc = subprocess.run(
+            [sys.executable, "-m", "pytest", "-q", "-m", marker_expr],
+            cwd=REPO_ROOT,
+            capture_output=True,
+            text=True,
+            timeout=timeout_s,
+        )
+    except subprocess.TimeoutExpired:
+        findings.append(
+            Finding(
+                f"pytest ({name})",
+                None,
+                f"{name} lane (`pytest -m {marker_expr!r}`) exceeded its {timeout_s:.0f}s timeout",
+            )
+        )
+        return f"pytest ({name}): TIMEOUT after {timeout_s:.0f}s", findings
 
-    pytest_proc = subprocess.run(
-        [sys.executable, "-m", "pytest", "-q"],
-        cwd=REPO_ROOT,
-        capture_output=True,
-        text=True,
-        timeout=1800,
-    )
     # Search the whole output (not just the literal last line) for the LAST
     # summary-count match: pytest's dot/percentage progress can end up on
     # the same captured line as other text depending on terminal-width
     # wrapping in a non-tty subprocess, so the true "N passed" summary is
     # not always the last newline-delimited line.
-    pytest_matches = list(PYTEST_SUMMARY_RE.finditer(pytest_proc.stdout))
-    pytest_counts = (
-        pytest_matches[-1].group("counts")
-        if pytest_matches
-        else _last_nonempty_line(pytest_proc.stdout)
-    )
-    detail_lines.append(f"pytest: {pytest_counts}")
-    if pytest_proc.returncode != 0:
+    matches = list(PYTEST_SUMMARY_RE.finditer(proc.stdout))
+    counts = matches[-1].group("counts") if matches else _last_nonempty_line(proc.stdout)
+    if proc.returncode != 0:
         findings.append(
-            Finding("pytest", None, f"pytest exited {pytest_proc.returncode}: {pytest_counts}")
+            Finding(f"pytest ({name})", None, f"{name} lane exited {proc.returncode}: {counts}")
         )
+    return f"pytest ({name}): {counts}", findings
+
+
+def suite_check(allowlist: dict[str, Any]) -> CheckResult:  # noqa: ARG001
+    """Run pytest in two lanes (fast: ``-m "not slow"``, slow: ``-m
+    slow``, mirroring `.github/workflows/ci.yml`'s split job structure
+    and each lane's own timeout budget), then ``ruff check``, ``ruff
+    format --check``, and mypy; parse exact counts out of each tool's own
+    summary line and report them. The check FAILs if either pytest lane,
+    ruff, or mypy fails; a lane that exceeds its own timeout is reported
+    by name (see :func:`_run_pytest_lane`) rather than as an undifferentiated
+    hang.
+    """
+    findings: list[Finding] = []
+    detail_lines: list[str] = []
+
+    for lane_name, marker_expr, timeout_s in PYTEST_LANES:
+        detail, lane_findings = _run_pytest_lane(lane_name, marker_expr, timeout_s)
+        detail_lines.append(detail)
+        findings.extend(lane_findings)
 
     ruff_check_proc = subprocess.run(
         [sys.executable, "-m", "ruff", "check", "."], cwd=REPO_ROOT, capture_output=True, text=True

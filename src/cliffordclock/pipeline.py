@@ -980,8 +980,9 @@ class QuadrupoleConfig:
         ``"fixed"`` (default): evaluate at the single `(m_j,
         quantization_axis)` given. ``"three_orientation"``: the standard
         three-mutually-perpendicular-orientation averaging identity
-        (CONVENTIONS.md E35 A2) -- composes the EXACT (not merely
-        averaged-over-samples) cancellation, i.e. contributes `0.0` to
+        (CONVENTIONS.md E35 A2) -- composes the EXACT cancellation
+        identity (not an average-over-samples approximation), i.e.
+        contributes `0.0` to
         every evaluation mode's `(P-1)_Q`.
     """
 

@@ -305,8 +305,8 @@ def test_bbr_composition_additivity_at_report_level(tmp_path: Path) -> None:
     E29), so `gamma_inv=1` exactly and the reported shift delta from
     turning BBR on must equal `bbr_pivot_perturbation(300, Sr87)` to within
     a couple of floating-point rounding steps of the ~1e-15-magnitude
-    quantities involved (not merely "close" -- the atol below is ~50
-    ulps of the shift magnitude, not a loose physics tolerance).
+    quantities involved (an exact-agreement check, not a loose physics
+    tolerance: the atol below is ~50 ulps of the shift magnitude).
     """
     without_bbr_data = _base_lattice_stark_dict(tmp_path / "without")
     without_bbr_config = PipelineConfig.from_dict(without_bbr_data)

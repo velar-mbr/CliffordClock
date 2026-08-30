@@ -275,8 +275,8 @@ def test_uniform_field_null_rotor_matches_scalar_exactly() -> None:
 
     A large velocity (`v/c = 0.1`, deliberately far from the realistic
     cold-atom regime) is used specifically to demonstrate this is an
-    *exact algebraic identity* (zero boost bivector, not merely a small
-    one), not a coincidence of small `v`.
+    *exact algebraic identity* (the boost bivector is zero, a stronger
+    claim than merely being small), not a coincidence of small `v`.
     """
     species = get_species("Sr87")
     e_total = jnp.array([1e10, 0.0, 0.0])
@@ -472,7 +472,8 @@ def test_spin_connection_stark_matches_hand_derived_nonsymmetric_gradient() -> N
     (`(E . d_k E)_wrong = sum_j E_j * G[j, k]`, i.e. what a swapaxes /
     transposed-contraction regression would compute) gives
     `[300, 360, 420]` for `2*prefactor*(...)` -- a completely different
-    vector, not merely a small perturbation of the correct one.
+    vector, qualitatively distinct from the correct one rather than a
+    small perturbation of it.
     """
     species = get_species("Sr87")
 
