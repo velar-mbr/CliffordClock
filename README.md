@@ -7,6 +7,8 @@
 
 ![CliffordClock trapped-ion animation: a two-ion 27Al+/25Mg+ crystal cycling through its six normal modes next to the time-dilation budget those modes add up to, compared against a published trapped-ion clock's own measured value](https://raw.githubusercontent.com/velar-mbr/CliffordClock/main/docs/assets/ion_motion_animation.gif)
 
+![CliffordClock lattice-fit animation: a noisy synthetic sideband spectrum with a Born-Oppenheimer-plus-WKB model curve fit to it live by gradient descent, lattice depth and radial temperature converging to their truth values](https://raw.githubusercontent.com/velar-mbr/CliffordClock/main/docs/assets/lattice_fit_animation.gif)
+
 **CliffordClock predicts how stray electric fields shift and broaden an
 optical lattice clock's frequency, starting from your own field
 simulation.** Export a field map from COMSOL or any FEA tool, and
