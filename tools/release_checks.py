@@ -248,19 +248,35 @@ LATEX_EN_DASH_RE = re.compile(
 )
 
 
-def paper_tex_prose_text() -> tuple[str, str] | None:
-    """Return ``(relpath, comment_stripped_text)`` for ``paper/main.tex``."""
-    tex_path = REPO_ROOT / "paper" / "main.tex"
-    if not tex_path.exists():
-        return None
-    lines = tex_path.read_text().split("\n")
-    stripped = [LATEX_COMMENT_RE.sub("", line) for line in lines]
-    # Blank the legitimate en-dash typography so only true prose dashes
-    # (" -- " with surrounding spaces, or "---") remain scannable.
-    stripped = [
-        LATEX_EN_DASH_RE.sub(lambda m: m.group(0).replace("--", "  "), line) for line in stripped
-    ]
-    return "paper/main.tex", "\n".join(stripped)
+#: Every paper .tex prose-review surface this project owns: the
+#: methods-and-validation paper and its composition companion paper. Both
+#: are drafted, reviewed, and built the same way (see each file's own
+#: header comment), so both get the same prose scan.
+PAPER_TEX_RELPATHS: tuple[str, ...] = (
+    "paper/main.tex",
+    "paper/composition/main.tex",
+)
+
+
+def paper_tex_prose_texts() -> list[tuple[str, str]]:
+    """Return ``[(relpath, comment_stripped_text), ...]`` for every path in
+    :data:`PAPER_TEX_RELPATHS` that exists.
+    """
+    results: list[tuple[str, str]] = []
+    for relpath in PAPER_TEX_RELPATHS:
+        tex_path = REPO_ROOT / relpath
+        if not tex_path.exists():
+            continue
+        lines = tex_path.read_text().split("\n")
+        stripped = [LATEX_COMMENT_RE.sub("", line) for line in lines]
+        # Blank the legitimate en-dash typography so only true prose dashes
+        # (" -- " with surrounding spaces, or "---") remain scannable.
+        stripped = [
+            LATEX_EN_DASH_RE.sub(lambda m: m.group(0).replace("--", "  "), line)
+            for line in stripped
+        ]
+        results.append((relpath, "\n".join(stripped)))
+    return results
 
 
 # ---------------------------------------------------------------------------
@@ -746,7 +762,8 @@ def prose_scan(allowlist: dict[str, Any]) -> CheckResult:
     """Em dash / dash-as-punctuation / honest-family / meta-slop / clarity scan.
 
     Scans README.md, docs/**/*.md, benchmarks/**/*.md, notebook markdown
-    cells, paper/main.tex prose (after LaTeX-comment stripping), and every
+    cells, every paper .tex's prose in :data:`PAPER_TEX_RELPATHS` (after
+    LaTeX-comment stripping), and every
     module/class/function docstring under :data:`_DOCSTRING_SOURCE_DIRS`
     (extracted via :mod:`ast`, see :func:`python_docstrings`). The dash,
     honest-family, and emphasis-word (``exactly``/``precisely``) checks
@@ -798,9 +815,7 @@ def prose_scan(allowlist: dict[str, Any]) -> CheckResult:
                     allowed=allow_map.get(rel, []),
                 )
             )
-    tex = paper_tex_prose_text()
-    if tex is not None:
-        rel, text = tex
+    for rel, text in paper_tex_prose_texts():
         findings.extend(
             _scan_prose_text(
                 rel,
@@ -978,9 +993,7 @@ def citation_check(allowlist: dict[str, Any]) -> CheckResult:  # noqa: ARG001
     for nb_path in public_notebook_files():
         for cell_label, cell_text in notebook_markdown_text(nb_path):
             findings.extend(_scan_citations_in_text(cell_label, cell_text, surname_years))
-    tex = paper_tex_prose_text()
-    if tex is not None:
-        rel, text = tex
+    for rel, text in paper_tex_prose_texts():
         findings.extend(_scan_citations_in_text(rel, text, surname_years))
     return CheckResult("citation-check", _status_from_findings(findings), findings)
 

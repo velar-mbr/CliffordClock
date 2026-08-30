@@ -23,12 +23,13 @@
 \usepackage{booktabs}
 \usepackage{hyperref}
 \usepackage{placeins}
+\usepackage{orcidlink}
 
 \begin{document}
 
 \title{Composing the error budget of an optical clock: one rate scalar per atom}
 
-\author{Michael Rudolph}
+\author{Michael Rudolph\,\orcidlink{0000-0002-0495-5723}}
 \affiliation{Velar Scientific}
 \email{michael.rudolph@velarscientific.com}
 
@@ -46,18 +47,18 @@ validated in the open-source CliffordClock pipeline: every systematic
 enters as a multiplicative factor on a single scalar rate at which an
 atom's own proper time advances along its worldline, the accumulated
 phase is the time integral of that rate, the clock's reported
-fractional shift is the first moment of the resulting ensemble phase
+fractional shift is the mean of the resulting ensemble phase
 distribution, and the Ramsey fringe visibility is the modulus of the
-mean phasor, fixed by the second moment (the variance) of that same
-distribution under the standard Gaussian-phase closure. The additive
+mean phasor, fixed by that same distribution's phase variance
+under the standard Gaussian-phase closure. The additive
 table is the first-order term of this product's own expansion, and we
 give the pipeline's own bounds on the terms it drops: a
 DC-Stark$\times$blackbody product correction of order $10^{-33}$ and a
 gravitational$\times$field-driven cross term of order $10^{-31}$,
-both roughly fifteen orders of magnitude below the $10^{-18}$-$10^{-19}$
+both at least twelve orders of magnitude below the $10^{-18}$-$10^{-19}$
 systematic floor of the clocks the budget describes. The value of the
 product form is structural. It changes no published total: the terms
-it adds beyond first order sit fifteen orders of magnitude below
+it adds beyond first order sit at least twelve orders of magnitude below
 current systematic floors, a bound this paper states directly from
 the pipeline's own composition rules. We show three places the structure pays with
 numbers already validated in the companion paper: a multi-surface
@@ -71,7 +72,7 @@ separate fit. Relativistic timing already composes rate scalars for its
 own gravitational and kinematic terms; this paper's own claim is one
 of scope: the same composition extended to the atomic-environment
 terms of a clock's full budget, evaluated per quantum state, with
-fringe contrast recovered as a second moment of the same object, in
+fringe contrast recovered from the phase variance of the same object, in
 an open implementation checked against published budgets. Code,
 tests, and the ten-line composition rule itself are public under the
 AGPLv3.
@@ -212,9 +213,8 @@ For phases that are Gaussian-distributed across the ensemble, the
 characteristic-function identity $\langle e^{i\Delta\Phi}\rangle =
 e^{i\langle\Delta\Phi\rangle - \sigma_\Phi^2/2}$ gives the closed form
 $V = \exp(-\sigma_\Phi^2/2)$ exactly: the visibility is fixed by the
-phase distribution's second moment, its variance, the same
-distribution whose first moment fixed the shift in
-Eq.~\eqref{eq:shift}. One worldline ensemble, run once, yields both
+phase distribution's variance, the same distribution whose mean
+fixed the shift in Eq.~\eqref{eq:shift}. One worldline ensemble, run once, yields both
 numbers. Section~\ref{sec:visibility} validates this identity against
 a live pipeline run.
 
@@ -256,8 +256,8 @@ at order $10^{-33}$.\footnote{docs/CONVENTIONS.md, section 13,
 depends only on an atom's position in the local potential, and never on
 its motional or internal state, so its cross term with any
 field-driven shift is bounded at order $10^{-31}$.\footnote{Companion
-paper, Sec.~II.E, ``The gravitational-redshift pivot term.''} Both
-bounds sit roughly fifteen orders of magnitude below the
+paper, Sec.~II.E, ``The gravitational-redshift pivot term and extended
+samples.''} Both bounds sit at least twelve orders of magnitude below the
 $10^{-18}$-to-$10^{-19}$ systematic floor the clocks of
 Sec.~\ref{sec:intro} report.
 
@@ -323,9 +323,9 @@ enclosure-and-aperture model predicts a differential shift, as the
 atoms move from the shield's center out through an aperture, of
 $-3.325\times10^{-15}$, against their own closed-form model's
 $-3.32(7)\times10^{-15}$ and their own measurement's
-$-3.33(3)\times10^{-15}$, landing within $5\times10^{-18}$ of both
-their model and their measurement, well inside either
-one's own stated uncertainty.\footnote{Companion paper,
+$-3.33(3)\times10^{-15}$, landing within $5.011\times10^{-18}$ of
+their model and $4.989\times10^{-18}$ of their measurement, well
+inside either one's own stated uncertainty.\footnote{Companion paper,
 Sec.~IV.J, ``The PTB position-resolved thermal-environment
 validation,'' citing Nosske et al.~\cite{Nosske2025}.}
 
@@ -492,8 +492,8 @@ composed for any of its individual terms.
 \label{sec:close}
 
 Every equation of Sec.~\ref{sec:law}, the multiplicative rate, the
-phase integral, the shift as a first moment, and the visibility as a
-second, is this short:
+phase integral, the shift as a mean, and the visibility as a
+modulus of the mean phasor, is this short:
 
 \begin{widetext}
 \footnotesize
