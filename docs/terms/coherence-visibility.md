@@ -38,10 +38,10 @@ phase = jnp.arctan2(s, c)
 return visibility, phase
 ```
 
-`m` is the population-weighted sum of the ensemble's phase factors,
-built by `coherent_rotor_composition` and never renormalized: the
-departure of that sum from unit magnitude is the decoherence signal this
-module exists to report. The real implementation lives in
+`m` is the population-weighted sum of the ensemble's phase factors as
+unit phasors, never renormalized: the departure of that sum from unit
+magnitude is the decoherence signal this module exists to report. The
+real implementation lives in
 `src/cliffordclock/integrator/coherence.py::phase_to_rotor`,
 `coherent_rotor_composition`, and `ramsey_visibility_and_phase`.
 
@@ -50,10 +50,12 @@ module exists to report. The real implementation lives in
 `tests/test_coherent_visibility.py` includes two kill tests targeting
 known failure modes. One confirms that renormalizing the composed sum
 back to unit magnitude erases the decoherence signal. The Gaussian
-closure identity `V = exp(-σ_Φ²/2)` is checked directly as a validation
-identity against `dephasing_time_t2star`'s own `T₂*` formula, which
-shares the same underlying characteristic-function argument
-(`docs/CONVENTIONS.md` section 8).
+closure identity is checked on a synthetic Gaussian phase ensemble: the
+composed visibility matches `exp(-σ²/2)` computed from that same
+sample's own phase variance, to `rtol=1e-3` over `N=200,000` draws. This
+is the same closed form `dephasing_time_t2star`'s `T₂*` formula derives
+from (`src/cliffordclock/integrator/coherence.py` docstring,
+`docs/CONVENTIONS.md` section 8).
 
 ## Sources
 

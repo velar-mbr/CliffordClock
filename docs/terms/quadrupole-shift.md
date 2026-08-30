@@ -9,9 +9,10 @@ the state's own electric-quadrupole moment.
 A trapped ion's clock states with angular momentum `J ≥ 1` carry an
 electric-quadrupole moment, so the local field gradient at the ion's
 position shifts each `m_J` sublevel by an amount set by that moment and
-the gradient's projection onto the ion's quantization axis. This is the
-leading systematic for D5/2- and F7/2-based ion clocks (Ca⁺, Sr⁺, Ba⁺,
-Yb⁺). Because the shift depends on `m_J` and the quantization-axis
+the gradient's projection onto the ion's quantization axis. For the
+validated Ca⁺:D5/2 case, that gradient sensitivity is large enough
+(`a ≈ 2.97 Hz·mm²/V`) to matter at the fractional level a clock budget
+tracks. Because the shift depends on `m_J` and the quantization-axis
 orientation, averaging a state's population over three orthogonal
 orientations cancels it exactly, a standard technique the engine models
 directly.

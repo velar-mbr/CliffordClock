@@ -34,7 +34,6 @@ evaluation.
 v2 = jnp.sum(v * v, axis=-1)
 x = v2 / SPEED_OF_LIGHT**2
 gamma_inv = jnp.sqrt(1.0 - x)
-# rewritten to avoid catastrophic cancellation at realistic v/c:
 kinematic = -x / (1.0 + gamma_inv)
 return kinematic + p_minus_1 * gamma_inv
 ```
@@ -49,11 +48,12 @@ term at the end. The real implementation lives in
 
 ## How it is checked
 
-KA4 draws M = 5000 classical Sr-87 atoms at `T = 5 μK` from the correct
-thermal position and velocity distributions, integrates them through
-`integration.mode: secular`, and compares the measured mean shift against
-the equipartition prediction `-7.983437e-21`: measured
-`-8.003764e-21 ± 6.33e-23` (SEM), agreement `0.32σ`, well inside the
+KA4 is a known-answer test, the repo's term for a check against a
+published anchor value. It draws M = 5000 classical Sr-87 atoms at
+`T = 5 μK` from the correct thermal position and velocity distributions
+and integrates them through `integration.mode: secular`. The measured
+mean shift, `-8.003764e-21 ± 6.33e-23` (SEM), agrees with the
+equipartition prediction `-7.983437e-21` at `0.32σ`, well inside the
 project's `5σ` statistical tolerance (`docs/validation.md`).
 
 ## Sources

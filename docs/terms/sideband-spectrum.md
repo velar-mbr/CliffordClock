@@ -54,7 +54,7 @@ The real implementation lives in
 `large-lattice-model` (INRIM), an independent public implementation of
 the Beloy et al. 2020 model. Band-bottom eigenvalues agree to a worst
 relative error of `1.06e-7`. Franck-Condon detunings agree to `4.7e-3`.
-Both land `kpi_verdict = "MET"`.
+Both land `kpi_verdict = "PASS"`.
 
 `benchmarks/run_sideband_fit.py` runs a synthetic generate-and-refit
 round trip with exact gradients and Laplace uncertainties. 12/12 fits

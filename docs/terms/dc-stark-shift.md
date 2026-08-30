@@ -22,14 +22,16 @@ $$\frac{\Delta\nu(r)}{\nu_0} = -\frac{\Delta\alpha}{2}\frac{|E(r)|^2}{h\nu_0}$$
 (C²m²J⁻¹), `E(r)` the local field (V/m), `ν₀` the clock transition
 frequency, and `h` Planck's constant. An earlier validation-only form,
 `P(r) = 1 + δE(r)·μ/(m_e c²)` with a user-supplied dipole `μ` (E14a), is
-the linearization of this formula about a bias field and remains in the
-codebase as the closed-form case the integrator validates against.
+the linearization of this formula about a bias field once the
+denominator `m_e c²` is replaced by `hν₀` and `μ = −Δα·E₀`, and it
+remains in the codebase in that substituted form as the closed-form case
+the integrator validates against.
 
 ## The code
 
 ```python
 # src/cliffordclock/integrator/omega.py::stark_pivot_terms
-prefactor = k_s / nu_0  # k_s = -Delta_alpha / (2h), the Stark coefficient
+prefactor = k_s / nu_0  # (V/m)^-2, dimensionless once multiplied by |E|^2 (E14b)
 
 e0_sq = jnp.sum(e0 * e0, axis=-1)
 cross_dot = jnp.sum(e0 * delta_e, axis=-1)
@@ -50,10 +52,12 @@ gravitational, and motional pivot terms.
 
 ## How it is checked
 
-KA1 (Sr-87) and KA2 (Yb-171) reproduce the textbook uniform-field formula
-to float64 precision against literature `Δα` values, and KA3 checks the
-mean shift and its variance for a linear-gradient field against an
-independent Gaussian-moment reference (`docs/validation.md`). The engine
+KA1 (a known-answer test, the repo's term for a check against a
+published anchor value) reproduces the textbook uniform-field formula to
+float64 precision for Sr-87, and KA2 does the same for Yb-171, both
+against literature `Δα` values. KA3 checks the mean shift and its
+variance for a linear-gradient field against an independent
+Gaussian-moment reference (`docs/validation.md`). The engine
 also reconstructs NPL's own published stray-field DC-Stark measurement
 (arXiv:1706.01944) from their independently measured field: predicted
 band `[-3.290, -1.208]e-20`, published band `[-3.2, -1.2]e-20`, the bands

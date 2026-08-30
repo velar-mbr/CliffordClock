@@ -79,5 +79,5 @@ published trap gives partner deviations of `-0.18%`/`-0.14%`
   dataset used as the second reconstruction target for the
   constrained-fit method.
 - Berkeland, Miller, Bergquist, Itano, Wineland, J. Appl. Phys. 83, 5025
-  (radial-secular Mathieu-parameter background `docs/CONVENTIONS.md`
-  section 16 cites).
+  (1998) (radial-secular Mathieu-parameter background
+  `docs/CONVENTIONS.md` section 16 cites).

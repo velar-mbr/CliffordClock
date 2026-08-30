@@ -39,7 +39,10 @@ $$\frac{\delta\nu_{LS}}{\nu_c} \approx -\left[\frac{d\tilde\alpha_{E1}}{d\nu}\de
 
 ```python
 # src/cliffordclock/integrator/lattice_light_shift.py::harmonic_light_shift_hz
-# e1_slope, m1e2, beta = coeffs.e1_slope_per_hz, coeffs.m1e2_hz, coeffs.hyperpolarizability_hz
+e1_slope = coeffs.e1_slope_per_hz
+m1e2 = coeffs.m1e2_hz
+beta = coeffs.hyperpolarizability_hz
+
 term1 = (e1_slope * detuning_hz - m1e2) * (n_z + 0.5) * u_pow(0.5)
 term2 = -(e1_slope * detuning_hz + 1.5 * beta * (n_z**2 + n_z + 0.5)) * u_pow(1.0)
 term3 = 2.0 * beta * (n_z + 0.5) * u_pow(1.5)
@@ -78,3 +81,6 @@ than `0.1%` at all four checked `(u₀, Tr)` points, worst relative error
   Safronova, Brown, Beloy, Ludlow, "Lattice light shift evaluations in a
   dual-ensemble Yb optical lattice clock," Phys. Rev. Lett. 134, 033201
   (2025), arXiv:2409.10782.
+- Aeppli, Kim, Warfield, Safronova, Ye, Phys. Rev. Lett. 133, 023401
+  (2024), arXiv:2403.10664 (the published lattice-light-shift budget
+  line reproduced above).
