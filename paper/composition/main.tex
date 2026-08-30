@@ -368,45 +368,50 @@ enhancement''; docs/CONVENTIONS.md section 16.}
 
 \begin{table}[t]
 \centering
-\caption{Six successive treatments of the same published Al$^+$
-secular-motion total, computed by the CliffordClock pipeline against
-Marshall et al.'s own published six-mode inputs~\cite{Marshall2025},
-copied from the companion paper's own progression table and
-Fig.~8 there. $\sigma$ is the distance from Marshall et al.'s
-published band, combining the published and predicted uncertainties
-in quadrature. Participation and micromotion enter as two
-multiplicative factors on the same per-mode rate (Eq.~\eqref{eq:rate}).}
+\caption{Reconciling the published Al$^+$ secular-motion total: the
+pipeline's full treatment, the bold final step, lands inside Marshall
+et al.'s published band at $0.08\sigma$. The five steps above it are
+deliberately incomplete treatments of the same published six-mode
+inputs~\cite{Marshall2025}, read top to bottom, each adding one piece
+of physics the previous step omitted; their verdicts are kept to show
+what each omission costs, and step~1's agreement is the accidental
+near-cancellation the text explains. Copied from the companion
+paper's own progression table and Fig.~8 there. $\sigma$ is the
+distance from Marshall et al.'s published band, combining the
+published and predicted uncertainties in quadrature. Participation
+and micromotion enter as two multiplicative factors on the same
+per-mode rate (Eq.~\eqref{eq:rate}).}
 \label{tab:motional}
-\begin{tabular}{lcc}
+\begin{tabular}{clcc}
 \toprule
-Treatment & $\sigma$ & Verdict \\
+Step & Treatment & $\sigma$ & Verdict \\
 \midrule
-Single species mass, every mode & 0.10 & MET \\
-Participation, mass-ratio closed form & 14.11 & NOT MET \\
-Participation, measured-spectrum fit & 14.01 & NOT MET \\
-Participation $\times$ leading-order micromotion & 1.62 & NOT MET \\
-Participation $\times$ exact-Floquet micromotion & 1.62 & NOT MET \\
-Coupled two-ion Floquet, constrained fit & 0.08 & MET \\
+1 & Single species mass, every mode & 0.10 & MET \\
+2 & Participation, mass-ratio closed form & 14.11 & NOT MET \\
+3 & Participation, measured-spectrum fit & 14.01 & NOT MET \\
+4 & Participation $\times$ leading-order micromotion & 1.62 & NOT MET \\
+5 & Participation $\times$ exact-Floquet micromotion & 1.62 & NOT MET \\
+\textbf{6} & \textbf{Coupled two-ion Floquet, constrained fit} & \textbf{0.08} & \textbf{MET} \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-The first row carries one species mass through every one of the six
+Step one carries one species mass through every one of the six
 modes, with no participation split and no micromotion correction, and
 lands inside Marshall et al.'s own published band at $0.10\sigma$.
 That agreement is a near-cancellation of two large omissions moving
 in opposite directions. The true clock-ion participation in a shared
 mode is close to one-half, and the true intrinsic-micromotion
 enhancement on the radial modes is close to a factor of two; the
-single-mass row's implicit choice of one for both factors happens to
+single-mass step's implicit choice of one for both factors happens to
 land close to their true product, an accident of the approximation
-the next two rows expose. Supplying only the participation correction,
-rows two and three, removes that accidental cancellation without
+the next two steps expose. Supplying only the participation correction,
+steps two and three, removes that accidental cancellation without
 replacing it: the resulting total under-predicts the published band
 by a factor of close to two, a $14\sigma$ discrepancy against
 Marshall et al.'s own stated uncertainty. Composing the
 intrinsic-micromotion enhancement back in as a second multiplicative
-factor on the same per-mode rate, rows four and five, closes most of that
+factor on the same per-mode rate, steps four and five, closes most of that
 distance, to $1.62\sigma$, still outside the published band. The
 remaining gap traces to a specific mechanism the companion paper
 identifies: the two-mode pairs sharing an axis run at
@@ -414,14 +419,14 @@ Coulomb-shifted collective frequencies a single-ion enhancement
 factor cannot see. Solving the two ions' coupled equations of
 motion, then fitting the resulting two-parameter trap model
 to all four measured radial frequencies at once, closes the budget to
-$0.08\sigma$, row six, comfortably inside Marshall et al.'s own
+$0.08\sigma$, step six, comfortably inside Marshall et al.'s own
 published band.
 
 A budget table computes participation and micromotion as separate
-rows, or omits the smaller of the two once the first row already
-looks close to the published value. Composing them as two
+rows, or omits the smaller of the two once a single-mass evaluation
+already looks close to the published value. Composing them as two
 correlated factors on the same per-mode rate exposes the
-near-cancellation the single-mass row hides. It also lets the
+near-cancellation that single-mass evaluation hides. It also lets the
 coupled two-ion physics that resolves it enter as one more correction
 to that shared rate, the same object every other correction in this
 section already multiplies.
