@@ -551,3 +551,47 @@ year = [2025]
 arxiv = "2409.10782"
 doi = "10.1103/PhysRevLett.134.033201"
 source = "docs/CONVENTIONS.md section 17 (E41, Targets 3a/3b); src/cliffordclock/integrator/lattice_light_shift.py (BOTHWELL_2025_YB171_HARMONIC/_BOWKB); benchmarks/run_lattice_light_shift.py. Byline and every transcribed equation/table value verified directly against the typeset PDF, fetched this session (WP36); distinct paper from Bothwell2022/Bothwell2022thesis, same surname."
+
+[[paper]]
+key = "Blatt2009"
+authors = "Blatt, S. and Thomsen, J. W. and Campbell, G. K. and Ludlow, A. D. and Swallows, M. D. and Martin, M. J. and Boyd, M. M. and Ye, J."
+surnames = ["Blatt", "Thomsen", "Campbell", "Ludlow", "Swallows", "Martin", "Boyd", "Ye"]
+title = "Rabi spectroscopy and excitation inhomogeneity in a one-dimensional optical lattice clock"
+venue = "Phys. Rev. A 80, 052703"
+year = [2009]
+arxiv = "0906.1419"
+doi = "10.1103/PhysRevA.80.052703"
+source = "docs/CONVENTIONS.md section 18 (E42, the harmonic-path sideband/carrier model); src/cliffordclock/integrator/sideband_spectrum_jax.py (Eqs. 3-20, Appendix A1-A2). Byline and every transcribed equation verified directly against the typeset PDF, all 12 pages read page-image by page-image, fetched this session (WP38)."
+
+[[paper]]
+key = "Goti2025"
+authors = "Goti, Irene and Petrucciani, Tommaso and Condio, Stefano and Levi, Filippo and Calonico, Davide and Pizzocaro, Marco"
+surnames = ["Goti", "Petrucciani", "Condio", "Levi", "Calonico", "Pizzocaro"]
+title = "Atomic thermometry in optical lattice clocks"
+venue = "arXiv preprint"
+year = [2025]
+arxiv = "2508.08164"
+doi = ""
+source = "docs/CONVENTIONS.md section 18 (E42, the BO+WKB-path sideband model, Eqs. 1-9); src/cliffordclock/integrator/sideband_spectrum_jax.py; benchmarks/run_sideband_spectrum.py; benchmarks/run_sideband_fit.py. Byline and every transcribed equation verified directly against the typeset PDF (v2, 2 Sept 2025), the first 8 of 25 pages read page-image by page-image, fetched this session (WP38)."
+
+[[paper]]
+key = "WinelandItano1979"
+authors = "Wineland, D. J. and Itano, W. M."
+surnames = ["Wineland", "Itano"]
+title = "Laser cooling of atoms"
+venue = "Phys. Rev. A 20, 1521"
+year = [1979]
+arxiv = ""
+doi = "10.1103/PhysRevA.20.1521"
+source = "benchmarks/run_sideband_spectrum.py (CONVENTION_BRIDGES['linewidth_convention'], citing large-lattice-model's own rabi_ho() docstring, which cites this paper for its Wineland1979 Eq. 31 normalized Rabi-frequency formula). Distinct from Wineland1998 (Berkeland et al., ion micromotion), same surname, different paper and year."
+
+[[paper]]
+key = "Pizzocaro2024largelatticemodel"
+authors = "Pizzocaro, Marco"
+surnames = ["Pizzocaro"]
+title = "large-lattice-model: a python package to model the motional spectra of atoms trapped in a one-dimensional optical lattice"
+venue = "software (GitHub: inrim/large-lattice-model, MIT license)"
+year = [2021, 2024]
+arxiv = ""
+doi = ""
+source = "docs/CONVENTIONS.md section 18 (E42, the WP38 Deliverable 2 independent oracle); benchmarks/run_sideband_spectrum.py; benchmarks/fixtures/wp38_inrim_large_lattice_model_reference.json (commit f569907cdf2f08a9081386139211a205b3c42624 pinned in that fixture's own provenance field). Repository inspected directly (README, LICENSE, and every source file's imports) this session (WP38); cited as reference [50] in Goti2025's own Fig. 4/Fig. 7. No code from this repository is vendored into CliffordClock; only its numeric OUTPUT, generated once in a separate environment, is used as a comparison fixture."
