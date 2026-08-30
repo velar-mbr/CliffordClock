@@ -62,8 +62,12 @@ known-answer checks against textbook formulas, reproductions of published
 experimental measurements, and cross-checks between independent
 implementations of the same physics.
 
-Four places take this further:
+Five places take this further:
 
+- [`paper/composition/main.pdf`](../paper/composition/main.pdf): a
+  six-page companion paper comparing this composition law with the
+  field's additive budget tables, with case studies where the
+  difference in structure paid.
 - [`examples/ten_line_clock.py`](../examples/ten_line_clock.py): a
   runnable, self-contained version of the code above, in plain NumPy,
   reproducing a published gravitational-redshift measurement.

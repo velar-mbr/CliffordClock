@@ -23,7 +23,9 @@ Free and open source (AGPLv3), Python, `pip install`-able.
 
 - **[Quickstart](#quickstart)**: install and run a real case in a minute.
 - **[How it works](docs/MODEL.md)**: the whole physical model, in
-  [ten lines of Python](examples/ten_line_clock.py).
+  [ten lines of Python](examples/ten_line_clock.py), with a six-page
+  [companion paper](paper/composition/main.pdf) comparing this
+  composition with the field's budget tables.
 - **[The physics, term by term](docs/terms/)**: one page per systematic,
   formula and source.
 - **[Deep dives](#notebooks)**: the full pipeline, notebook by notebook.
@@ -241,6 +243,9 @@ runnable version at
   the numerical methods, the full validation record including both
   reproducibility cases, and the chamber-scale showcase, in one
   self-contained read.
+- [`paper/composition/main.pdf`](https://github.com/velar-mbr/CliffordClock/blob/main/paper/composition/main.pdf): the companion
+  paper. How the field sums an error budget, how this engine composes
+  one, and why the two agree to first order, in six pages.
 - [`docs/tutorial.md`](https://github.com/velar-mbr/CliffordClock/blob/main/docs/tutorial.md): start here
 - [`docs/MODEL.md`](https://github.com/velar-mbr/CliffordClock/blob/main/docs/MODEL.md): the whole physical model, in ten lines of Python
 - [`docs/index.md`](https://github.com/velar-mbr/CliffordClock/blob/main/docs/index.md): full documentation map
