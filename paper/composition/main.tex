@@ -1,0 +1,522 @@
+% SPDX-License-Identifier: AGPL-3.0-or-later
+%
+% "Composing the error budget of an optical clock: one rate scalar per
+% atom", a short companion paper to the CliffordClock methods-and-validation
+% paper (paper/main.tex).
+%
+% DRAFT ONLY. The project owner is the sole author of record, reviews
+% every claim below, and decides whether/when/where to submit this
+% document. No agent has submitted, posted, or otherwise distributed
+% this paper anywhere.
+%
+% Every number below that originates from the codebase or from the
+% companion validation paper is copied from a committed repository
+% file (paper/main.tex, docs/CONVENTIONS.md, or
+% notebooks/13_trapped_ion_quantum_motion.ipynb); this paper's own
+% build does not recompute any of them. The source is named in the
+% prose or a footnote at first use. Build: see paper/composition/Makefile.
+
+\documentclass[aps,pra,superscriptaddress,groupedaddress,nofootinbib]{revtex4-2}
+
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{booktabs}
+\usepackage{hyperref}
+\usepackage{placeins}
+
+\begin{document}
+
+\title{Composing the error budget of an optical clock: one rate scalar per atom}
+
+\author{Michael Rudolph}
+\affiliation{Velar Scientific}
+\email{michael.rudolph@velarscientific.com}
+
+\date{\today}
+
+\begin{abstract}
+An optical clock's systematic error budget is built today as a table:
+one row per physical effect (blackbody radiation, lattice or probe
+Stark shifts, the electric-quadrupole shift, motional time dilation,
+gravitational redshift), each row computed in its own formalism, the
+rows summed linearly, their uncertainties combined in quadrature, and
+fringe contrast treated as a separate measurement outside the budget.
+We describe an alternative composition already implemented and
+validated in the open-source CliffordClock pipeline: every systematic
+enters as a multiplicative factor on a single scalar rate at which an
+atom's own proper time advances along its worldline, the accumulated
+phase is the time integral of that rate, the clock's reported
+fractional shift is the first moment of the resulting ensemble phase
+distribution, and the Ramsey fringe visibility is the modulus of the
+mean phasor, fixed by the second moment (the variance) of that same
+distribution under the standard Gaussian-phase closure. The additive
+table is the first-order term of this product's own expansion, and we
+give the pipeline's own bounds on the terms it drops: a
+DC-Stark$\times$blackbody product correction of order $10^{-33}$ and a
+gravitational$\times$field-driven cross term of order $10^{-31}$,
+both roughly fifteen orders of magnitude below the $10^{-18}$-$10^{-19}$
+systematic floor of the clocks the budget describes. The value of the
+product form is structural. It changes no published total: the terms
+it adds beyond first order sit fifteen orders of magnitude below
+current systematic floors, a bound this paper states directly from
+the pipeline's own composition rules. We show three places the structure pays with
+numbers already validated in the companion paper: a multi-surface
+thermal-environment term whose higher-order moments must be evaluated
+per surface before they are combined; a trapped-ion secular-motion
+reconciliation where composing two systematics as correlated factors
+on one rate closes a discrepancy of $14\sigma$ down to $0.08\sigma$
+against a published budget; and a Ramsey visibility read from the
+same worldline ensemble that sets the mean shift, computed with no
+separate fit. Relativistic timing already composes rate scalars for its
+own gravitational and kinematic terms; this paper's own claim is one
+of scope: the same composition extended to the atomic-environment
+terms of a clock's full budget, evaluated per quantum state, with
+fringe contrast recovered as a second moment of the same object, in
+an open implementation checked against published budgets. Code,
+tests, and the ten-line composition rule itself are public under the
+AGPLv3.
+\end{abstract}
+
+\maketitle
+
+\section{Introduction}
+\label{sec:intro}
+
+A modern optical clock's systematic-uncertainty budget is built one row
+at a time. A group evaluates the blackbody-radiation shift from a
+Planck-integral model of the clock's radiative environment, the
+lattice or probe AC-Stark shift from the trap-light polarizability, the
+DC-Stark shift and its spatial gradient from a field survey, the
+electric-quadrupole shift (for an ion with $J\ge1$) from the local
+field-gradient tensor and an atomic theory coefficient, the motional
+time-dilation shift from sideband-thermometry-measured mode
+populations, and the gravitational redshift from a height survey
+against a local reference~\cite{Ludlow2015}. Each row is a physically
+independent calculation, in its own formalism, against its own inputs.
+The rows are then summed linearly to a total fractional shift, and their
+uncertainties are combined in quadrature to a total systematic
+uncertainty. The clock's fringe contrast, the visibility that sets
+how well the interrogation resolves the transition, is
+measured separately, as an experimental observation outside the
+budget's own rows.
+
+Two recent publications make this practice concrete with real numbers.
+Aeppli et al.\ report an $^{87}$Sr optical lattice clock's blackbody
+shift as $-4.841720\times10^{-15}$, with a stated uncertainty of
+$\pm7.3\times10^{-19}$, from a Planck-integral model of the clock's
+measured in-vacuum temperature combined with fitted dynamic
+polarizability coefficients~\cite{Aeppli2024}. Their total systematic
+uncertainty, after every such row is combined, is
+$8\times10^{-19}$~\cite{Aeppli2024}. Bothwell et al., on the same
+platform, publish a DC-Stark gradient row of
+$+0.3(0.2)\times10^{-20}$ per millimetre from a field survey and, in
+the same table, a gravitational-redshift slope from two independent
+analysis methods that give $-9.8(2.3)\times10^{-20}$ and
+$-12.8(2.7)\times10^{-20}$ per millimetre respectively, the two
+methods differing from each other by $0.85\sigma$ even though both
+describe the same physical effect~\cite{Bothwell2022}. On a different
+platform and a different species, Brewer et al.\ report an
+$^{27}$Al$^+$/$^{25}$Mg$^+$ trapped-ion clock's own motional
+time-dilation row as $-17.3(2.9)\times10^{-19}$, one line among the
+rows that sum to their clock's total systematic uncertainty, published
+as below $10^{-18}$~\cite{Brewer2019}. A later evaluation of the same
+species pair on a different trap, Marshall et al., reports the same
+row at $-114.6(3.8)\times10^{-19}$ and a total systematic uncertainty
+of $5.5\times10^{-19}$~\cite{Marshall2025}. Four papers, two atomic
+species, two very different orders of magnitude for nominally the same
+physical row: the practice that produces these numbers is precise and
+well established. It is a practice, and this paper asks what one
+composed object, replacing the table of separately computed rows,
+would look like, and where it would matter.
+
+CliffordClock is an open-source pipeline, described and validated
+against published clock budgets in a companion
+paper,\footnote{The companion paper is \texttt{paper/main.tex} in the
+project repository, \url{https://github.com/velar-mbr/CliffordClock}.
+Every case-study number in this paper is copied from that paper, from
+\texttt{docs/CONVENTIONS.md}, or from
+\texttt{notebooks/13\_trapped\_ion\_quantum\_motion.ipynb}; this
+paper's own text does not recompute any of them.} that already implements the alternative this paper
+describes. Every systematic in that pipeline, DC-Stark, blackbody
+radiation, the electric-quadrupole shift, motional time dilation,
+gravitational redshift, enters as a multiplicative factor on one
+scalar rate at which an atom's own proper time advances, and the
+clock's reported shift and its fringe visibility both come out of the
+same accumulated-phase object. Section
+\ref{sec:law} states that composition rule. Section
+\ref{sec:equivalence} derives the additive table as its first-order
+expansion and gives the pipeline's own bound on what that expansion
+drops. Section \ref{sec:payoff} shows three places, already validated
+against published numbers, where the fuller composition changes what
+a lab would conclude. Section \ref{sec:prior} places this against
+relativistic-timing practice, which already composes rate factors for
+gravitational and kinematic terms. Section \ref{sec:close} gives the
+composition rule in ten lines of code.
+
+\section{The composition law}
+\label{sec:law}
+
+Write $\nu(t)$ for the clock transition's instantaneous frequency
+along one atom's worldline, its own path through space, time, and
+internal quantum state. In the standard treatment, each systematic
+$k$ contributes an independently computed fractional perturbation
+$p_k$, and the rows are added: $\nu(t)/\nu_0 - 1 \approx \sum_k p_k$.
+The composition rule this paper describes instead multiplies:
+\begin{equation}
+  \nu(t) \;=\; \nu_0 \prod_k \bigl(1 + p_k(x(t))\bigr) ,
+  \label{eq:rate}
+\end{equation}
+where $x(t)$ is the atom's full state along its worldline at time
+$t$, position, velocity, and any internal or motional quantum number
+each term's own physics depends on. Equation~\eqref{eq:rate} is the
+local proper-time rate: general relativity already has names for a
+scalar factor multiplying an ideal clock's rate this way, the lapse
+function in a $3{+}1$ decomposition of spacetime, or, for a static
+observer, the redshift factor $\sqrt{-g_{00}}$. Each term $p_k$ is
+still computed by its own physics: the DC-Stark shift from the
+transition's differential polarizability and the local field, the
+blackbody shift from a Planck-integral model of the radiative
+environment, the quadrupole shift from the local field-gradient
+tensor, the motional shift from the atom's own velocity or vibrational
+occupation, the gravitational term from height in a local potential.
+Nothing about any individual term changes. What changes is how the
+terms are put back together. Equation~\eqref{eq:rate} multiplies them
+as factors on one shared rate. A budget table instead adds them, one
+row per systematic, an addition Sec.~\ref{sec:equivalence} shows is
+this product's own first-order truncation.
+
+An atom's accumulated phase over an interrogation of proper duration
+$T$ is the time integral of that rate,
+\begin{equation}
+  \Delta\Phi \;=\; 2\pi \int_0^T \nu(t)\,dt ,
+  \label{eq:phase}
+\end{equation}
+in radians. An ensemble of $M$ atoms, each with its own worldline
+(its own trajectory, motional state, and local field environment),
+gives $M$ accumulated phases $\Delta\Phi_1,\dots,\Delta\Phi_M$. The
+clock's reported fractional frequency shift is the ensemble mean of
+these phases, normalized by the unperturbed phase $2\pi\nu_0 T$:
+\begin{equation}
+  \frac{\Delta\nu}{\nu_0} \;=\; \frac{\langle\Delta\Phi\rangle}{2\pi\nu_0 T} - 1 ,
+  \label{eq:shift}
+\end{equation}
+the first moment of the ensemble's phase distribution, converted to a
+fractional frequency. The Ramsey fringe visibility, the same
+contrast a lab measures at the end of an interrogation, is the
+modulus of the mean phasor over that same ensemble,
+\begin{equation}
+  V \;=\; \bigl|\langle e^{i\Delta\Phi}\rangle\bigr| \;\le\; 1 .
+  \label{eq:visibility}
+\end{equation}
+For phases that are Gaussian-distributed across the ensemble, the
+characteristic-function identity $\langle e^{i\Delta\Phi}\rangle =
+e^{i\langle\Delta\Phi\rangle - \sigma_\Phi^2/2}$ gives the closed form
+$V = \exp(-\sigma_\Phi^2/2)$ exactly: the visibility is fixed by the
+phase distribution's second moment, its variance, the same
+distribution whose first moment fixed the shift in
+Eq.~\eqref{eq:shift}. One worldline ensemble, run once, yields both
+numbers. Section~\ref{sec:visibility} validates this identity against
+a live pipeline run.
+
+Two constructions of the ensemble average must be told apart, because
+one of them silently destroys the visibility signal. Averaging the
+per-worldline phases first and only then taking the phasor,
+$|\exp(i\langle\Delta\Phi\rangle)|$, gives modulus $1$ for any spread
+in the underlying phases, because the spread is discarded before the
+modulus is ever taken. The correct order, Eq.~\eqref{eq:visibility},
+sums the phasors themselves and takes the modulus of that sum, which
+is what lets a real phase spread show up as $V<1$. Both orderings are
+encoded as opposing kill tests in the pipeline's own test suite
+(\texttt{tests/test\_coherent\_visibility.py}), so a future change that
+collapses the two back together is caught mechanically.
+
+\section{Equivalence and scope}
+\label{sec:equivalence}
+
+Expanding the product in Eq.~\eqref{eq:rate} to first order in each
+$p_k$ recovers the additive budget exactly:
+\begin{equation}
+  \prod_k (1+p_k) \;=\; 1 + \sum_k p_k \;+\; \sum_{j<k} p_j p_k \;+\; \dots
+  \label{eq:expansion}
+\end{equation}
+The standard table, one row per systematic, rows summed linearly, is
+the truncation of Eq.~\eqref{eq:expansion} at first order. Every
+cross term the truncation drops is a product of two or more
+systematics that are each already small, and at the field's current
+performance those products are far smaller still. The pipeline's own
+composition rules state each bound directly, as part of the
+codebase's own documentation. The
+DC-Stark and blackbody-radiation terms are independent scalar
+perturbations of the atom's internal energy. Their second-order cross
+term averages to exactly zero for an isotropic thermal field, an
+exact cancellation, and their multiplicative product correction, the
+Stark$\times$BBR cross term of Eq.~\eqref{eq:expansion}, is bounded
+at order $10^{-33}$.\footnote{docs/CONVENTIONS.md, section 13,
+``(E33) Scalar pivot composition.''} The gravitational-redshift term
+depends only on an atom's position in the local potential, and never on
+its motional or internal state, so its cross term with any
+field-driven shift is bounded at order $10^{-31}$.\footnote{Companion
+paper, Sec.~II.E, ``The gravitational-redshift pivot term.''} Both
+bounds sit roughly fifteen orders of magnitude below the
+$10^{-18}$-to-$10^{-19}$ systematic floor the clocks of
+Sec.~\ref{sec:intro} report.
+
+This comparison settles what the product form is for. It states one
+composition rule that explains why the additive table works as well
+as it does, and it gives that rule's own quantitative boundary, the
+order at which it would stop working, in the same units the rows
+themselves are reported in. It does not correct any of the published
+totals in Sec.~\ref{sec:intro}: the additive budgets those papers
+report are correct to a precision no experiment now approaches, and
+nothing in this paper revises a single published number. The three
+cases of Sec.~\ref{sec:payoff} instead show where the product form's
+other structural consequences change a conclusion: evaluating a
+nonlinear function of a distributed quantity before averaging it,
+composing two systematics as correlated factors on one shared rate,
+and reading a fringe visibility off the same object that sets the
+shift. None of the cross-term corrections above ever enters that
+arithmetic.
+
+\section{Where the structure pays}
+\label{sec:payoff}
+
+\subsection{Per-state evaluation before averaging: a multi-surface thermal environment}
+\label{sec:bbr}
+
+A blackbody-radiation budget row is ordinarily a single number: a
+lab characterizes its enclosure by one effective temperature and
+evaluates a Planck-integral shift formula at that one temperature. A
+clock deployed outside a temperature-stabilized laboratory chamber,
+in a vehicle or behind a viewport a diurnal cycle warms, sees an
+enclosure whose visible surfaces can differ by tens of kelvin, and
+the blackbody shift's dynamic term scales as $T^6$ through $T^{10}$,
+higher powers than the $T^4$ power the static shift and the
+naturally chosen effective temperature both track. A single
+temperature chosen to match the static ($T^4$) moment of a
+non-uniform environment does not, in general, reproduce the
+environment's higher dynamic moments, and the companion paper
+quantifies the resulting mismatch: it crosses $10^{-18}$,
+comparable to a modern lattice clock's total systematic budget, at
+roughly an $11\,$K spread across two comparably sized surfaces, and
+at roughly $19\,$K for a small warm viewport against a larger chamber
+body.\footnote{Companion paper, Sec.~II.D, ``The multi-surface
+thermal environment.''}
+
+The pipeline's multi-surface extension evaluates
+the blackbody shift's moments per surface, before they are combined
+into a single number.
+Writing $w_i$ for each surface's solid-angle fraction and $T_i$ for
+its temperature, the environment's $n$-th weighted moment is
+$M_n = \sum_i w_i (T_i/T_0)^n$, and the static and dynamic terms of
+the shift formula are each evaluated against their own moment $M_n$,
+in place of a single power $(T/T_0)^n$ of one effective
+temperature.\footnote{docs/CONVENTIONS.md, section 13, ``(E37)
+Multi-surface thermal environment.''} A uniform, single-surface
+environment reduces this construction to the ordinary single-$T$
+formula term for term: the two paths share the same
+coefficient-evaluation code and agree at floating-point precision.
+The construction is validated
+against a real transportable clock's own position-resolved
+measurement: replaying Nosske et al.'s published aperture geometry,
+interior emissivity, and shield temperatures through the pipeline's
+enclosure-and-aperture model predicts a differential shift, as the
+atoms move from the shield's center out through an aperture, of
+$-3.325\times10^{-15}$, against their own closed-form model's
+$-3.32(7)\times10^{-15}$ and their own measurement's
+$-3.33(3)\times10^{-15}$, landing within $5\times10^{-18}$ of both
+their model and their measurement, well inside either
+one's own stated uncertainty.\footnote{Companion paper,
+Sec.~IV.J, ``The PTB position-resolved thermal-environment
+validation,'' citing Nosske et al.~\cite{Nosske2025}.}
+
+The point generalizes past blackbody radiation. A single effective
+value stands in for a physically distributed quantity throughout an
+optical-clock budget, an effective lattice depth over a trapped
+ensemble's spatial extent, an effective field over a cloud's own
+spread, and each substitution risks the same failure mode a single
+effective temperature shows here: a nonlinear function of the
+distributed quantity, evaluated at one collapsed value, does not
+equal that same nonlinear function's own moments evaluated across the
+real distribution and then combined. The composition rule of
+Sec.~\ref{sec:law} states the same discipline once, for every
+systematic and every ensemble the pipeline evaluates: the
+distribution comes first, and the moments (the mean that sets the
+shift, the variance that sets the visibility) come from integrating
+over the full distribution, before any collapse to one representative
+value.
+
+\subsection{A cross-row correlation a table cannot see: reconciling a trapped-ion secular-motion budget}
+\label{sec:motional}
+
+A trapped two-ion clock's motional time-dilation shift depends on two
+physically distinct pieces of the same underlying motion: how much of
+each shared vibrational mode the clock ion itself carries (its
+participation), and how much extra oscillation, at the trap's own
+radio-frequency drive, that secular motion itself induces (intrinsic
+micromotion). A budget table built one row at a time can compute
+either piece on its own, and Marshall et al.'s published
+$^{27}$Al$^+$/$^{25}$Mg$^+$ two-ion crystal is a real case where doing
+so goes badly wrong before it goes right. Table~\ref{tab:motional}
+reproduces the companion paper's own six-step progression through this
+reconciliation, each row built from Marshall et al.'s own published
+six-mode frequencies and occupations, reported against Marshall et
+al.'s own published secular-motion band of
+$-114.6(3.8)\times10^{-19}$.\footnote{Companion paper,
+Secs.~IV.H-I, ``The Al-ion secular-motion arithmetic reproduction''
+and ``Per-mode participation and the intrinsic-micromotion
+enhancement''; docs/CONVENTIONS.md section 16.}
+
+\begin{table}[t]
+\centering
+\caption{Six successive treatments of the same published Al$^+$
+secular-motion total, computed by the CliffordClock pipeline against
+Marshall et al.'s own published six-mode inputs~\cite{Marshall2025},
+copied from the companion paper's own progression table and
+Fig.~8 there. $\sigma$ is the distance from Marshall et al.'s
+published band, combining the published and predicted uncertainties
+in quadrature. Participation and micromotion enter as two
+multiplicative factors on the same per-mode rate (Eq.~\eqref{eq:rate}).}
+\label{tab:motional}
+\begin{tabular}{lcc}
+\toprule
+Treatment & $\sigma$ & Verdict \\
+\midrule
+Single species mass, every mode & 0.10 & MET \\
+Participation, mass-ratio closed form & 14.11 & NOT MET \\
+Participation, measured-spectrum fit & 14.01 & NOT MET \\
+Participation $\times$ leading-order micromotion & 1.62 & NOT MET \\
+Participation $\times$ exact-Floquet micromotion & 1.62 & NOT MET \\
+Coupled two-ion Floquet, constrained fit & 0.08 & MET \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The first row carries one species mass through every one of the six
+modes, with no participation split and no micromotion correction, and
+lands inside Marshall et al.'s own published band at $0.10\sigma$.
+That agreement is a near-cancellation of two large omissions moving
+in opposite directions. The true clock-ion participation in a shared
+mode is close to one-half, and the true intrinsic-micromotion
+enhancement on the radial modes is close to a factor of two; the
+single-mass row's implicit choice of one for both factors happens to
+land close to their true product, an accident of the approximation
+the next two rows expose. Supplying only the participation correction,
+rows two and three, removes that accidental cancellation without
+replacing it: the resulting total under-predicts the published band
+by a factor of close to two, a $14\sigma$ discrepancy against
+Marshall et al.'s own stated uncertainty. Composing the
+intrinsic-micromotion enhancement back in as a second multiplicative
+factor on the same per-mode rate, rows four and five, closes most of that
+distance, to $1.62\sigma$, still outside the published band. The
+remaining gap traces to a specific mechanism the companion paper
+identifies: the two-mode pairs sharing an axis run at
+Coulomb-shifted collective frequencies a single-ion enhancement
+factor cannot see. Solving the two ions' coupled equations of
+motion, then fitting the resulting two-parameter trap model
+to all four measured radial frequencies at once, closes the budget to
+$0.08\sigma$, row six, comfortably inside Marshall et al.'s own
+published band.
+
+A budget table computes participation and micromotion as separate
+rows, or omits the smaller of the two once the first row already
+looks close to the published value. Composing them as two
+correlated factors on the same per-mode rate exposes the
+near-cancellation the single-mass row hides. It also lets the
+coupled two-ion physics that resolves it enter as one more correction
+to that shared rate, the same object every other correction in this
+section already multiplies.
+
+\subsection{Shift and coherence from one object: Ramsey visibility}
+\label{sec:visibility}
+
+Section~\ref{sec:law} states that the same worldline ensemble that
+sets the mean fractional shift, Eq.~\eqref{eq:shift}, also sets the
+Ramsey fringe visibility, Eq.~\eqref{eq:visibility}. The visibility
+calculation uses the same accumulated-phase draw as the shift
+calculation, with no free parameter of its own. The
+companion paper validates the Gaussian closure $V =
+\exp(-\sigma_\Phi^2/2)$ this identity predicts against a live
+pipeline run: sweeping a classical worldline ensemble's squeezing
+parameter over several values at $4000$ worldlines each, the largest
+relative deviation between the pipeline's own reported visibility and
+the same run's independently computed Gaussian-closure check lands at
+roughly $0.65\%$, at the largest squeezing swept, consistent with the
+$O(\sigma^4/N)$ Monte Carlo scaling the pipeline's own test-tolerance
+derivation documents for this
+comparison.\footnote{notebooks/13\_trapped\_ion\_quantum\_motion.ipynb,
+Sec.~5, ``Ramsey visibility under squeezing''; companion paper,
+Sec.~II.H, ``Coherent Ramsey visibility,'' Eq.~(E39).} That
+number comes from the same accumulated-phase distribution
+Eq.~\eqref{eq:shift} already builds to report the mean shift, with
+the same worldline draw and the same weights supplying both outputs.
+
+\section{Relation to prior practice}
+\label{sec:prior}
+
+Relativistic timing already composes a rate scalar for a clock's own
+systematics, for the terms general relativity itself supplies.
+Ashby's treatment of relativity in the Global Positioning System
+expresses each GPS satellite clock's rate, relative to a ground
+clock, as a product of the gravitational potential term and the
+special-relativistic velocity term, composed multiplicatively along
+the satellite's worldline, the same proper-time-rate object this
+paper composes for an optical clock's atomic-environment
+terms~\cite{Ashby2003}. Chronometric geodesy extends the same idea in
+the other direction: an optical clock's own measured rate, relative
+to a reference, is read as a measurement of the
+gravitational potential difference between the clock and the
+reference, a practice a recent review of atomic clocks for geodesy
+surveys across a range of clock platforms and baselines, each one
+treating the clock's fractional frequency as a rate factor tied to
+the local metric~\cite{Mehlstaubler2018}.
+
+Both of these established practices compose rate scalars for the
+gravitational and kinematic terms general relativity itself supplies.
+This paper's own claim is about scope. What
+CliffordClock adds is the same composition, extended to a clock's
+full budget, including the atomic-environment terms, the DC-Stark
+shift, blackbody radiation, and the electric-quadrupole shift, that
+have no counterpart in a GPS satellite's or a geodetic baseline's own
+rate factor. Those terms are evaluated per quantum state where the
+physics calls for it, the per-surface thermal moments of
+Sec.~\ref{sec:bbr} and the per-mode motional factors of
+Sec.~\ref{sec:motional} among them, and fringe contrast comes out of
+that same object, Sec.~\ref{sec:visibility}, as a byproduct of the
+shift calculation itself. The implementation is open, and every
+claim above is checked against a published budget in the repository's
+own test suite. No claim is made that this is the only way to compose a
+clock's systematics, or the first time a rate scalar has been
+composed for any of its individual terms.
+
+\section{The composition, in ten lines}
+\label{sec:close}
+
+Every equation of Sec.~\ref{sec:law}, the multiplicative rate, the
+phase integral, the shift as a first moment, and the visibility as a
+second, is this short:
+
+\begin{widetext}
+\footnotesize
+\begin{verbatim}
+def clock_phase(worldline, terms, nu_0):
+    rate = lambda t: nu_0 * prod(1.0 + p(worldline.state(t)) for p in terms)
+    return 2.0 * pi * integrate(rate, worldline.proper_time)
+
+phases = [clock_phase(w, terms, NU_0) for w in ensemble]
+shift = mean(phases) / (2.0 * pi * NU_0 * T) - 1.0
+visibility = abs(mean(exp(1j * array(phases))))
+\end{verbatim}
+\normalsize
+\end{widetext}
+
+Each entry of \texttt{terms} is one systematic's own physics, computed
+from its own formalism exactly as any published budget row is; the
+composition itself is the four lines that use them. The source code,
+test suite, and the companion validation paper underlying every number
+in this paper are available at
+\url{https://github.com/velar-mbr/CliffordClock} under the GNU
+Affero General Public License v3.0 or later (AGPLv3).
+
+\bibliography{refs}
+
+\end{document}
