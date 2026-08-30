@@ -57,6 +57,10 @@ where = ["src"]
 [tool.ruff]
 line-length = 100
 src = ["src", "tests"]
+# Keep ruff on Python sources only. Newer ruff releases also format
+# fenced code blocks inside markdown, and the docs' listings are
+# deliberate pseudocode whose layout is coordinated with the papers.
+extend-exclude = ["*.md"]
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "N", "UP", "B", "SIM"]
