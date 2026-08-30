@@ -153,7 +153,7 @@ above said were unavailable turned out to exist in Table S2 all along
 (the G11 gate record's own "real(1e-19)" column already used them by
 hand; this module is the first to load them as re-usable data and run
 the actual per-mode comparison programmatically). Result, reported
-honestly, not massaged toward agreement: the AXIAL pair (whose full
+as computed, not massaged toward agreement: the AXIAL pair (whose full
 closed-form eigenvector genuinely depends on the mass ratio alone, per
 `two_ion_participations`' own derivation) matches the published per-mode
 values to a few percent; the two RADIAL pairs do NOT match well (the
@@ -565,7 +565,7 @@ class MotionalAlIonModeComparison:
 class MotionalAlIonParticipationVariantCase:
     """The WP31 participation-corrected variant of the WP30 Al+
     secular-motion case (see module docstring's "WP31 addendum" for the
-    full method and its honestly-reported result).
+    full method and its unmassaged result).
 
     Attributes
     ----------

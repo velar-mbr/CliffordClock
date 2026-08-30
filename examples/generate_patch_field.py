@@ -85,7 +85,7 @@ r_patch|^2 / (2 w^2))`. The total field is the uniform bias plus the sum
 of all six patch contributions -- superposition, since each patch's
 potential is an independent (linear) source term.
 
-**Model idealization (stated plainly):** each "patch" here is an
+**Model idealization:** each "patch" here is an
 *isotropic 3D Gaussian potential bump* centered on the surface location
 -- a deliberately simple, smooth, closed-form idealization -- NOT an
 oriented 2D charged-surface element, which is what a charged mirror face

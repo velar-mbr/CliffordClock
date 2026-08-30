@@ -131,8 +131,8 @@ def test_case_uses_the_real_lattice_extended_pipeline_not_a_shortcut(
 def test_coordinate_sign_mapping_is_a_negation(case: bothwell.BothwellRedshiftCase) -> None:
     """Bothwell's own coordinate convention is the engine's own height
     convention NEGATED (module docstring's coordinate-sign mapping, G9
-    sign-off gate edit 2) -- checked as an exact algebraic relationship,
-    not merely "both negative."
+    sign-off gate edit 2) -- checked as an exact algebraic relationship:
+    the full negated value must match, not just the sign.
     """
     np.testing.assert_allclose(
         case.predicted_slope_per_mm,
@@ -300,7 +300,8 @@ def test_main_writes_json_and_markdown(tmp_path: Path, monkeypatch: pytest.Monke
 
 def test_run_bothwell_redshift_case_is_deterministic(case: bothwell.BothwellRedshiftCase) -> None:
     """Re-running the case gives a bit-identical prediction (no PRNG, no
-    hidden state) -- a real determinism guard, not merely "runs without
+    hidden state): a determinism guard on the actual predicted value,
+    stronger than a smoke test that only confirms the case runs without
     raising."""
     second = bothwell.run_bothwell_redshift_case()
     assert math.isclose(

@@ -191,6 +191,224 @@ def test_prose_scan_meta_slop_negative_case():
 
 
 # ---------------------------------------------------------------------------
+# prose-scan: Python docstrings (module/class/function, wrap-aware)
+#
+# The G19 gate incident this exists for: a banned "rather than" split
+# across a line wrap in a TEST DOCSTRING was invisible to a scanner that
+# only covered markdown/notebooks, and to a naive single-line grep.
+# ---------------------------------------------------------------------------
+
+
+def test_python_docstrings_extracts_module_class_and_function_docstrings(tmp_path):
+    """AST extraction finds all three docstring kinds, each at the source
+    line its own string literal begins on (not the ``def``/``class`` line
+    above it)."""
+    src = tmp_path / "fixture_module.py"
+    src.write_text(
+        '"""Module docstring line 1.\n'
+        "Line 2.\n"
+        '"""\n'
+        "\n"
+        "\n"
+        "class Foo:\n"
+        '    """Class docstring."""\n'
+        "\n"
+        "    def method(self):\n"
+        '        """Method docstring."""\n'
+        "        return 1\n"
+        "\n"
+        "\n"
+        "def bare_function():\n"
+        '    """Function docstring."""\n'
+        "    return 2\n"
+    )
+    entries = rc.python_docstrings(src)
+    texts_by_line = {line: text for line, text in entries}
+    assert len(entries) == 4
+    assert texts_by_line[1] == "Module docstring line 1.\nLine 2.\n"
+    assert texts_by_line[7] == "Class docstring."
+    assert texts_by_line[10] == "Method docstring."
+    assert texts_by_line[15] == "Function docstring."
+
+
+def test_python_docstrings_negative_case_code_strings_and_comments_unscanned(tmp_path):
+    """A banned phrase sitting in an ordinary string assignment or a ``#``
+    comment (never a docstring to Python) is not extracted -- only the
+    genuine docstring's text is, confirming the ast-based extraction does
+    not fall back to a string/regex scan that would catch those too."""
+    src = tmp_path / "fixture_module.py"
+    src.write_text(
+        '"""Clean module docstring, no banned content."""\n'
+        "\n"
+        "# rather than doing it differently, this comment says so\n"
+        'NOTE = "rather than the alternative, we chose this — see docs"\n'
+        "\n"
+        "\n"
+        "def f():\n"
+        '    """Clean function docstring."""\n'
+        '    local = "rather than something else — an em dash too"\n'
+        "    return local\n"
+    )
+    entries = rc.python_docstrings(src)
+    assert [text for _line, text in entries] == [
+        "Clean module docstring, no banned content.",
+        "Clean function docstring.",
+    ]
+
+
+def test_python_docstrings_returns_empty_for_unparseable_file(tmp_path):
+    """A file with a syntax error contributes no docstrings rather than
+    raising, so one broken fixture file cannot crash the whole scan."""
+    src = tmp_path / "broken.py"
+    src.write_text("def f(:\n    pass\n")
+    assert rc.python_docstrings(src) == []
+
+
+def test_python_source_files_covers_the_four_docstring_source_dirs():
+    """The real repo's enumeration returns only ``*.py`` files under
+    src/, tests/, benchmarks/, and examples/, and is non-empty (a
+    regression against silently scanning zero files)."""
+    files = rc.python_source_files()
+    assert files, "expected at least one Python source file"
+    for path in files:
+        rel = path.relative_to(REPO_ROOT)
+        assert rel.parts[0] in {"src", "tests", "benchmarks", "examples"}
+        assert rel.suffix == ".py"
+        assert "__pycache__" not in rel.parts
+
+
+def test_scan_docstring_text_catches_em_dash_planted_violation():
+    findings = rc._scan_docstring_text(
+        "fixture.py",
+        "Uses an em dash — right here in the docstring.",
+        10,
+        meta_slop_fatal=[],
+        meta_slop_minor=[],
+        allowed=[],
+    )
+    assert any("em dash" in f.message and "docstring" in f.message for f in findings)
+    assert all(f.severity == "FAIL" for f in findings if "em dash" in f.message)
+
+
+def test_scan_docstring_text_catches_honest_family_word_planted_violation():
+    findings = rc._scan_docstring_text(
+        "fixture.py",
+        "The result is honestly reported here.",
+        1,
+        meta_slop_fatal=[],
+        meta_slop_minor=[],
+        allowed=[],
+    )
+    assert any("honest-family" in f.message for f in findings)
+
+
+def test_scan_docstring_text_skips_dash_as_punctuation_check():
+    """Docstrings routinely carry a NumPy-style section-heading underline
+    (``----------``) or an argparse-style ``--flag`` with no code fence
+    around them; the dash-as-punctuation check that markdown prose-scan
+    applies (only after fence-stripping) is deliberately not run against
+    docstring text at all, so neither false-positives here."""
+    text = "Parameters\n----------\nRun with --fast to skip slow checks."
+    findings = rc._scan_docstring_text(
+        "fixture.py", text, 1, meta_slop_fatal=[], meta_slop_minor=[], allowed=[]
+    )
+    assert findings == []
+
+
+def test_scan_docstring_text_catches_wrapped_fatal_phrase_planted_violation_and_shifts_line():
+    """The G19 incident itself: a banned phrase split across a hard-wrapped
+    docstring line, at a docstring that does not start at line 1 -- the
+    reported line must be the FILE's line (start_line-relative), not a
+    line number local to the docstring's own text."""
+    text = "The lattice pivot is not\nmerely a bookkeeping device in this framing."
+    findings = rc._scan_docstring_text(
+        "fixture.py",
+        text,
+        42,
+        meta_slop_fatal=["not merely"],
+        meta_slop_minor=[],
+        allowed=[],
+    )
+    assert len(findings) == 1
+    assert findings[0].severity == "FAIL"
+    assert findings[0].line == 42
+    assert "docstring" in findings[0].message
+
+
+def test_scan_docstring_text_catches_wrapped_minor_phrase_planted_violation():
+    text = "We used method A rather\nthan method B for this case."
+    findings = rc._scan_docstring_text(
+        "fixture.py",
+        text,
+        1,
+        meta_slop_fatal=[],
+        meta_slop_minor=["rather than"],
+        allowed=[],
+    )
+    assert len(findings) == 1
+    assert findings[0].severity == "MINOR"
+    assert rc._status_from_findings(findings) == "PASS"
+
+
+def test_scan_docstring_text_allowlist_suppresses_deliberate_keep():
+    findings = rc._scan_docstring_text(
+        "fixture.py",
+        "Uses an em dash — right here in the docstring.",
+        1,
+        meta_slop_fatal=[],
+        meta_slop_minor=[],
+        allowed=["Uses an em dash — right here in the docstring."],
+    )
+    assert findings == []
+
+
+def test_scan_docstring_text_negative_case_clean_docstring():
+    findings = rc._scan_docstring_text(
+        "fixture.py",
+        "A clean docstring with no banned content at all.",
+        1,
+        meta_slop_fatal=["it is worth noting"],
+        meta_slop_minor=["rather than"],
+        allowed=[],
+    )
+    assert findings == []
+
+
+def test_prose_scan_allow_docstrings_section_is_a_separate_namespace_from_allow():
+    """[prose_scan.allow_docstrings] is read independently of
+    [prose_scan.allow]: an allowlist entry under one section does not
+    suppress a finding filed under the other, so a path collision between
+    a markdown file and a same-named docstring source file (impossible in
+    this repo today, but not structurally prevented) could never
+    cross-allow one for the other."""
+    allowlist = {
+        "prose_scan": {
+            "allow": {"fixture.py": ["Uses an em dash — right here."]},
+        }
+    }
+    findings = rc._scan_docstring_text(
+        "fixture.py",
+        "Uses an em dash — right here.",
+        1,
+        meta_slop_fatal=[],
+        meta_slop_minor=[],
+        allowed=allowlist.get("prose_scan", {}).get("allow_docstrings", {}).get("fixture.py", []),
+    )
+    assert len(findings) == 1
+
+
+def test_prose_scan_runs_clean_of_fail_findings_against_current_repo():
+    """The full prose-scan check, including its docstring pass over
+    src/, tests/, benchmarks/, and examples/, is FAIL-clean against the
+    real repo with the real allowlist (WP28's own bar: MINOR findings,
+    e.g. the pervasive "rather than" design-decision phrasing throughout
+    this codebase's docstrings, are surfaced but never block, matching
+    every other prose-scan surface)."""
+    result = rc.prose_scan(rc.load_allowlist())
+    assert result.status == "PASS", [f.format() for f in result.findings if f.severity == "FAIL"]
+
+
+# ---------------------------------------------------------------------------
 # tolerance-scan
 # ---------------------------------------------------------------------------
 
@@ -832,8 +1050,9 @@ def test_latex_en_dash_brace_closed_ranges_not_flagged():
 
 
 def test_prose_scan_catches_wrapped_fatal_phrase_planted_violation():
-    """The exact prose-audit escape: 'not merely' hard-wrapped so 'not'
-    ends one source line and 'merely' starts the next."""
+    """The exact prose-audit escape: a banned two-word phrase hard-wrapped
+    so its first word ends one source line and its second word starts
+    the next (see the fixture text below for the literal phrase)."""
     text = "The lattice pivot is not\nmerely a bookkeeping device in this framing.\n"
     findings = rc._scan_prose_text(
         "fixture.md",

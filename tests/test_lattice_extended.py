@@ -400,8 +400,9 @@ def test_site_map_hand_computed_gravity_only_uniform_envelope(tmp_path: Path) ->
 
 def test_site_map_local_field_varies_by_site_position() -> None:
     """Part 2 item 1's "site positions feed every pivot term (local field
-    ...)" claim, checked directly (not merely gravity's): a spatially
-    varying field (constant_gradient) makes the per-site Stark shift
+    ...)" claim, checked directly for the Stark term itself rather than
+    only for gravity's: a spatially varying field (constant_gradient)
+    makes the per-site Stark shift
     genuinely differ across sites -- not evaluated once at a single global
     position and broadcast.
     """

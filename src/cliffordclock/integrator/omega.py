@@ -53,8 +53,8 @@ not expose) and bounds the omission. :func:`quadrupole_three_orientation_average
 implements the exact cancellation identity (E35 A2) as a standing test
 primitive (not a pipeline-time-savings shortcut -- the pipeline's
 ``averaging_mode="three_orientation"`` composes the identically-zero
-result directly, since the cancellation is EXACT, not merely averaged to
-zero over many samples).
+result directly: the cancellation is EXACT, holding pointwise for every
+sample rather than emerging only as an average over many samples).
 
 WP22 scope note (CONVENTIONS.md E36, gravitational-redshift pivot term):
 :func:`grav_pivot_perturbation` computes the per-position scalar pivot
@@ -73,8 +73,9 @@ in the potential, not on any electromagnetic field) and reaches the rotor
 through the *scalar* pivot only: it shifts :func:`spin_connection_stark`'s
 `P` denominator exactly like BBR/quadrupole (never that function's
 numerator/gradient term) -- see that function's WP22 docstring note for
-why this is provably inconsequential here (not merely bounded, unlike
-quadrupole's third-derivative limitation).
+why this is provably inconsequential here: the effect vanishes
+identically, unlike quadrupole's third-derivative limitation, which is
+merely bounded rather than zero.
 
 WP20 scope note (CONVENTIONS.md E32/E33, blackbody-radiation shift):
 :func:`bbr_pivot_perturbation` computes the uniform-T BBR scalar pivot
@@ -644,10 +645,11 @@ def spin_connection_stark(
     site this project ships evaluates static (`v = 0`) lattice/
     lattice-extended nodes (CONVENTIONS.md section 15; the G9 sign-off's
     "rotor carries it through the scalar pivot only" ruling), so
-    `ω_boost`'s gravitational contribution is not merely small but
-    IDENTICALLY zero for every configuration this project supports --
-    provably inconsequential, not just bounded, so the omission is
-    threaded through the same `P`-denominator-only pattern as
+    `ω_boost`'s gravitational contribution is IDENTICALLY zero for every
+    configuration this project supports, a stronger guarantee than
+    merely being small -- provably inconsequential rather than only
+    bounded, so the omission is threaded through the same
+    `P`-denominator-only pattern as
     `bbr_pivot_perturbation`/`quadrupole_pivot_perturbation` above for API
     consistency rather than out of numerical necessity.
 
@@ -889,8 +891,8 @@ def build_omega_stark(
         scalar pivot only" the G9 sign-off states -- and
         :func:`spin_connection_stark`'s `P` denominator only, never
         `ω_boost`'s numerator (see that function's WP22 docstring note:
-        provably zero-effect for every `v = 0` static-node call site this
-        project ships, not merely bounded).
+        provably zero for every `v = 0` static-node call site this
+        project ships, a stronger guarantee than merely being bounded).
     motional_pivot_perturbation : jax.Array | float, default 0.0
         ``(P−1)_motional`` (E38, WP30); see :func:`pivot_perturbation_stark`.
         Reaches the rotation coefficient (the `B̂_C` plane) exactly as the
@@ -2210,10 +2212,10 @@ def two_ion_participations(
     `participation_i * (hbar*omega_i/m)*(n_bar_i+1/2)` form
     `motional_mean_squared_velocity_m2_s2` implements, confirming
     `participation_i = b1_sq`/`b2_sq` is the correct quantity for
-    `MotionalMode.participation`, not merely a plausible-looking
-    substitute.
+    `MotionalMode.participation`, derived directly rather than a
+    plausible-looking substitute chosen because it fits.
 
-    **RADIAL scope caveat (WP31, honestly disclosed, not silently
+    **RADIAL scope caveat (WP31, explicitly disclosed, not silently
     assumed).** The AXIAL closed form above depends on `mu` alone. The
     full RADIAL two-ion eigenvector closed form (Wübbena Eqs. 15-18) is
     NOT a function of `mu` alone -- it additionally depends on the trap's
@@ -2225,7 +2227,7 @@ def two_ion_participations(
     (the mass-ratio-dependent PART of the radial physics, omitting the
     trap-geometry-dependent part) -- exact for the axial pair, approximate
     for the radial pairs. See `benchmarks/run_motional_al_ion.py`'s
-    participation-variant case for a direct, honest per-mode comparison
+    participation-variant case for a direct per-mode comparison
     against a published two-ion crystal's real per-mode values, which
     confirms the axial pair matches well and the radial pairs do not (the
     disclosed radial approximation's real limitation, not a bug).

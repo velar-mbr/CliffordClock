@@ -42,6 +42,18 @@ minor = [
     "not merely comparable to it (G9's correction of an earlier",
 ]
 
+[prose_scan.allow_docstrings]
+# file path (relative to repo root) -> list of exact line substrings that
+# are permitted to match a prose-scan pattern INSIDE a Python
+# module/class/function docstring (the docstring upgrade's own scan; see
+# tools/release_checks.py's _scan_docstring_text) and should be skipped,
+# for deliberate keeps. Separate from [prose_scan.allow] above because a
+# docstring line and a markdown line live in different files and a path
+# collision between the two namespaces should never silently cross-allow
+# one for the other. Populate sparingly, same policy as [prose_scan.allow]:
+# today's real findings are meant to surface, not be silenced by a
+# pre-populated allowlist.
+
 [tolerance_scan.allow]
 # file path (relative to repo root) -> list of exact call-text substrings
 # permitted to match a tolerance-scan pattern. The one populated entry is

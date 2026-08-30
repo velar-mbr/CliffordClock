@@ -2,7 +2,7 @@
 """Tests for cliffordclock.fields.synthetic closed-form test fields.
 
 Each field's hand-derived ``grad_fn`` is cross-checked against
-``jax.jacfwd`` of its own ``e_fn`` at several points — an independent
+``jax.jacfwd`` of its own ``e_fn`` at several points: an independent
 sanity check on the hand derivation itself (catches sign/index-order
 mistakes in the closed forms) that does not depend on
 ``smoother.FieldSmoother`` at all, so it stays meaningful as an oracle for

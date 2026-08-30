@@ -24,7 +24,11 @@ python tools/release_checks.py --list       # list check names
 Exit code is nonzero if any check's status is `FAIL`. Checks:
 
 1. `prose-scan`: em dash / dash-as-punctuation / honest-family words /
-   configurable meta-slop phrases over public files.
+   configurable meta-slop phrases over public files, plus every module,
+   class, and function docstring under `src/`, `tests/`, `benchmarks/`,
+   and `examples/` (extracted via `ast`, wrap-aware, minus the
+   dash-as-punctuation check, which false-positives on docstring
+   scaffolding like a NumPy-style section underline).
 2. `tolerance-scan`: bare `pytest.approx(..., rel=...)` without `abs=`
    and `assert_allclose(...)` without `atol=` over `tests/**`.
 3. `citation-check`: public-file author-surname+year bylines checked

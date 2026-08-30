@@ -330,8 +330,8 @@ class BothwellRedshiftCase:
         `predicted_slope_per_mm`. Expected to agree with it to numerical
         precision (the model is exactly linear in height for this
         field-free, gravity-only case, so the fit is window-independent --
-        this field is the check that this is actually true, not merely
-        assumed).
+        this field is the check that confirms that directly, rather than
+        leaving it assumed).
     measured_slope_method_a, measured_slope_method_b : PublishedBand
         Bothwell's two independent corrected measurements (G9 sign-off B2).
     bands_overlap_method_a, bands_overlap_method_b : bool

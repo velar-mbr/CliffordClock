@@ -1177,8 +1177,9 @@ def test_two_ion_radial_participations_uncertainty_matches_finite_difference() -
     """Uncertainty propagation sanity (WP32 deliverable 4): the reported
     `com_participation_uncertainty`/`str_participation_uncertainty` must
     match an INDEPENDENTLY-coded central finite difference over each
-    uncertain input, combined in quadrature -- not merely reproduce the
-    function's own internal arithmetic line by line.
+    uncertain input, combined in quadrature -- an independent check
+    against the physics, not a re-derivation of the function's own
+    internal arithmetic line by line.
     """
     c = 3.976554191127463e-12
     sigma_c = c * 1e-4
@@ -1329,7 +1330,8 @@ def test_clock_ion_mathieu_parameters_round_trip_recovers_synthetic_inputs() -> 
     then invert with `clock_ion_mathieu_parameters` and check the recovered
     parameters match the synthetic originals to near machine precision --
     the closed-form solve is a genuine algebraic inverse of the forward
-    Mathieu relations, not merely self-consistent by construction.
+    Mathieu relations, a stronger property than self-consistency by
+    construction alone.
     """
     m_clock = 27.0 * ATOMIC_MASS_UNIT
     q_true = 0.22
@@ -1392,8 +1394,9 @@ def test_clock_ion_mathieu_parameters_uncertainty_matches_finite_difference() ->
     `test_two_ion_radial_participations_uncertainty_matches_finite_difference`'s
     style): an INDEPENDENTLY-coded central finite difference over each
     uncertain input, combined in quadrature, must match the reported
-    uncertainty -- not merely reproduce the function's own internal
-    arithmetic line by line."""
+    uncertainty -- an independent check against the physics, not a
+    re-derivation of the function's own internal arithmetic line by
+    line."""
     c, sigma_c = 3.976554191127463e-12, 3.976554191127463e-12 * 1e-4
     rf_hz, sigma_rf = _MARSHALL_RF_DRIVE_HZ, 1.0e3
     f_x, sigma_f_x = _MARSHALL_BARE_CLOCK_X_HZ, 2000.0
@@ -1444,7 +1447,8 @@ def test_clock_ion_mathieu_parameters_uncertainty_matches_finite_difference() ->
 def test_clock_ion_mathieu_parameters_uncertainty_zero_when_every_input_exact() -> None:
     """Marshall's own inputs carry no per-mode frequency uncertainty
     (Table S2), so the real benchmark case's Mathieu-parameter uncertainty
-    is exactly zero -- confirmed directly, not merely assumed."""
+    is exactly zero -- a claim confirmed directly by computation, not
+    one taken on assumption."""
     c, _ = axial_coulomb_curvature(_M_AL27, _M_MG25, 2.16e6)
     result = clock_ion_mathieu_parameters(
         _M_AL27, c, _MARSHALL_RF_DRIVE_HZ, _MARSHALL_BARE_CLOCK_X_HZ, _MARSHALL_BARE_CLOCK_Y_HZ

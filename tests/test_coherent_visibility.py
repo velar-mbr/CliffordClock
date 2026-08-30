@@ -279,7 +279,8 @@ def test_pipeline_squeezing_r_sweep_visibility_decreases_and_matches_closure() -
 def test_pipeline_squeezing_r_absent_matches_r_zero_bitwise_for_velocities() -> None:
     """`squeezing_r` absent (`None`) reproduces the SAME sampled ensemble
     (and hence the same report) as `squeezing_r=[0.0, 0.0, 0.0]` -- the
-    zero-squeezing limit is a genuine no-op, not merely close.
+    zero-squeezing limit is a genuine no-op: the two reports are
+    identical, not values that happen to be close.
     """
     result_absent = run_pipeline_full(_squeezing_sweep_config(None))
     result_zero = run_pipeline_full(_squeezing_sweep_config(0.0))

@@ -175,7 +175,7 @@ def propagate_verlet(
     drift) and time-reversible. Implemented as a `jax.lax.scan` (jit-safe,
     no Python-level loop). `dt` is given in seconds at this API boundary
     (see ``docs/CONVENTIONS.md`` section 10); no internal
-    non-dimensionalization is applied here — see the WP4 builder report
+    non-dimensionalization is applied here; see the WP4 builder report
     for why (Compton-unit non-dimensionalization, CONVENTIONS.md E9, is
     specific to the rotor/phase integrator's need to avoid accumulating
     ~1e20 rad of absolute phase, and does not apply to trap-timescale

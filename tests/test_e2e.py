@@ -1319,8 +1319,9 @@ def test_memory_guard_override_honored_both_directions(tmp_path: Path) -> None:
     net behavior this test asserts (`max_trajectory_memory_gb` this tiny
     is honored, i.e. still rejected) is unchanged; a separate case with
     `evaluation="batched"` forced confirms the original batched-path
-    guard itself still rejects the identical config directly (not merely
-    via the streaming fallback), preserving that regression coverage too.
+    guard itself still rejects the identical config directly, exercising
+    that guard's own code path rather than only the streaming fallback's,
+    preserving that regression coverage too.
     """
     base: dict[str, object] = {
         "species": "Sr87",
