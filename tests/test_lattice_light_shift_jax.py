@@ -405,7 +405,12 @@ class TestMemoryBound:
         # project (test_e2e.py's own streaming-showcase RSS guard), so
         # linux gets a looser bound, matching the coordinator's own
         # runner-safety target.
-        rss_bound_gb = 4.0 if sys.platform.startswith("linux") else 3.5
+        # The CI runner measured 4.05 GB for a healthy call (linux glibc
+        # arenas plus XLA allocation overhead above the ~2.1 GB macOS
+        # measurement), so the linux bound carries margin above that
+        # measured value while still catching the ~29 GB pre-fix
+        # regression class by a factor of five.
+        rss_bound_gb = 5.5 if sys.platform.startswith("linux") else 3.5
         assert child_rss_gb < rss_bound_gb, (
             f"production value_and_grad call used {child_rss_gb:.2f} GB (RSS), "
             f"expected < {rss_bound_gb} GB on this platform"
