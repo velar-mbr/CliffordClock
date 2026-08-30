@@ -7,6 +7,8 @@
 
 ![CliffordClock trapped-ion animation: a two-ion 27Al+/25Mg+ crystal cycling through its six normal modes next to the time-dilation budget those modes add up to, compared against a published trapped-ion clock's own measured value](https://raw.githubusercontent.com/velar-mbr/CliffordClock/main/docs/assets/ion_motion_animation.gif)
 
+![CliffordClock lattice-fit animation: a noisy synthetic sideband spectrum with a Born-Oppenheimer-plus-WKB model curve fit to it live by gradient descent, lattice depth and radial temperature converging to their truth values](https://raw.githubusercontent.com/velar-mbr/CliffordClock/main/docs/assets/lattice_fit_animation.gif)
+
 **CliffordClock predicts how stray electric fields shift and broaden an
 optical lattice clock's frequency, starting from your own field
 simulation.** Export a field map from COMSOL or any FEA tool, and
@@ -16,6 +18,17 @@ cloud, the dephasing time T₂*, and the spectral line profile. These
 numbers land at the 1×10⁻¹⁸ level today's clocks budget to.
 
 Free and open source (AGPLv3), Python, `pip install`-able.
+
+## Start here
+
+- **[Quickstart](#quickstart)**: install and run a real case in a minute.
+- **[How it works](docs/MODEL.md)**: the whole physical model, in
+  [ten lines of Python](examples/ten_line_clock.py).
+- **[The physics, term by term](docs/terms/)**: one page per systematic,
+  formula and source.
+- **[Deep dives](#notebooks)**: the full pipeline, notebook by notebook.
+- **[Validation record](docs/validation.md)**: every check this engine
+  has passed, case by case.
 
 ## Why use CliffordClock?
 
@@ -153,6 +166,11 @@ calculation to machine precision today, and it exists for physics a
 single number per point cannot express; details in
 [`docs/coupling.md`](https://github.com/velar-mbr/CliffordClock/blob/main/docs/coupling.md) and
 [`docs/CONVENTIONS.md`](https://github.com/velar-mbr/CliffordClock/blob/main/docs/CONVENTIONS.md).
+The whole model, ten lines of Python and a paragraph on why the standard
+additive budget is its first-order expansion, is in
+[`docs/MODEL.md`](https://github.com/velar-mbr/CliffordClock/blob/main/docs/MODEL.md), with a
+runnable version at
+[`examples/ten_line_clock.py`](https://github.com/velar-mbr/CliffordClock/blob/main/examples/ten_line_clock.py).
 
 ## Notebooks
 
@@ -224,6 +242,7 @@ single number per point cannot express; details in
   reproducibility cases, and the chamber-scale showcase, in one
   self-contained read.
 - [`docs/tutorial.md`](https://github.com/velar-mbr/CliffordClock/blob/main/docs/tutorial.md): start here
+- [`docs/MODEL.md`](https://github.com/velar-mbr/CliffordClock/blob/main/docs/MODEL.md): the whole physical model, in ten lines of Python
 - [`docs/index.md`](https://github.com/velar-mbr/CliffordClock/blob/main/docs/index.md): full documentation map
 - [`docs/validation.md`](https://github.com/velar-mbr/CliffordClock/blob/main/docs/validation.md): what's been checked
   against what
