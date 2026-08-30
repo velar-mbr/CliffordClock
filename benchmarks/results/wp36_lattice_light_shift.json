@@ -1,0 +1,154 @@
+{
+  "wp36_lattice_light_shift_benchmark_schema": "1.0",
+  "generated_at_utc": "2026-08-29T12:49:04.721426+00:00",
+  "target1_ushijima_operational_point": {
+    "case_class": "arithmetic_reproduction",
+    "case_label": "arithmetic reproduction of a published standard-formula evaluation (arithmetic-reproduction fidelity: the engine evaluates the paper's own published equation and coefficients with zero fitted parameters and is compared against that same paper's own published result)",
+    "species_name": "Sr87",
+    "u_op_predicted": 71.72494708873852,
+    "detuning_hz_op_predicted": 5286253.289339365,
+    "u_op_published": 72.0,
+    "u_op_published_uncertainty": 2.0,
+    "detuning_hz_op_published": 5300000.0,
+    "detuning_hz_op_published_uncertainty": 200000.0,
+    "u_op_within_published_uncertainty": true,
+    "detuning_op_within_published_uncertainty": true,
+    "residual_shift_hz": 3.963571658383014e-12,
+    "residual_slope_hz": -2.3089819986554794e-09,
+    "citation": "Ushijima, Takamoto, Katori, PRL 121, 263202 (2018), main text and Eqs. 14-15"
+  },
+  "target2_aeppli_lattice_line_item": {
+    "case_class": "arithmetic_reproduction",
+    "case_label": "arithmetic reproduction of a published standard-formula evaluation (arithmetic-reproduction fidelity: the engine evaluates the paper's own published equation and coefficients with zero fitted parameters and is compared against that same paper's own published result)",
+    "species_name": "Sr87",
+    "u0": 15.06,
+    "detuning_hz": 10500000.0,
+    "radial_temperature_k": 1.2e-07,
+    "predicted_shift_fractional": -5.624189174195728e-21,
+    "predicted_uncertainty_fractional": 2.2179667841050355e-19,
+    "predicted_band_lo": -2.2742086758469926e-19,
+    "predicted_band_hi": 2.161724892363078e-19,
+    "published_shift_fractional": -1e-20,
+    "published_uncertainty_fractional": 3.2e-19,
+    "published_band_lo": -3.3e-19,
+    "published_band_hi": 3.1e-19,
+    "bands_overlap": true,
+    "kpi_verdict": "MET",
+    "citation": "Aeppli, Kim, Warfield, Safronova, Ye, PRL 133, 023401 (2024), Table I; coefficients and Tr from Kim, Aeppli, Bothwell, Ye, PRL 130, 113203 (2023)"
+  },
+  "target3a_bothwell_table1_reproduction": {
+    "case_class": "arithmetic_reproduction",
+    "case_label": "arithmetic reproduction of a published standard-formula evaluation (arithmetic-reproduction fidelity: the engine evaluates the paper's own published equation and coefficients with zero fitted parameters and is compared against that same paper's own published result)",
+    "species_name": "Yb171",
+    "n_z": 0,
+    "rows": [
+      {
+        "u0": 56.8,
+        "tr_nk": 650.0,
+        "x_predicted": 0.7854876646582732,
+        "x_published_bowkb": 0.785,
+        "y_predicted": 0.0607679409897511,
+        "y_published_bowkb": 0.0608,
+        "z_predicted": 0.6454632571409116,
+        "z_published_bowkb": 0.645,
+        "max_abs_relative_error": 0.0007182281254442712
+      },
+      {
+        "u0": 66.4,
+        "tr_nk": 550.0,
+        "x_predicted": 0.8378382397912967,
+        "x_published_bowkb": 0.838,
+        "y_predicted": 0.05802467455013706,
+        "y_published_bowkb": 0.058,
+        "z_predicted": 0.7186701966266935,
+        "z_published_bowkb": 0.719,
+        "max_abs_relative_error": 0.00045869732031496345
+      },
+      {
+        "u0": 86.2,
+        "tr_nk": 600.0,
+        "x_predicted": 0.8643180422704385,
+        "x_published_bowkb": 0.864,
+        "y_predicted": 0.05152182721820178,
+        "y_published_bowkb": 0.0515,
+        "z_predicted": 0.7588324300497035,
+        "z_published_bowkb": 0.759,
+        "max_abs_relative_error": 0.00042382947964631206
+      },
+      {
+        "u0": 112.2,
+        "tr_nk": 720.0,
+        "x_predicted": 0.8785634619340101,
+        "x_published_bowkb": 0.879,
+        "y_predicted": 0.04535984673323812,
+        "y_published_bowkb": 0.0454,
+        "z_predicted": 0.7813458061733347,
+        "z_published_bowkb": 0.781,
+        "max_abs_relative_error": 0.0008844331885877648
+      }
+    ],
+    "worst_relative_error": 0.0008844331885877648,
+    "tolerance_relative": 0.01,
+    "kpi_verdict": "MET",
+    "citation": "Bothwell, Hunt, Siegel, Hassan, Grogan, Kobayashi, Gibble, Porsev, Safronova, Brown, Beloy, Ludlow, PRL 134, 033201 (2025), Appendix A Table I"
+  },
+  "target3b_bothwell_headline_comparison": {
+    "case_class": "computable_comparison",
+    "case_label": "computable comparison, NOT an arithmetic reproduction of the paper's own fitted coefficient values: alpha~M1E2 in Bothwell et al. 2025's Table III is an output of their own nonlinear fit against raw (unpublished) scan data; reproducing it would require running that same fit against their raw data, which this module does not have. What is computed here is each model's own light-shift prediction at the paper's stated operating conditions, using that same paper's own published coefficient columns, and the resulting fractional-shift difference between the two models: the part of Target 3 that published inputs alone can settle.",
+    "species_name": "Yb171",
+    "u0": 100.0,
+    "detuning_hz": 0.0,
+    "radial_temperature_k": 6e-07,
+    "n_z": 0,
+    "harmonic_shift_fractional": 2.053397443249957e-17,
+    "bowkb_shift_fractional": 2.2693851252169942e-17,
+    "model_difference_fractional": 2.159876819670373e-18,
+    "published_harmonic_m1e2_hz": -1.41e-18,
+    "published_bowkb_m1e2_hz": -1.45e-18,
+    "published_m1e2_relative_difference": 0.02836879432624112,
+    "citation": "Bothwell, Hunt, Siegel, Hassan, Grogan, Kobayashi, Gibble, Porsev, Safronova, Brown, Beloy, Ludlow, PRL 134, 033201 (2025), Table III and main text (u0 < 140 E_R, Tr ~= 600 nK)"
+  },
+  "density_of_states_contrast": {
+    "species_name": "Yb171",
+    "u0": 100.0,
+    "n_z": 0,
+    "rows": [
+      {
+        "radial_temperature_k": 5e-08,
+        "cumulative_states_cos2": 29.886830969944704,
+        "cumulative_states_harmonic": 28.338710834056485,
+        "ratio_cos2_over_harmonic": 1.054629165912083
+      },
+      {
+        "radial_temperature_k": 1e-07,
+        "cumulative_states_cos2": 119.77038229316406,
+        "cumulative_states_harmonic": 113.3548433363392,
+        "ratio_cos2_over_harmonic": 1.0565969549072471
+      },
+      {
+        "radial_temperature_k": 2e-07,
+        "cumulative_states_cos2": 480.8812108475426,
+        "cumulative_states_harmonic": 453.4193733454312,
+        "ratio_cos2_over_harmonic": 1.060566087636467
+      },
+      {
+        "radial_temperature_k": 4e-07,
+        "cumulative_states_cos2": 1938.171672640115,
+        "cumulative_states_harmonic": 1813.677493381223,
+        "ratio_cos2_over_harmonic": 1.0686418504465194
+      },
+      {
+        "radial_temperature_k": 8e-07,
+        "cumulative_states_cos2": 7874.052788140922,
+        "cumulative_states_harmonic": 7254.70997352415,
+        "ratio_cos2_over_harmonic": 1.0853711336327772
+      },
+      {
+        "radial_temperature_k": 1.6e-06,
+        "cumulative_states_cos2": 32541.491821266995,
+        "cumulative_states_harmonic": 29018.83989409377,
+        "ratio_cos2_over_harmonic": 1.1213918936811182
+      }
+    ]
+  }
+}

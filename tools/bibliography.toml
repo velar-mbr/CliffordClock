@@ -507,3 +507,47 @@ year = [2012]
 arxiv = "1202.2730"
 doi = "10.1103/PhysRevA.85.043412"
 source = "src/cliffordclock/integrator/omega.py (two_ion_participations docstring, WP31): the actual primary source of the closed-form two-ion mixed-mass normal-mode eigenvector formula (axial Eqs. 12-14) this function implements. Byline/venue verified against the arXiv abstract page, fetched this session; Eqs. 12-18 confirmed directly in the fetched full text (arXiv PDF, pdftotext -layout)."
+
+[[paper]]
+key = "Ushijima2018"
+authors = "Ushijima, Ichiro and Takamoto, Masao and Katori, Hidetoshi"
+surnames = ["Ushijima", "Takamoto", "Katori"]
+title = "Operational Magic Intensity for Sr Optical Lattice Clocks"
+venue = "Phys. Rev. Lett. 121, 263202"
+year = [2018]
+arxiv = "1812.11815"
+doi = "10.1103/PhysRevLett.121.263202"
+source = "docs/CONVENTIONS.md section 17 (E40); src/cliffordclock/integrator/lattice_light_shift.py (USHIJIMA_2018_SR87); benchmarks/run_lattice_light_shift.py (Target 1). Byline and every transcribed equation/coefficient verified directly against the typeset PDF (arXiv abstract page plus pdftotext -layout extraction), fetched this session (WP36)."
+
+[[paper]]
+key = "Beloy2020"
+authors = "Beloy, K. and McGrew, W. F. and Zhang, X. and Nicolodi, D. and Fasano, R. J. and Hassan, Y. S. and Brown, R. C. and Ludlow, A. D."
+surnames = ["Beloy", "McGrew", "Zhang", "Nicolodi", "Fasano", "Hassan", "Brown", "Ludlow"]
+title = "Modeling motional energy spectra and lattice light shifts in optical lattice clocks"
+venue = "Phys. Rev. A 101, 053416"
+year = [2020]
+arxiv = "2004.06224"
+doi = "10.1103/PhysRevA.101.053416"
+source = "docs/CONVENTIONS.md section 17 (E41); src/cliffordclock/integrator/lattice_light_shift.py (the BO+WKB model, Eqs. 1-21). Byline and every transcribed equation verified directly against the typeset PDF (arXiv abstract page plus pdftotext -layout extraction), fetched this session (WP36); distinct paper from Beloy2014/Beloy2017quadrupole/Beloy2018 above, same surname."
+
+[[paper]]
+key = "Kim2023"
+authors = "Kim, Kyungtae and Aeppli, Alexander and Bothwell, Tobias and Ye, Jun"
+surnames = ["Kim", "Aeppli", "Bothwell", "Ye"]
+title = "Evaluation of lattice light shift at low 1e-19 uncertainty for a shallow lattice Sr optical clock"
+venue = "Phys. Rev. Lett. 130, 113203"
+year = [2023]
+arxiv = "2210.16374"
+doi = "10.1103/PhysRevLett.130.113203"
+source = "docs/CONVENTIONS.md section 17 (E40, Target 2's coefficient source); src/cliffordclock/integrator/lattice_light_shift.py (KIM_2023_SR87). Byline and coefficients verified directly against the typeset PDF, fetched this session (WP36); distinct paper from Kim2006 (Roos2006's coauthor K. Kim), same surname."
+
+[[paper]]
+key = "Bothwell2025"
+authors = "Bothwell, Tobias and Hunt, Benjamin D. and Siegel, Jacob L. and Hassan, Youssef S. and Grogan, Tanner and Kobayashi, Takumi and Gibble, Kurt and Porsev, Sergey G. and Safronova, Marianna S. and Brown, Roger C. and Beloy, Kyle and Ludlow, Andrew D."
+surnames = ["Bothwell", "Hunt", "Siegel", "Hassan", "Grogan", "Kobayashi", "Gibble", "Porsev", "Safronova", "Brown", "Beloy", "Ludlow"]
+title = "Lattice Light Shift Evaluations In a Dual-Ensemble Yb Optical Lattice Clock"
+venue = "Phys. Rev. Lett. 134, 033201"
+year = [2025]
+arxiv = "2409.10782"
+doi = "10.1103/PhysRevLett.134.033201"
+source = "docs/CONVENTIONS.md section 17 (E41, Targets 3a/3b); src/cliffordclock/integrator/lattice_light_shift.py (BOTHWELL_2025_YB171_HARMONIC/_BOWKB); benchmarks/run_lattice_light_shift.py. Byline and every transcribed equation/table value verified directly against the typeset PDF, fetched this session (WP36); distinct paper from Bothwell2022/Bothwell2022thesis, same surname."
