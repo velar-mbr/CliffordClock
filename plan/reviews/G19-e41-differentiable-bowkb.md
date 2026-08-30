@@ -195,3 +195,82 @@ severe form (a 167-word merged span), at the document's own pre-existing
 `1.12.0`-to-`1.11.0` boundary; not a defect in this entry's own prose,
 and not touched further since fixing it would mean editing unrelated,
 already-gated changelog text.
+
+## Addendum (2026-08-29): PR #19 OOM, confirmed and fixed
+
+PR #19's slow lane died twice on the CI runner with no failed step
+recorded, the external signature of an OOM kill. The arithmetic pointed
+at this module's radial evaluation: `axial_thermal_factors_jax` vmapped
+`RHO_GRID_N_JAX=321` dense `(1281, 1281)` float64 eigenproblems, WITH
+their gradient graphs, in one materializing batch.
+
+**Confirmed first, before any change to the gated code.** A
+fresh-subprocess `resource.getrusage(RUSAGE_SELF).ru_maxrss` reading
+(the same methodology `tests/test_e2e.py`'s own RSS guard uses) for one
+production-resolution `value_and_grad` call at the `u0=56.8` table
+point measured `31,483,969,536` bytes, `~29.3 GiB` (`~31.5 GB` decimal)
+peak RSS on the development macOS machine. This is roughly `8x` the
+coordinator's own rough `4+ GB` estimate and confirms the hypothesis
+with a wide margin: the batched Hamiltonians, eigenvectors, and `eigh`'s
+own backward-pass residuals for all `321` matrices lived at once.
+
+**The fix: a memory-bounded schedule, no change to the gated numerics.**
+`jax.lax.map(sample, rhos, batch_size=RHO_MAP_BATCH_SIZE)` replaces the
+single `jax.vmap` call, `RHO_MAP_BATCH_SIZE=16`. Chunking alone measured
+`~13-15 GB` across `batch_size in {1, 4, 16}`, a real reduction but far
+short of a safe runner budget: `jax.lax.map` compiles to a `scan`, and
+reverse-mode autodiff through a `scan` still saves every chunk's own
+residuals for its backward pass. Wrapping the per-`rho` `sample` closure
+in `jax.checkpoint` closes the remaining gap by discarding those
+residuals after the forward pass and recomputing them fresh during the
+backward pass; combined with `batch_size=16`, the SAME call at the same
+table point measured `2,230,992,896` bytes, `~2.08 GiB` (`~2.23 GB`
+decimal) peak RSS, a `14.1x` reduction. `RHO_MAP_BATCH_SIZE`'s own
+docstring in the module carries this full measurement.
+
+**Re-verified contracts, at production resolution, after the schedule
+change.**
+
+| u0 (E_R) | X rel err | Y rel err | Z rel err | grad_u0 rel err | grad_Tr rel err |
+|---|---|---|---|---|---|
+| 56.8 | 9.97e-9 | 1.05e-7 | 1.75e-8 | 3.88e-8 | 4.93e-8 |
+| 66.4 | 9.33e-9 | 1.17e-7 | 1.68e-8 | 3.18e-8 | 4.50e-8 |
+| 86.2 | 9.03e-9 | 1.36e-7 | 1.65e-8 | 2.16e-8 | 3.45e-8 |
+| 112.2 | 8.91e-9 | 1.57e-7 | 1.65e-8 | 1.34e-8 | 2.54e-8 |
+
+Identical to the gate's own table above at the reported precision: worst
+case `X`/`Y`/`Z` agreement stays `1.57e-7` (`Y`, `u0=112.2`), worst case
+gradient agreement stays `4.93e-8` (`Tr`, `u0=56.8`), both unchanged from
+the pre-fix numbers this record already carries. Comparing the raw
+values directly (the `56.8` point's `X`, computed both before and after
+the schedule change) shows the summation-order effect the schedule
+change can introduce: `0.7854876724879748` before, `0.7854876724879742`
+after, a `~7.6e-16` relative shift, a few floating-point ULPs. Every
+comparable value across all four points shifts by `1e-16`-to-`1e-14`
+relative, many orders of magnitude inside both the `1e-6` AGREEMENT and
+`1e-4` GRADIENT gate tolerances. `jax.jit` determinism (two calls to the
+same compiled executable, bitwise-identical) and the offline
+convergence study (all five of its own tests) were re-run at production
+resolution and PASS unchanged.
+
+**Timing impact.** Forward-only evaluations (the offline convergence
+study, the density-of-states tests, `turning_radius_m_jax` calls outside
+a gradient) are unaffected, since `jax.checkpoint` only adds
+recomputation cost when a backward pass actually runs. `value_and_grad`
+calls measure roughly `2x` the pre-fix wall time (`~60 s` to `~106-115
+s` for one production-resolution call), the expected memory-for-
+recompute trade `jax.checkpoint` makes.
+
+**New guard.** `TestMemoryBound::test_production_call_stays_under_the_memory_bound`
+(`tests/test_lattice_light_shift_jax.py`, slow-marked) measures one
+production `value_and_grad` call's peak RSS in a fresh child subprocess
+and asserts it under a platform-aware bound (`3.5 GB` macOS, `4.0 GB`
+linux), comfortably above the `~2.2 GB` measured floor and comfortably
+below the pre-fix `~31 GB` blowup, so a future regression toward
+materializing batching fails this test before it reaches a CI runner's
+own memory limit.
+
+Verdict: PASS. The OOM was a genuine runner-facing defect in this
+module's own scheduling, found, confirmed by direct measurement before
+any code change, and fixed without altering a single gated number beyond
+last-ULP floating-point noise.

@@ -39,7 +39,11 @@ from __future__ import annotations
 
 import functools
 import math
+import subprocess
+import sys
+import textwrap
 import time
+from pathlib import Path
 
 import jax
 import jax.numpy as jnp
@@ -50,6 +54,8 @@ import cliffordclock.integrator.lattice_light_shift as lls
 import cliffordclock.integrator.lattice_light_shift_jax as llsj
 from cliffordclock.constants import SPEED_OF_LIGHT
 from cliffordclock.ensemble.species import get_species
+
+_REPO_ROOT = Path(__file__).resolve().parent.parent
 
 #: Bothwell et al. 2025's own measured Yb-171 E1 magic frequency (Table
 #: III, harmonic-basis column), the same constant
@@ -305,6 +311,105 @@ class TestJitCompilesAndIsDeterministic:
         shift_eager, factors_eager = llsj.bo_wkb_fractional_light_shift_jax(0, *args)
         assert float(shift_a) == pytest.approx(float(shift_eager), rel=1e-10, abs=0)
         assert float(factors_a.x_nz) == pytest.approx(float(factors_eager.x_nz), rel=1e-10, abs=0)
+
+
+# ---------------------------------------------------------------------------
+# Memory bound: guards against a regression to the plain-vmap radial
+# schedule a CI runner OOM-killed on (PR #19; see module docstring's
+# RHO_MAP_BATCH_SIZE section and the G19 gate record's dated addendum)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.slow
+class TestMemoryBound:
+    """Peak RSS of one production-resolution `value_and_grad` call,
+    measured the same way `tests/test_e2e.py`'s own RSS guard measures
+    it: a fresh CHILD subprocess prints its own
+    `resource.getrusage(RUSAGE_SELF).ru_maxrss` (platform-aware unit
+    conversion, bytes on Darwin, kilobytes on Linux). That child-side
+    reading is the one source that isolates this single call: the
+    parent's own `RUSAGE_CHILDREN` watermark is session-cumulative, and
+    reads misleadingly low whenever an earlier subprocess in the same
+    pytest session peaked higher.
+    """
+
+    def test_production_call_stays_under_the_memory_bound(self) -> None:
+        """A single materializing `jax.vmap` over all `RHO_GRID_N_JAX`
+        radial points measured `~31 GB` peak RSS for this exact call (the
+        OOM cause; module docstring's `RHO_MAP_BATCH_SIZE` section has the
+        full measurement); the current `jax.checkpoint` plus chunked
+        `jax.lax.map` schedule measured `~2.2 GB` for the same call. The
+        bound below sits well above that measured floor and well below
+        the pre-fix blowup, so a future regression back toward
+        materializing batching fails this test long before it reaches a
+        CI runner's own memory limit.
+        """
+        script = textwrap.dedent(
+            """
+            import resource
+            import sys
+
+            import jax.numpy as jnp
+
+            import cliffordclock.integrator.lattice_light_shift as lls
+            import cliffordclock.integrator.lattice_light_shift_jax as llsj
+            from cliffordclock.constants import SPEED_OF_LIGHT
+            from cliffordclock.ensemble.species import get_species
+            import jax
+
+            wavelength_m = SPEED_OF_LIGHT / 394_798_266.9e6
+            mass_kg = get_species("Yb171").mass_kg
+            coeffs = lls.BOTHWELL_2025_YB171_BOWKB
+
+            def shift_with_aux(u0_, tr_k_):
+                shift, factors = llsj.bo_wkb_fractional_light_shift_jax(
+                    0, u0_, jnp.asarray(200e3), tr_k_,
+                    jnp.asarray(coeffs.e1_slope_per_hz),
+                    jnp.asarray(coeffs.m1e2_hz),
+                    jnp.asarray(coeffs.hyperpolarizability_hz),
+                    jnp.asarray(50e-6), jnp.asarray(wavelength_m), jnp.asarray(mass_kg),
+                )
+                return shift, factors
+
+            value_and_grad_fn = jax.value_and_grad(shift_with_aux, argnums=(0, 1), has_aux=True)
+            (value, factors), (grad_u0, grad_tr) = value_and_grad_fn(
+                jnp.asarray(56.8), jnp.asarray(650e-9)
+            )
+            print("SHIFT", repr(float(value)))
+            peak = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+            print("PEAK_RSS_BYTES", peak * (1 if sys.platform == "darwin" else 1024))
+            """
+        )
+        proc = subprocess.run(
+            [sys.executable, "-c", script],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=300,
+            cwd=_REPO_ROOT,
+        )
+        assert proc.returncode == 0, f"stdout={proc.stdout!r} stderr={proc.stderr!r}"
+
+        lines = {
+            line.split(" ", 1)[0]: line.split(" ", 1)[1]
+            for line in proc.stdout.splitlines()
+            if " " in line
+        }
+        assert math.isfinite(float(lines["SHIFT"]))
+
+        child_rss_gb = float(lines["PEAK_RSS_BYTES"]) / 1e9
+        # Platform-aware bound: measured ~2.2 GB on the development macOS
+        # machine (this file's own G19 OOM-fix addendum has the exact
+        # number); linux's JAX/CPU allocator has measured meaningfully
+        # higher than macOS for comparable workloads elsewhere in this
+        # project (test_e2e.py's own streaming-showcase RSS guard), so
+        # linux gets a looser bound, matching the coordinator's own
+        # runner-safety target.
+        rss_bound_gb = 4.0 if sys.platform.startswith("linux") else 3.5
+        assert child_rss_gb < rss_bound_gb, (
+            f"production value_and_grad call used {child_rss_gb:.2f} GB (RSS), "
+            f"expected < {rss_bound_gb} GB on this platform"
+        )
 
 
 # ---------------------------------------------------------------------------

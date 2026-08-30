@@ -208,6 +208,32 @@ AXIAL_GRID_N_JAX = 1281
 #: section).
 RHO_GRID_N_JAX = 321
 
+#: Chunk size for the radial evaluation's memory-bounded schedule
+#: (:func:`axial_thermal_factors_jax`): `jax.lax.map(sample, rhos,
+#: batch_size=RHO_MAP_BATCH_SIZE)`, replacing a single materializing
+#: `jax.vmap` over all `RHO_GRID_N_JAX` points. A CI runner OOM-killed
+#: PR #19's slow lane twice; a fresh-subprocess `resource.getrusage`
+#: reading (`tests/test_lattice_light_shift_jax.py`'s own RSS guard)
+#: measured the plain-`vmap` path at `~31 GB` peak RSS for one
+#: `value_and_grad` call, the batched Hamiltonians, eigenvectors, and
+#: `eigh`'s own backward-pass residuals for all 321 dense `(1281,
+#: 1281)` float64 eigenproblems living at once. `batch_size` alone
+#: only partially fixes this: `jax.lax.map` compiles to a `scan`, and
+#: reverse-mode autodiff through a `scan` still saves every chunk's own
+#: residuals for the backward pass, so chunking without checkpointing
+#: measured `~13-15 GB` across `batch_size in {1, 4, 16}`, a real
+#: reduction but far short of the CI runner's budget. Wrapping the
+#: per-`rho` `sample` closure in `jax.checkpoint` (below) discards
+#: those residuals after the forward pass and recomputes them fresh
+#: during the backward pass; combined with `batch_size=16`, the SAME
+#: call measured `~2.2 GB` peak RSS, at
+#: roughly `2x` the single-call wall time, the expected memory-for-
+#: recompute trade `jax.checkpoint` makes. `16` balances chunk-loop
+#: overhead against memory;
+#: `tests/test_lattice_light_shift_jax.py`'s own RSS guard pins the
+#: measured bound this choice achieves.
+RHO_MAP_BATCH_SIZE = 16
+
 #: Fixed bisection iteration count for the turning-radius root-find
 #: (:func:`turning_radius_m_jax`). `60` halvings of any realistic
 #: `rho_bracket_m` (tens of microns to millimeters) land far below
@@ -763,6 +789,7 @@ def axial_thermal_factors_jax(
     rho_bracket_waist_multiple: float = DEFAULT_RHO_BRACKET_WAIST_MULTIPLE,
     axial_grid_n: int = AXIAL_GRID_N_JAX,
     rho_grid_n: int = RHO_GRID_N_JAX,
+    rho_map_batch_size: int = RHO_MAP_BATCH_SIZE,
 ) -> ThermalShapeFactorsJax:
     """Ensemble-averaged trap-depth-reduction factors `X`, `Y`, `Z`
     (CONVENTIONS.md E41, Beloy et al. 2020 Eq. 21), the differentiable
@@ -785,8 +812,15 @@ def axial_thermal_factors_jax(
        INTEGRATION DOMAIN's own dependence on `u0`/`Tr` is captured
        without needing to differentiate through the root-find a second
        time inside the integral.
-    3. `jax.vmap` over the radial grid, batching `RHO_GRID_N_JAX` axial
-       eigensolves (:func:`_shape_integrand_at_rho`) into one XLA call.
+    3. A memory-bounded schedule over the radial grid,
+       `jax.lax.map(sample, rhos, batch_size=RHO_MAP_BATCH_SIZE)`
+       (`RHO_MAP_BATCH_SIZE`'s own docstring has the measured numbers): a
+       single materializing `jax.vmap` over all `RHO_GRID_N_JAX` axial
+       eigensolves (:func:`_shape_integrand_at_rho`) peaked at `~31 GB`
+       RSS for one `value_and_grad` call, enough to OOM a constrained CI
+       runner. `jax.checkpoint` on the per-`rho` sample, combined with
+       `batch_size=16` chunking, brings that down to `~2.2 GB`, at
+       roughly `2x` the wall time.
     4. The SAME numerically-stabilized shifted-exponential reformulation
        the reference module uses (`exp(-(Unz(rho)-Unz(0))/kB*Tr) -
        exp(Unz(0)/kB*Tr)`, bounded `<= 1` everywhere, avoiding the
@@ -828,6 +862,14 @@ def axial_thermal_factors_jax(
     rho_grid_n : int, default RHO_GRID_N_JAX
         Static radial quadrature point count. Same overridable-for-the-
         convergence-study-only role as `axial_grid_n`.
+    rho_map_batch_size : int, default RHO_MAP_BATCH_SIZE
+        Chunk size for the radial evaluation's `jax.lax.map` schedule
+        (`RHO_MAP_BATCH_SIZE`'s own docstring has the measured memory
+        numbers this default achieves). Overridable for the same
+        testing purpose as `axial_grid_n`/`rho_grid_n`: the module's own
+        RSS-guard test passes a larger value to reproduce the pre-fix
+        memory blowup as a regression check. A physical evaluation
+        should use the default.
 
     Returns
     -------
@@ -865,10 +907,11 @@ def axial_thermal_factors_jax(
     s = jnp.linspace(0.0, 1.0, rho_grid_n, dtype=jnp.float64)
     rhos = s * rho_max
 
+    @jax.checkpoint
     def sample(rho: jnp.ndarray) -> tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray, jnp.ndarray]:
         return _shape_integrand_at_rho(site.depth_er, site.kappa_per_m, n_z, rho, x_grid, dx)
 
-    x_arr, y_arr, z_arr, u_arr = jax.vmap(sample)(rhos)
+    x_arr, y_arr, z_arr, u_arr = jax.lax.map(sample, rhos, batch_size=rho_map_batch_size)
 
     kt = BOLTZMANN_K * radial_temperature_k
     u0_j = u_arr[0] * site.recoil_energy_j_value
