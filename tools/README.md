@@ -42,7 +42,10 @@ Exit code is nonzero if any check's status is `FAIL`. Checks:
    diffs against committed content (timestamps ignored).
 7. `notebooks-check`: re-executes `notebooks/*.ipynb` and byte-compares
    (normalized) outputs; flags runtime > 180s.
-8. `suite-check`: runs pytest/ruff/mypy and parses exact counts.
+8. `suite-check`: runs pytest in two lanes (fast: `-m "not slow"`,
+   1800s timeout; slow: `-m slow`, 5400s timeout, mirroring
+   `.github/workflows/ci.yml`'s own two-job split), then ruff/mypy, and
+   parses exact counts; fails if either lane, ruff, or mypy fails.
 
 Config: `bibliography.toml` (pinned citation records) and
 `release_checks_allowlist.toml` (deliberate prose-scan keeps, the

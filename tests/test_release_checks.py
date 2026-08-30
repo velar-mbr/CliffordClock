@@ -848,6 +848,116 @@ def test_mypy_error_count_regex_extracts_count():
 
 
 # ---------------------------------------------------------------------------
+# suite-check: two-lane pytest split (WP28 upgrade: the suite outgrew a
+# single 1800s subprocess timeout on a healthy repo once the slow-marked
+# coupled-Floquet/JAX-core/generator tests pushed total runtime past 30
+# minutes; two lanes mirror .github/workflows/ci.yml's own test/test-slow
+# job split, each with its own timeout). Only the lane CONSTRUCTION is
+# unit-tested here, via a mocked ``subprocess.run``: actually running the
+# real suite end to end from this test module would take the better part
+# of an hour on a healthy repo, exactly the cost this restructuring
+# exists to keep off the fast-path check.
+# ---------------------------------------------------------------------------
+
+
+def test_pytest_lanes_pinned_names_markers_and_timeouts():
+    """CI parity (`.github/workflows/ci.yml`): the fast lane deselects
+    ``slow`` at the same 1800s budget the single-lane check used to run
+    the whole suite at, and the slow lane covers only ``slow`` at a
+    budget with measured headroom over CI's own 90-minute cap."""
+    assert rc.PYTEST_LANES == [
+        ("fast", "not slow", 1800.0),
+        ("slow", "slow", 5400.0),
+    ]
+
+
+def test_run_pytest_lane_reports_summary_and_no_findings_on_success(monkeypatch):
+    def fake_run(cmd, **kwargs):
+        assert cmd == [sys.executable, "-m", "pytest", "-q", "-m", "not slow"]
+        assert kwargs["timeout"] == 1800.0
+        return rc.subprocess.CompletedProcess(
+            cmd, 0, stdout="512 passed, 2 skipped in 34.21s\n", stderr=""
+        )
+
+    monkeypatch.setattr(rc.subprocess, "run", fake_run)
+    detail, findings = rc._run_pytest_lane("fast", "not slow", 1800.0)
+    assert detail == "pytest (fast): 512 passed, 2 skipped"
+    assert findings == []
+
+
+def test_run_pytest_lane_catches_nonzero_exit_planted_violation(monkeypatch):
+    def fake_run(cmd, **kwargs):
+        return rc.subprocess.CompletedProcess(
+            cmd, 1, stdout="1 failed, 511 passed in 30.0s\n", stderr=""
+        )
+
+    monkeypatch.setattr(rc.subprocess, "run", fake_run)
+    detail, findings = rc._run_pytest_lane("slow", "slow", 5400.0)
+    assert "1 failed" in detail
+    assert len(findings) == 1
+    assert findings[0].severity == "FAIL"
+    assert "slow" in findings[0].message
+    assert "1 failed" in findings[0].message
+
+
+def test_run_pytest_lane_names_the_lane_on_timeout_planted_violation(monkeypatch):
+    """The per-lane timeout message names the lane, so a hang is
+    diagnosable without re-deriving which of the two subprocesses it
+    was from the elapsed wall-clock time alone."""
+
+    def fake_run(cmd, **kwargs):
+        raise rc.subprocess.TimeoutExpired(cmd=cmd, timeout=kwargs["timeout"])
+
+    monkeypatch.setattr(rc.subprocess, "run", fake_run)
+    detail, findings = rc._run_pytest_lane("slow", "slow", 5400.0)
+    assert "TIMEOUT" in detail
+    assert "slow" in detail
+    assert len(findings) == 1
+    assert findings[0].severity == "FAIL"
+    assert "slow" in findings[0].message
+    assert "5400" in findings[0].message
+
+
+def test_suite_check_runs_both_lanes_with_pinned_markers_and_timeouts(monkeypatch):
+    calls: list[tuple[str, str, float]] = []
+
+    def fake_lane(name: str, marker_expr: str, timeout_s: float) -> tuple[str, list[rc.Finding]]:
+        calls.append((name, marker_expr, timeout_s))
+        return f"pytest ({name}): 1 passed", []
+
+    monkeypatch.setattr(rc, "_run_pytest_lane", fake_lane)
+    monkeypatch.setattr(
+        rc.subprocess,
+        "run",
+        lambda cmd, **kwargs: rc.subprocess.CompletedProcess(cmd, 0, stdout="", stderr=""),
+    )
+    result = rc.suite_check({})
+    assert calls == [("fast", "not slow", 1800.0), ("slow", "slow", 5400.0)]
+    assert result.status == "PASS"
+    assert "pytest (fast): 1 passed" in result.detail
+    assert "pytest (slow): 1 passed" in result.detail
+
+
+def test_suite_check_fails_if_either_lane_fails_planted_violation(monkeypatch):
+    def fake_lane(name: str, marker_expr: str, timeout_s: float) -> tuple[str, list[rc.Finding]]:
+        if name == "slow":
+            return f"pytest ({name}): 1 failed", [
+                rc.Finding(f"pytest ({name})", None, "slow lane exited 1: 1 failed")
+            ]
+        return f"pytest ({name}): 1 passed", []
+
+    monkeypatch.setattr(rc, "_run_pytest_lane", fake_lane)
+    monkeypatch.setattr(
+        rc.subprocess,
+        "run",
+        lambda cmd, **kwargs: rc.subprocess.CompletedProcess(cmd, 0, stdout="", stderr=""),
+    )
+    result = rc.suite_check({})
+    assert result.status == "FAIL"
+    assert any("slow" in f.message for f in result.findings)
+
+
+# ---------------------------------------------------------------------------
 # Configuration loading (real files: tools/bibliography.toml, allowlist)
 # ---------------------------------------------------------------------------
 

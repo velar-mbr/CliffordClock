@@ -7,10 +7,12 @@ markdown, notebooks, the paper, and Python docstrings alike), bare-
 ``pytest.approx``/missing-``atol`` tolerance scans, citation-byline vs. a
 pinned bibliography, headline-phrase consistency, internal-only
 ``plan/``/``internal/`` path-reference leaks, benchmark-JSON determinism,
-notebook re-execution, and the suite/lint/mypy invocation, so an agent
-review spends its tokens on physics and judgment, not on grepping. See
-the project's mechanized-checks review checklist and the WP28 sprint
-record for the originating spec.
+notebook re-execution, and the suite/lint/mypy invocation (pytest split
+into a fast lane, ``-m "not slow"``, and a slow lane, ``-m slow``,
+mirroring `.github/workflows/ci.yml`'s own two-job split, each with its
+own subprocess timeout), so an agent review spends its tokens on physics
+and judgment, not on grepping. See the project's mechanized-checks
+review checklist and the WP28 sprint record for the originating spec.
 
 Zero new runtime dependencies: this module uses only the standard library
 plus ``nbconvert`` for ``notebooks-check`` (already an optional project
@@ -1622,42 +1624,81 @@ PYTEST_SUMMARY_RE = re.compile(
 RUFF_ERROR_COUNT_RE = re.compile(r"Found (\d+) error")
 MYPY_ERROR_COUNT_RE = re.compile(r"Found (\d+) error")
 
+#: Two-lane split mirroring `.github/workflows/ci.yml`'s own `test` /
+#: `test-slow` jobs: the suite outgrew a single 1800s subprocess timeout
+#: on a healthy repo once the slow-marked coupled-Floquet, JAX-core, and
+#: generator tests (registered via `pyproject.toml`'s `slow` pytest
+#: marker) pushed total runtime past 30 minutes on top of the fast tests.
+#: Each lane gets its own timeout, sized the same way CI's two jobs are
+#: (a 15-minute-class budget for the deselected-slow lane, an
+#: hour-plus-headroom budget for the slow lane alone).
+PYTEST_LANES: list[tuple[str, str, float]] = [
+    ("fast", "not slow", 1800.0),
+    ("slow", "slow", 5400.0),
+]
+
 
 def _last_nonempty_line(text: str) -> str:
     lines = [line for line in text.strip().split("\n") if line.strip()]
     return lines[-1] if lines else ""
 
 
-def suite_check(allowlist: dict[str, Any]) -> CheckResult:  # noqa: ARG001
-    """Run pytest, ``ruff check``, ``ruff format --check``, and mypy;
-    parse exact counts out of each tool's own summary line and report them.
+def _run_pytest_lane(name: str, marker_expr: str, timeout_s: float) -> tuple[str, list[Finding]]:
+    """Run one ``pytest -m <marker_expr>`` lane; return its detail line and
+    findings (a FAIL finding on nonzero exit, or on the lane exceeding its
+    own ``timeout_s``, named so a timeout report says which lane hung
+    rather than leaving the reader to guess between the two subprocesses).
     """
     findings: list[Finding] = []
-    detail_lines: list[str] = []
+    try:
+        proc = subprocess.run(
+            [sys.executable, "-m", "pytest", "-q", "-m", marker_expr],
+            cwd=REPO_ROOT,
+            capture_output=True,
+            text=True,
+            timeout=timeout_s,
+        )
+    except subprocess.TimeoutExpired:
+        findings.append(
+            Finding(
+                f"pytest ({name})",
+                None,
+                f"{name} lane (`pytest -m {marker_expr!r}`) exceeded its {timeout_s:.0f}s timeout",
+            )
+        )
+        return f"pytest ({name}): TIMEOUT after {timeout_s:.0f}s", findings
 
-    pytest_proc = subprocess.run(
-        [sys.executable, "-m", "pytest", "-q"],
-        cwd=REPO_ROOT,
-        capture_output=True,
-        text=True,
-        timeout=1800,
-    )
     # Search the whole output (not just the literal last line) for the LAST
     # summary-count match: pytest's dot/percentage progress can end up on
     # the same captured line as other text depending on terminal-width
     # wrapping in a non-tty subprocess, so the true "N passed" summary is
     # not always the last newline-delimited line.
-    pytest_matches = list(PYTEST_SUMMARY_RE.finditer(pytest_proc.stdout))
-    pytest_counts = (
-        pytest_matches[-1].group("counts")
-        if pytest_matches
-        else _last_nonempty_line(pytest_proc.stdout)
-    )
-    detail_lines.append(f"pytest: {pytest_counts}")
-    if pytest_proc.returncode != 0:
+    matches = list(PYTEST_SUMMARY_RE.finditer(proc.stdout))
+    counts = matches[-1].group("counts") if matches else _last_nonempty_line(proc.stdout)
+    if proc.returncode != 0:
         findings.append(
-            Finding("pytest", None, f"pytest exited {pytest_proc.returncode}: {pytest_counts}")
+            Finding(f"pytest ({name})", None, f"{name} lane exited {proc.returncode}: {counts}")
         )
+    return f"pytest ({name}): {counts}", findings
+
+
+def suite_check(allowlist: dict[str, Any]) -> CheckResult:  # noqa: ARG001
+    """Run pytest in two lanes (fast: ``-m "not slow"``, slow: ``-m
+    slow``, mirroring `.github/workflows/ci.yml`'s split job structure
+    and each lane's own timeout budget), then ``ruff check``, ``ruff
+    format --check``, and mypy; parse exact counts out of each tool's own
+    summary line and report them. The check FAILs if either pytest lane,
+    ruff, or mypy fails; a lane that exceeds its own timeout is reported
+    by name (see :func:`_run_pytest_lane`) rather than as an undifferentiated
+    hang.
+    """
+    findings: list[Finding] = []
+    detail_lines: list[str] = []
+
+    for lane_name, marker_expr, timeout_s in PYTEST_LANES:
+        detail, lane_findings = _run_pytest_lane(lane_name, marker_expr, timeout_s)
+        detail_lines.append(detail)
+        findings.extend(lane_findings)
 
     ruff_check_proc = subprocess.run(
         [sys.executable, "-m", "ruff", "check", "."], cwd=REPO_ROOT, capture_output=True, text=True
