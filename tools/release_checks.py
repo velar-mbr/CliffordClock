@@ -1624,6 +1624,21 @@ PYTEST_SUMMARY_RE = re.compile(
 RUFF_ERROR_COUNT_RE = re.compile(r"Found (\d+) error")
 MYPY_ERROR_COUNT_RE = re.compile(r"Found (\d+) error")
 
+#: ``ruff format --check``'s own summary line, e.g. "3 files would be
+#: reformatted, 12 files already formatted" or "1 file would be
+#: reformatted". Present in both the pre-0.13 one-line-per-file listing
+#: ("Would reformat: path.py" repeated) and the newer multi-line
+#: diagnostic-diff-per-file rendering (ruff >= 0.13ish, confirmed on
+#: 0.16.4) - preferred over counting stdout lines because the newer
+#: rendering emits several lines per unformatted file.
+RUFF_FMT_SUMMARY_RE = re.compile(r"(\d+) files? would be reformatted")
+#: Per-file path from the older "Would reformat: path.py" listing.
+RUFF_FMT_WOULD_REFORMAT_RE = re.compile(r"^Would reformat: (.+)$", re.MULTILINE)
+#: Per-file path from the newer diagnostic-diff rendering's " --> path:L:C"
+#: location line, one per file (a file with multiple hunks would repeat
+#: its path, hence counting distinct paths rather than lines).
+RUFF_FMT_DIAGNOSTIC_PATH_RE = re.compile(r"^\s*-->\s*(\S+):\d+:\d+", re.MULTILINE)
+
 #: Two-lane split mirroring `.github/workflows/ci.yml`'s own `test` /
 #: `test-slow` jobs: the suite outgrew a single 1800s subprocess timeout
 #: on a healthy repo once the slow-marked coupled-Floquet, JAX-core, and
@@ -1641,6 +1656,25 @@ PYTEST_LANES: list[tuple[str, str, float]] = [
 def _last_nonempty_line(text: str) -> str:
     lines = [line for line in text.strip().split("\n") if line.strip()]
     return lines[-1] if lines else ""
+
+
+def _count_ruff_would_reformat(stdout: str) -> int | str:
+    """Count the files ``ruff format --check`` would reformat, robust to
+    which output shape the installed ruff uses. Prefers ruff's own summary
+    line (:data:`RUFF_FMT_SUMMARY_RE`); if that's absent, falls back to
+    counting distinct file paths named in the diagnostics (old-style
+    "Would reformat: path.py" lines or the newer diagnostic-diff
+    "--> path:L:C" location lines); returns ``"?"`` if neither is found
+    rather than misreporting a line count as a file count.
+    """
+    summary_m = RUFF_FMT_SUMMARY_RE.search(stdout)
+    if summary_m:
+        return int(summary_m.group(1))
+    paths = set(RUFF_FMT_WOULD_REFORMAT_RE.findall(stdout))
+    paths.update(RUFF_FMT_DIAGNOSTIC_PATH_RE.findall(stdout))
+    if paths:
+        return len(paths)
+    return "?"
 
 
 def _run_pytest_lane(name: str, marker_expr: str, timeout_s: float) -> tuple[str, list[Finding]]:
@@ -1718,9 +1752,7 @@ def suite_check(allowlist: dict[str, Any]) -> CheckResult:  # noqa: ARG001
         capture_output=True,
         text=True,
     )
-    would_reformat = len(
-        [line for line in ruff_fmt_proc.stdout.strip().split("\n") if line.strip()]
-    )
+    would_reformat = _count_ruff_would_reformat(ruff_fmt_proc.stdout)
     fmt_status = (
         "clean" if ruff_fmt_proc.returncode == 0 else f"{would_reformat} file(s) would reformat"
     )

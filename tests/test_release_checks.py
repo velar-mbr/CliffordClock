@@ -847,6 +847,104 @@ def test_mypy_error_count_regex_extracts_count():
     assert m.group(1) == "5"
 
 
+# `ruff format --check`'s stdout shape changed between ruff releases: older
+# ruff lists one "Would reformat: path.py" line per file, while newer ruff
+# (confirmed on 0.16.4) renders a multi-line diagnostic diff per file. A
+# naive "count nonempty stdout lines" implementation reported a single
+# unformatted file as "8 file(s) would be reformatted" under the new
+# rendering (WP-tracked bug); `_count_ruff_would_reformat` must get the
+# right count under both shapes, plus degrade gracefully if ruff's summary
+# line is ever missing.
+
+
+def test_count_ruff_would_reformat_old_one_line_per_file_shape():
+    stdout = "Would reformat: src/a.py\nWould reformat: src/b.py\n2 files would be reformatted\n"
+    assert rc._count_ruff_would_reformat(stdout) == 2
+
+
+def test_count_ruff_would_reformat_old_shape_singular():
+    stdout = "Would reformat: src/a.py\n1 file would be reformatted\n"
+    assert rc._count_ruff_would_reformat(stdout) == 1
+
+
+def test_count_ruff_would_reformat_new_diagnostic_diff_shape_one_file():
+    """Regression for the planted-violation bug: one unformatted file's
+    multi-line diff (ruff >= 0.13ish rendering) must count as 1, not as
+    however many lines the diff happens to span."""
+    stdout = (
+        "unformatted: File would be reformatted\n"
+        " --> src/cliffordclock/pipeline.py:12:9\n"
+        "  |\n"
+        "  - def foo( x,y ):\n"
+        "  -     return x+y\n"
+        "1 + def foo(x, y):\n"
+        "2 +     return x + y\n"
+        "  |\n"
+        "\n"
+        "1 file would be reformatted\n"
+    )
+    assert rc._count_ruff_would_reformat(stdout) == 1
+
+
+def test_count_ruff_would_reformat_new_diagnostic_diff_shape_two_files():
+    stdout = (
+        "unformatted: File would be reformatted\n"
+        " --> src/a.py:1:9\n"
+        "  |\n"
+        "  - def foo( x,y ):\n"
+        "1 + def foo(x, y):\n"
+        "  |\n"
+        "\n"
+        "unformatted: File would be reformatted\n"
+        " --> src/b.py:1:9\n"
+        "  |\n"
+        "  - def bar( a,b ):\n"
+        "1 + def bar(a, b):\n"
+        "  |\n"
+        "\n"
+        "2 files would be reformatted\n"
+    )
+    assert rc._count_ruff_would_reformat(stdout) == 2
+
+
+def test_count_ruff_would_reformat_mixed_summary_variant():
+    """ruff appends ", N files already formatted" to the summary line when
+    the run is a mix of clean and unformatted files; the regex must still
+    extract the reformatted count, not the total."""
+    stdout = (
+        "unformatted: File would be reformatted\n"
+        " --> src/a.py:1:9\n"
+        "  |\n"
+        "  - def foo( x,y ):\n"
+        "1 + def foo(x, y):\n"
+        "  |\n"
+        "\n"
+        "1 file would be reformatted, 12 files already formatted\n"
+    )
+    assert rc._count_ruff_would_reformat(stdout) == 1
+
+
+def test_count_ruff_would_reformat_falls_back_to_path_count_without_summary_line():
+    """If ruff's summary line is ever absent (future format change, or
+    stdout truncated), fall back to counting distinct file paths named in
+    the diagnostics rather than misreporting a line count."""
+    stdout = (
+        "unformatted: File would be reformatted\n"
+        " --> src/a.py:1:9\n"
+        "  |\n"
+        "  - def foo( x,y ):\n"
+        "1 + def foo(x, y):\n"
+        "  |\n"
+    )
+    assert rc._count_ruff_would_reformat(stdout) == 1
+
+
+def test_count_ruff_would_reformat_returns_placeholder_when_uncountable():
+    """With neither a summary line nor any recognizable per-file marker,
+    report '?' rather than a fabricated count."""
+    assert rc._count_ruff_would_reformat("some unrecognized ruff output\n") == "?"
+
+
 # ---------------------------------------------------------------------------
 # suite-check: two-lane pytest split (WP28 upgrade: the suite outgrew a
 # single 1800s subprocess timeout on a healthy repo once the slow-marked
