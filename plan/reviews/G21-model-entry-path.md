@@ -1,9 +1,9 @@
-# G21 gate: the model entry path (MODEL.md, ten_line_clock, docs/terms, README ladder)
+# G21 gate: the model entry path (MODEL.md, six_line_clock, docs/terms, README ladder)
 
 Independent review of the "How it works" entry path: `docs/MODEL.md`
-(the one-page model statement with the canonical ten-line listing),
-`examples/ten_line_clock.py` (a runnable numpy-only expansion of the
-listing), `tests/test_ten_line_clock.py`, the README navigation ladder,
+(the one-page model statement with the canonical six-line listing),
+`examples/six_line_clock.py` (a runnable numpy-only expansion of the
+listing), `tests/test_six_line_clock.py`, the README navigation ladder,
 and the nine per-effect one-pagers plus index under `docs/terms/`. Two
 reviewers worked the two halves in parallel; every FATAL finding below
 was fixed, re-verified against its source, and pushed before this

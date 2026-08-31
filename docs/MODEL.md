@@ -30,7 +30,9 @@ across atoms; the visibility is the modulus of the mean phasor, the
 distribution's coherence. For small spreads, that modulus is set by the
 phase variance.
 
-This is the whole model:
+This is the composition rule. It is the part of the model these six
+lines carry in full; each `p` inside it stands for a published physics
+model of its own:
 
 ```python
 def clock_phase(worldline, terms, nu_0):
@@ -62,9 +64,13 @@ known-answer checks against textbook formulas, reproductions of published
 experimental measurements, and cross-checks between independent
 implementations of the same physics.
 
-Four places take this further:
+Five places take this further:
 
-- [`examples/ten_line_clock.py`](../examples/ten_line_clock.py): a
+- [`paper/composition/main.pdf`](../paper/composition/main.pdf): a
+  six-page companion paper comparing this composition law with the
+  field's additive budget tables, with three validated case studies
+  of what the composed form changes.
+- [`examples/six_line_clock.py`](../examples/six_line_clock.py): a
   runnable, self-contained version of the code above, in plain NumPy,
   reproducing a published gravitational-redshift measurement.
 - [`docs/terms/`](terms/): a one-page reference per systematic (BBR,

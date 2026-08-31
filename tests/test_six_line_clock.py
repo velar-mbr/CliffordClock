@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
-"""Tests for ``examples/ten_line_clock.py``, the runnable expansion of the
-ten-line model listing in ``docs/MODEL.md``.
+"""Tests for ``examples/six_line_clock.py``, the runnable expansion of the
+six-line composition listing in ``docs/MODEL.md``.
 
 Loads the script by file path, since it is a standalone example outside
 the ``cliffordclock`` package, and checks its headline numbers: the
@@ -22,18 +22,18 @@ import numpy as np
 import pytest
 
 _REPO_ROOT = Path(__file__).resolve().parent.parent
-_SCRIPT_PATH = _REPO_ROOT / "examples" / "ten_line_clock.py"
+_SCRIPT_PATH = _REPO_ROOT / "examples" / "six_line_clock.py"
 
 
-def _load_ten_line_clock() -> ModuleType:
-    spec = importlib.util.spec_from_file_location("ten_line_clock", _SCRIPT_PATH)
+def _load_six_line_clock() -> ModuleType:
+    spec = importlib.util.spec_from_file_location("six_line_clock", _SCRIPT_PATH)
     assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
 
 
-tlc = _load_ten_line_clock()
+tlc = _load_six_line_clock()
 
 # Chou et al. 2010 (Science 329, 1630): raising a clock by 33 cm changes
 # its gravitational redshift by g*dh/c^2. STANDARD_GRAVITY and
@@ -107,7 +107,7 @@ def test_compute_case_is_deterministic() -> None:
 
 def test_script_runs_as_a_subprocess_and_prints_the_two_cases() -> None:
     """The script a lab user runs (``python
-    examples/ten_line_clock.py``) exits cleanly, well under a second as
+    examples/six_line_clock.py``) exits cleanly, well under a second as
     its module docstring promises, inside this test's 5-second subprocess
     timeout, and prints both height cases."""
     result = subprocess.run(

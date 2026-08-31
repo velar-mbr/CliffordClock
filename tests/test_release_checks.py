@@ -408,6 +408,61 @@ def test_prose_scan_runs_clean_of_fail_findings_against_current_repo():
     assert result.status == "PASS", [f.format() for f in result.findings if f.severity == "FAIL"]
 
 
+def test_paper_tex_prose_texts_reads_both_paper_and_composition_tex(tmp_path, monkeypatch):
+    """`paper_tex_prose_texts` must not be a single-file scanner: it has to
+    walk every path in `PAPER_TEX_RELPATHS`, main paper and composition
+    companion paper alike, or the composition paper's prose is invisible
+    to prose-scan and citation-check (the gap a gate review found)."""
+    monkeypatch.setattr(rc, "REPO_ROOT", tmp_path)
+    paper_dir = tmp_path / "paper"
+    paper_dir.mkdir()
+    (paper_dir / "main.tex").write_text("Main paper prose.\n")
+    composition_dir = paper_dir / "composition"
+    composition_dir.mkdir()
+    (composition_dir / "main.tex").write_text("Composition paper prose.\n")
+
+    texts = rc.paper_tex_prose_texts()
+
+    assert [rel for rel, _ in texts] == ["paper/main.tex", "paper/composition/main.tex"]
+    assert texts[0][1] == "Main paper prose.\n"
+    assert texts[1][1] == "Composition paper prose.\n"
+
+
+def test_paper_tex_prose_texts_skips_a_missing_file(tmp_path, monkeypatch):
+    monkeypatch.setattr(rc, "REPO_ROOT", tmp_path)
+    paper_dir = tmp_path / "paper"
+    paper_dir.mkdir()
+    (paper_dir / "main.tex").write_text("Main paper prose.\n")
+    # No paper/composition/main.tex planted.
+
+    texts = rc.paper_tex_prose_texts()
+
+    assert [rel for rel, _ in texts] == ["paper/main.tex"]
+
+
+def test_prose_scan_catches_em_dash_planted_violation_in_composition_paper(tmp_path, monkeypatch):
+    """Mirrors test_prose_scan_catches_unicode_em_dash_planted_violation, but
+    plants the violation in paper/composition/main.tex specifically, so this
+    fails again if the composition paper is ever dropped back out of the
+    scanned path list."""
+    monkeypatch.setattr(rc, "REPO_ROOT", tmp_path)
+    paper_dir = tmp_path / "paper"
+    paper_dir.mkdir()
+    (paper_dir / "main.tex").write_text("Clean main paper prose.\n")
+    composition_dir = paper_dir / "composition"
+    composition_dir.mkdir()
+    (composition_dir / "main.tex").write_text(
+        "This sentence has an em dash — right there in the middle.\n"
+    )
+
+    result = rc.prose_scan({})
+
+    assert result.status == "FAIL"
+    assert any(
+        f.file == "paper/composition/main.tex" and f.severity == "FAIL" for f in result.findings
+    )
+
+
 # ---------------------------------------------------------------------------
 # tolerance-scan
 # ---------------------------------------------------------------------------
