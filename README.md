@@ -9,13 +9,15 @@
 
 ![CliffordClock lattice-fit animation: a noisy synthetic sideband spectrum with a Born-Oppenheimer-plus-WKB model curve fit to it live by gradient descent, lattice depth and radial temperature converging to their truth values](https://raw.githubusercontent.com/velar-mbr/CliffordClock/main/docs/assets/lattice_fit_animation.gif)
 
-**CliffordClock predicts how stray electric fields shift and broaden an
-optical lattice clock's frequency, starting from your own field
-simulation.** Export a field map from COMSOL or any FEA tool, and
-describe your atoms and trap in a short config file. CliffordClock
-returns the fractional frequency shift, its spread across your atom
-cloud, the dephasing time T₂*, and the spectral line profile. These
-numbers land at the 1×10⁻¹⁸ level today's clocks budget to.
+**CliffordClock predicts how an optical clock's environment shifts and
+broadens its frequency, for lattice and trapped-ion clocks alike.**
+Describe your atoms and trap in a short config file, then feed it what
+your platform has: a field map exported from COMSOL or any FEA tool, a
+set of thermal surfaces, or measured mode frequencies and phonon
+occupations. CliffordClock returns the fractional frequency shift, its
+spread across your atoms, the dephasing time T₂*, and the spectral
+line profile. These numbers land at the 1×10⁻¹⁸ level today's clocks
+budget to.
 
 Free and open source (AGPLv3), Python, `pip install`-able.
 
