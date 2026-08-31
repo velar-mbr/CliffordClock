@@ -88,12 +88,13 @@ Report the residual **and** whether it falls inside
 inside some stated multiple of `report["shift_std_error"]`, the same
 convention `docs/validation.md`'s KA4 uses: `0.32σ`, stated explicitly,
 beyond a bare "passed"). If the residual is *larger* than the stated
-uncertainty, report that too, with the same reported-as-found discipline
-`benchmarks/RESULTS.md` uses for WP10's negative result: a mismatch is
-real information (a physics-scope gap this engine doesn't model yet, a
+uncertainty, report that too, as it comes out, with the same
+reported-as-found discipline `benchmarks/RESULTS.md` uses for WP10's
+negative result. A mismatch is real information. It points to a
+physics-scope gap this engine doesn't model yet, a
 field-characterization uncertainty larger than assumed, or a modeling
-assumption, e.g. `ensemble.regime`/`motional_n`/temperature, that
-doesn't match the real apparatus). Report it exactly as it comes out.
+assumption (e.g. `ensemble.regime`/`motional_n`/temperature) that
+doesn't match the real apparatus.
 
 ## Turning this into a real case
 
