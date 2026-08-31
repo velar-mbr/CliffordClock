@@ -35,25 +35,40 @@ Free and open source (AGPLv3), Python, `pip install`-able.
 
 ## Why use CliffordClock?
 
-A textbook formula gives you one shift for one field value: plug in a
-differential polarizability and a stray-field magnitude, and you can
-reproduce that number in an afternoon. What CliffordClock ships is the
-full dispersion budget of a real imported field. Every atom's shift is
-computed from where it actually sits in your trap, then rolled up into
-per-atom and per-site maps, the ensemble's spread, the dephasing time
-T₂* that spread implies, and the spectral line profile it produces.
+One rule carries the whole budget. Every systematic the engine models,
+the DC-Stark shift, blackbody radiation, motional time dilation, the
+lattice light shift, the electric-quadrupole shift, and gravitational
+redshift, enters as a multiplicative factor on a single per-atom clock
+rate. The reported fractional shift is the mean of the resulting phase
+distribution, and the Ramsey fringe visibility comes from the same
+distribution, so one calculation produces the number a budget quotes
+and the coherence a lab measures. The rule is six lines of Python
+([`docs/MODEL.md`](https://github.com/velar-mbr/CliffordClock/blob/main/docs/MODEL.md));
+each factor inside it is a published physics model, cited in the
+output.
 
-That budget runs through numerics proven at 1×10⁻¹⁸ against adversarial
-tests. Two independent formulations cross-check it, a direct scalar
-calculation and a Cl(1,3) geometric-algebra rotor engine, and they agree
-to the last digit on every case shipped. Every coefficient carries its
-source, which paper and which value, in the output. A millimetre-scale
-extended-lattice sample runs on a laptop.
+That rule runs per atom over your own imported field. A textbook
+formula gives one shift for one field value; CliffordClock computes
+every atom's shift from where it sits in your trap, then rolls the
+ensemble up into per-atom and per-site maps, the spread, the dephasing
+time T₂* that spread implies, and the spectral line profile. The
+lattice-light-shift and sideband models are differentiable end to end,
+so a lab's trap depth and radial temperature can be fitted by gradient
+descent through the same physics its light-shift budget uses. A
+millimetre-scale extended-lattice sample runs on a laptop.
 
-It also reproduces the real world: two published measurements, NPL's
+The numbers carry receipts. Two published measurements, NPL's
 stray-field reconstruction and Bothwell et al.'s mm-scale
 gravitational-redshift measurement, come out of this pipeline with zero
-fitted parameters.
+fitted parameters. Published budget rows are reproduced from their own
+inputs, a blackbody row and a trapped-ion motional evaluation that
+lands at 0.08 sigma among them, and the lattice models are
+cross-validated against an independent open-source implementation. The
+numerics are proven at 1×10⁻¹⁸ against adversarial tests, and two
+independent formulations, a direct scalar calculation and a Cl(1,3)
+geometric-algebra rotor engine, agree to the last digit on every case
+shipped. Every coefficient carries its source, which paper and which
+value, in the output.
 
 ## What it does today
 
