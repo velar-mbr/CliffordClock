@@ -11,9 +11,9 @@
 
 **CliffordClock predicts how an optical clock's environment shifts and
 broadens its frequency, for lattice and trapped-ion clocks alike.**
-Describe your atoms and trap in a short config file, then feed it what
-your platform has: a field map exported from COMSOL or any FEA tool, a
-set of thermal surfaces, or measured mode frequencies and phonon
+Describe your atoms and trap in a short config file. Feed it what your
+platform has: a field map exported from COMSOL or any FEA tool, a set
+of thermal surfaces, or measured mode frequencies and phonon
 occupations. CliffordClock returns the fractional frequency shift, its
 spread across your atoms, the dephasing time T₂*, and the spectral
 line profile. These numbers land at the 1×10⁻¹⁸ level today's clocks
