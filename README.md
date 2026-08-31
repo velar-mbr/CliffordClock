@@ -48,7 +48,7 @@ each factor inside it is a published physics model, cited in the
 output.
 
 That rule runs per atom over your own imported field. A textbook
-formula gives one shift for one field value; CliffordClock computes
+formula gives one shift for one field value. CliffordClock computes
 every atom's shift from where it sits in your trap, then rolls the
 ensemble up into per-atom and per-site maps, the spread, the dephasing
 time T₂* that spread implies, and the spectral line profile. The
