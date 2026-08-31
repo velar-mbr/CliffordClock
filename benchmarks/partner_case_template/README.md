@@ -1,30 +1,30 @@
 # Partner benchmark case: template
 
-**What this is:** a template showing exactly what data a beta
-collaborator needs to send (or run locally and report back on) to become
-a real, comparable benchmark case, the thing `benchmarks/RESULTS.md`
-found none of the current public sources could supply (see
-`benchmarks/MAPPING.md`: the DC-Stark row is in this engine's scope, but
-every currently-authorized public source reports a measured shift
-without the independent field magnitude that produced it, and solving
-backwards for that field would make the field magnitude a fitted
-parameter chosen to match the measured shift, which this project's
-benchmarks never allow). A collaborator supplying *both* halves (a
-characterized field and the shift it produced) closes exactly that gap.
+This directory is a template for a partner benchmark case: the data a
+collaborator sends, or runs locally and reports on, to become a real,
+comparable benchmark. `benchmarks/RESULTS.md` found that no current
+public source can supply such a case for the DC-Stark row. Every
+authorized public source reports a measured shift without the
+independent field magnitude that produced it. Solving backwards for
+that field would turn the field magnitude into a fitted parameter
+chosen to match the measured shift, and this project's benchmarks
+never allow a tuned parameter (`benchmarks/MAPPING.md` documents the
+survey). A collaborator supplying both halves, a characterized field
+and the shift it produced, closes that gap.
 
-This directory is the template `benchmarks/beta_case_<name>/` gets
-copied from once real data arrives (see "Turning this into a real case"
-below).
+Once real data arrives, this directory is copied to
+`benchmarks/beta_case_<name>/` and filled in; the "Steps" section
+below walks it.
 
 ## What plugs in where
 
 | You provide | Goes in | Format |
 |---|---|---|
-| A characterized stray-field magnitude or map | `field_grid_template.csv` (replace with your data) | `docs/byof-guide.md` CSV contract: header `x,y,z,Ex,Ey,Ez`, positions in **meters**, field in **V/m**. A single-point "field" (uniform, no map) is fine too: see the note in the CSV template. |
+| A characterized stray-field magnitude or map | `field_grid_template.csv` (replace with your data) | `docs/byof-guide.md` CSV contract: header `x,y,z,Ex,Ey,Ez`, positions in **meters**, field in **V/m**. A single-point uniform field works too; see the note in the CSV template. |
 | Your trap/species parameters | `config_template.yaml` | `species`, `trap.omega_xyz`/`center`: see `docs/cli.md` for the full schema. |
 | Your measured DC-Stark shift (the number you compare the tool's prediction against) | `expected_data_schema.md`'s `partner_case_expected.yaml` template | fractional shift, uncertainty (1σ or bound), and provenance: mirrors `benchmarks/loaders.py`'s `SystematicShiftEntry` shape, the same structure the WP10 JILA case uses. |
 
-## Steps (what "within a day" looks like)
+## Steps (about a day end to end)
 
 1. Copy this directory: `cp -r benchmarks/partner_case_template
    benchmarks/beta_case_<short-name>` (e.g. `beta_case_syrte`).
@@ -42,30 +42,28 @@ below).
 5. Run `cliffordclock run benchmarks/beta_case_<name>/config.yaml --output-dir
    /tmp/beta_case_<name>` and read `mean_fractional_shift` from
    `report.json`.
-6. Compute the residual (`predicted - measured`) and compare against the
-   measured uncertainty, the same way `docs/validation.md`'s KA1-4 cases
-   report "measured agreement": this is the step no current public
-   source lets `benchmarks/run_benchmarks.py` reach (see
-   `benchmarks/MAPPING.md`'s explanation of why every current row's
-   `comparable` field is `False`).
+6. Compute the residual (`predicted - measured`) and compare it against
+   the measured uncertainty, the way `docs/validation.md`'s KA1-4 cases
+   report measured agreement. This comparison is the step no current
+   public source lets `benchmarks/run_benchmarks.py` reach;
+   `benchmarks/MAPPING.md` explains why every current row's
+   `comparable` field is `False`.
 7. Write the result up the way `benchmarks/RESULTS.md` documents WP10's
-   cases: what was compared, the formula/reference, the tolerance, and
-   the measured agreement, reported as found, including if the residual is
-   larger than hoped. A "this doesn't match yet" result is real,
-   reportable information (physics gap, field-characterization
-   uncertainty, or a modeling assumption that doesn't hold for this
-   apparatus): reporting it faithfully is the collaboration succeeding,
-   exactly as designed.
+   cases: what was compared, the formula or reference, the tolerance,
+   and the measured agreement, reported as found. A residual larger
+   than the measured uncertainty is a reportable result in its own
+   right: it points to a physics gap, a field-characterization
+   uncertainty, or a modeling assumption that fails for this apparatus.
 
-## What this case will NOT need
+## Scope and privacy
 
-- No business or internal-process information of any kind: this is a
-  physics comparison (field in, shift out).
-- No data has to leave the collaborator's machine if they'd rather run
-  `cliffordclock run` themselves and send back only the residual: a data-stays-
-  local option is always available and does not depend on this template.
-- No change to `src/cliffordclock`: a real partner case is config +
-  data, run through the existing pipeline exactly as shipped.
+- The comparison uses physics data only, a field in and a shift out.
+  Business and internal-process information stays out of it.
+- Data can stay on the collaborator's machine. They run
+  `cliffordclock run` themselves and send back only the residual; that
+  option is always available and does not depend on this template.
+- A real partner case is config plus data, run through the existing
+  pipeline as shipped. `src/cliffordclock` is unchanged.
 
 ## See also
 
@@ -73,7 +71,7 @@ below).
   smoothing parameter you'll likely want `> 0` for a real (noisy)
   measured field, unlike this repo's noiseless synthetic examples.
 - `examples/realistic_lattice_sr87.yaml`: a complete, runnable config in
-  the same shape `config_template.yaml` below is derived from.
+  the same shape `config_template.yaml` is derived from.
 - `benchmarks/MAPPING.md` / `benchmarks/RESULTS.md`: the classification
   methodology and labeling discipline (no tuned parameters, ever) a real
   partner case must also follow.

@@ -35,10 +35,10 @@ Free and open source (AGPLv3), Python, `pip install`-able.
 
 ## Why use CliffordClock?
 
-One rule carries the whole budget. Every systematic the engine models,
-the DC-Stark shift, blackbody radiation, motional time dilation, the
+Every systematic this engine models enters through one rule. The
+DC-Stark shift, blackbody radiation, motional time dilation, the
 lattice light shift, the electric-quadrupole shift, and gravitational
-redshift, enters as a multiplicative factor on a single per-atom clock
+redshift each enter as a multiplicative factor on one per-atom clock
 rate. The reported fractional shift is the mean of the resulting phase
 distribution, and the Ramsey fringe visibility comes from the same
 distribution, so one calculation produces the number a budget quotes
@@ -57,13 +57,14 @@ so a lab's trap depth and radial temperature can be fitted by gradient
 descent through the same physics its light-shift budget uses. A
 millimetre-scale extended-lattice sample runs on a laptop.
 
-The numbers carry receipts. Two published measurements, NPL's
-stray-field reconstruction and Bothwell et al.'s mm-scale
-gravitational-redshift measurement, come out of this pipeline with zero
-fitted parameters. Published budget rows are reproduced from their own
-inputs, a blackbody row and a trapped-ion motional evaluation that
-lands at 0.08 sigma among them, and the lattice models are
-cross-validated against an independent open-source implementation. The
+Each of these capabilities is checked against published results. Two
+published measurements, NPL's stray-field reconstruction and Bothwell
+et al.'s mm-scale gravitational-redshift measurement, come out of this
+pipeline with zero fitted parameters. Published budget rows are
+reproduced from their own inputs, among them a blackbody row and a
+trapped-ion motional evaluation that lands 0.08 sigma from the
+published value. The lattice models are cross-validated against an
+independent open-source implementation. The
 numerics are proven at 1×10⁻¹⁸ against adversarial tests, and two
 independent formulations, a direct scalar calculation and a Cl(1,3)
 geometric-algebra rotor engine, agree to the last digit on every case
