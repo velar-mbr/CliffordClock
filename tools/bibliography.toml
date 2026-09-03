@@ -716,3 +716,58 @@ year = [1994]
 arxiv = ""
 doi = ""
 source = "docs/CONVENTIONS.md section 19 (E43, the Inglis-Teller order-of-magnitude Stark validity-guard estimate and the n_star^7 scalar-polarizability scaling law, cited by both Sedlacek2012 and Holloway2014 for the same background). Textbook, not independently re-verified page by page this session; cited only for the standard, widely-reproduced order-of-magnitude relations named in CONVENTIONS.md section 19."
+
+[[paper]]
+key = "Zimmerman1979"
+authors = "Zimmerman, M. L. and Littman, M. G. and Kash, M. M. and Kleppner, D."
+surnames = ["Zimmerman", "Littman", "Kash", "Kleppner"]
+title = "Stark structure of the Rydberg states of alkali-metal atoms"
+venue = "Phys. Rev. A 20, 2251-2275"
+year = [1979]
+arxiv = ""
+doi = "10.1103/PhysRevA.20.2251"
+source = "docs/CONVENTIONS.md section 20 (WP40, the historical origin of the Stark-map diagonalization method every construction detail in this section is attributed to ARC or Grimmel et al. instead of). Predates arXiv; APS page and every search for a legitimate free copy returned nothing this session, so this project could NOT read it directly. Byline and title confirmed via the APS abstract listing and the ADS record (1979PhRvA..20.2251Z). No equation number from this paper is cited anywhere in code or docs -- see src/cliffordclock/integrator/rydberg_stark_map.py's own top-of-module docstring for the disclosure."
+
+[[paper]]
+key = "Grimmel2015"
+authors = "Grimmel, Jens and Mack, Markus and Karlewski, Florian and Jessen, Florian and Reinschmidt, Michael and Sandor, Nila and Fortagh, Jozsef"
+surnames = ["Grimmel", "Mack", "Karlewski", "Jessen", "Reinschmidt", "Sandor", "Fortagh"]
+title = "Measurement and numerical calculation of Rubidium Rydberg Stark spectra"
+venue = "New J. Phys. 17, 053005"
+year = [2015]
+arxiv = "1503.08953"
+doi = "10.1088/1367-2630/17/5/053005"
+source = "docs/CONVENTIONS.md section 20 (WP40, an independent from-scratch implementation corroborating ARC's own restatement of Zimmerman 1979's method; the C5(c) published-anchor check's own supplementary-data availability probe). Read directly in full this session (arXiv PDF)."
+
+[[paper]]
+key = "Han2006"
+authors = "Han, Jianing and Jamil, Yasir and Norum, D. V. L. and Tanner, Paul J. and Gallagher, T. F."
+surnames = ["Han", "Jamil", "Norum", "Tanner", "Gallagher"]
+title = "Rb nf quantum defects from millimeter-wave spectroscopy of cold 85Rb Rydberg atoms"
+venue = "Phys. Rev. A 74, 054502"
+year = [2006]
+arxiv = ""
+doi = "10.1103/PhysRevA.74.054502"
+source = "docs/CONVENTIONS.md section 20 (WP40, the Rb-85 nF5/2/nF7/2 quantum-defect source, taken via ARC's own Rubidium85.quantumDefect table reproduction); src/cliffordclock/integrator/rydberg_stark_map.py's RB85_QUANTUM_DEFECTS registry. No arXiv preprint found; APS page returned HTTP 403, so full text not obtained. Byline and title confirmed via the APS DOI abstract record and independent citation-index summaries, fetched this session."
+
+[[paper]]
+key = "Moore2020"
+authors = "Moore, K. and Duspayev, A. and Cardman, R. and Raithel, G."
+surnames = ["Moore", "Duspayev", "Cardman", "Raithel"]
+title = "Measurement of the Rb g-series quantum defect using two-photon microwave spectroscopy"
+venue = "Phys. Rev. A 102, 062817"
+year = [2020]
+arxiv = ""
+doi = "10.1103/PhysRevA.102.062817"
+source = "docs/CONVENTIONS.md section 20 (WP40, the Rb-85 nG7/2/nG9/2 quantum-defect source); src/cliffordclock/integrator/rydberg_stark_map.py's RB85_QUANTUM_DEFECTS registry. Read directly this session (par.nsf.gov public-access PDF); abstract states delta0=0.0039990(21), delta2=-0.0202(21), matching ARC's own tabulated value to all 5 printed digits."
+
+[[paper]]
+key = "Marinescu1994"
+authors = "Marinescu, M. and Sadeghpour, H. R. and Dalgarno, A."
+surnames = ["Marinescu", "Sadeghpour", "Dalgarno"]
+title = "Dispersion Coefficients for Alkali-Metal Dimers"
+venue = "Phys. Rev. A 49, 982"
+year = [1994]
+arxiv = ""
+doi = "10.1103/PhysRevA.49.982"
+source = "docs/CONVENTIONS.md section 20 (WP40, the one-electron model potential shaping this module's radial wavefunctions, l-dependent parameters taken via ARC's own Rubidium85 class); src/cliffordclock/integrator/rydberg_stark_map.py's _model_potential_hartree. Byline and title confirmed via the APS DOI abstract page, fetched this session; full text not obtained."
