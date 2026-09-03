@@ -1,6 +1,6 @@
 {
   "wp40_rydberg_stark_map_benchmark_schema": "1.0",
-  "generated_at_utc": "2026-09-03T17:28:30.620164+00:00",
+  "generated_at_utc": "2026-09-03T17:41:55.813499+00:00",
   "c3_quadratic_crossover_consistency": {
     "case_class": "arithmetic_reproduction",
     "tolerance_relative": 0.15,
@@ -236,6 +236,49 @@
         "converged": true
       }
     ],
+    "crossover_stability": {
+      "n": 50,
+      "it_field_v_per_m": 628.7023351777678,
+      "tolerance_relative": 0.05,
+      "rows": [
+        {
+          "delta_n": 2,
+          "l_max": 6,
+          "basis_size": 65,
+          "crossover_field_v_per_m": 820.5098272659004,
+          "relative_shift_from_largest": 0.029411764705882405
+        },
+        {
+          "delta_n": 3,
+          "l_max": 10,
+          "basis_size": 147,
+          "crossover_field_v_per_m": 797.0666893440175,
+          "relative_shift_from_largest": 0.0
+        },
+        {
+          "delta_n": 5,
+          "l_max": 14,
+          "basis_size": 319,
+          "crossover_field_v_per_m": 797.0666893440175,
+          "relative_shift_from_largest": 0.0
+        },
+        {
+          "delta_n": 5,
+          "l_max": 20,
+          "basis_size": 451,
+          "crossover_field_v_per_m": 797.0666893440175,
+          "relative_shift_from_largest": 0.0
+        },
+        {
+          "delta_n": 7,
+          "l_max": 24,
+          "basis_size": 735,
+          "crossover_field_v_per_m": 797.0666893440175,
+          "relative_shift_from_largest": 0.0
+        }
+      ],
+      "stable": true
+    },
     "kpi_verdict": "MET"
   }
 }

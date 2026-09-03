@@ -75,8 +75,9 @@ Stoicheff's printed nS crossing-field fit as a same-family method check,
 and Grimmel et al. 2015's supplementary data, which turned out not to be
 machine-readable this session). C6 sweeps the basis size
 (`delta_n, l_max`) for 50D5/2 (the registry state closest to its own
-crossing, an order of magnitude below 30D5/2's), and confirms the shift
-is stable to well under a 10% threshold before the production basis size.
+crossing, an order of magnitude below 30D5/2's), and confirms both the
+low-field shift and the first-crossover field itself are stable well
+inside their own stated tolerances before the production basis size.
 
 Two Numerov bugs surfaced while building this module, both found by
 comparing against ARC rather than trusting internal agreement alone: a
@@ -113,7 +114,7 @@ exact-solution and pair-by-pair verifications that found them, in
   using two-photon microwave spectroscopy," Phys. Rev. A 102, 062817
   (2020) (the S/P/D, F, and G quantum defects extending this module's
   basis beyond Phase A's own registry).
-- O'Sullivan, W. J. and Stoicheff, B. P., "Scalar polarizabilities and
+- O'Sullivan, M. S. and Stoicheff, B. P., "Scalar polarizabilities and
   avoided crossings of high Rydberg states in Rb," Phys. Rev. A 31, 2718
   (1985) (the printed nS crossing-field fit used as a same-family method
   check).

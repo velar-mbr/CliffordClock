@@ -1,6 +1,6 @@
 # WP40 Rydberg Stark-map benchmark cases (generated)
 
-Generated: 2026-09-03T17:28:30.620164+00:00
+Generated: 2026-09-03T17:41:55.813499+00:00
 
 Validates the full Stark-map module (CONVENTIONS.md section 20) against Phase A's own registry (C3), an independent open-source implementation (C4, ARC), published literature (C5), and its own basis-truncation convergence (C6).
 
@@ -73,4 +73,18 @@ HTTP 200; content-type=text/html; charset=UTF-8
 | 3 | 10 | 147 | 1.3649e+10 | 0.059% |
 | 5 | 14 | 319 | 1.3657e+10 | 0.000% |
 | 5 | 20 | 451 | 1.3657e+10 | 0.000% |
+
+### Crossover-field stability across basis size (n=50, IT estimate: 6.29 V/cm, stable=True)
+
+Reports the FIRST-CROSSOVER field itself, the quantity `stark_validity_field_v_per_m` guards. The table above checks a different quantity, the low-field curvature.
+
+| delta_n | l_max | Basis size | First-crossover field (V/cm) | Relative shift from largest |
+|---|---|---|---|---|
+| 2 | 6 | 65 | 8.2051 | 2.941% |
+| 3 | 10 | 147 | 7.9707 | 0.000% |
+| 5 | 14 | 319 | 7.9707 | 0.000% |
+| 5 | 20 | 451 | 7.9707 | 0.000% |
+| 7 | 24 | 735 | 7.9707 | 0.000% |
+
+Tolerance: 5%. **stable: True**
 

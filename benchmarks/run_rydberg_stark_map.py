@@ -44,7 +44,11 @@ quadratic regime (CONVENTIONS.md section 20).
    :func:`rydberg_stark_map.convergence_sweep` for 50D5/2 (the dossier's
    own flagged load-bearing risk state, crossover ~6.3 V/cm, an order of
    magnitude below ARC's own stated l_max~20 rule-of-thumb's tested
-   regime) and, for comparison, 32D5/2.
+   regime) and, for comparison, 32D5/2. A second sweep
+   (:func:`run_c6_crossover_stability_case`) reports 50D5/2's own
+   FIRST-CROSSOVER field, the quantity the validity guard actually uses,
+   across the same basis-size growth (up to (7,24)) with its own stated
+   tolerance.
 
 Run this yourself: ``python benchmarks/run_rydberg_stark_map.py`` (from
 the repo root, with ``.venv`` active; no ARC needed for this script
@@ -462,6 +466,16 @@ def _run_c5_ns_crossing_method_check() -> C5OSullivanStoicheffPart:
 def _run_c5_grimmel_supplementary_data() -> C5GrimmelSupplementaryDataPart:
     """dossier Sec. 2c's own recommended first step: try the printed
     supplementary-data URL before digitizing Figs. 4-6 by hand.
+
+    This is a live network fetch (`urlopen`, 10s timeout), the only one
+    in this benchmark: publisher content, layout, and availability can
+    all change after this session, so a future run of this exact script
+    can legitimately report a different HTTP status or content type for
+    the SAME URL than the value committed in this file's own results.
+    The `except` branches below degrade gracefully either way: no
+    quantitative Grimmel comparison is included, reported as such, and
+    nothing here raises, so a network failure never blocks the rest of
+    C5 or the benchmark run.
     """
     url = "https://stacks.iop.org/njp/17/053005/mmedia"
     fetch_attempted = True
@@ -527,10 +541,29 @@ class C6StateResult:
 
 
 @dataclass
+class C6CrossoverStabilityRow:
+    delta_n: int
+    l_max: int
+    basis_size: int
+    crossover_field_v_per_m: float | None
+    relative_shift_from_largest: float | None
+
+
+@dataclass
+class C6CrossoverStabilityResult:
+    n: int
+    it_field_v_per_m: float
+    tolerance_relative: float
+    rows: list[dict[str, Any]]
+    stable: bool
+
+
+@dataclass
 class C6ConvergenceCase:
     case_class: str
     convergence_threshold_relative: float
     states: list[dict[str, Any]]
+    crossover_stability: dict[str, Any]
     kpi_verdict: str
 
 
@@ -538,6 +571,79 @@ class C6ConvergenceCase:
 #: neighbor must be within this relative shift (a non-vacuous, stated
 #: bound, not merely "the sweep ran").
 C6_CONVERGENCE_THRESHOLD_RELATIVE = 0.10
+
+#: Same criterion, applied to the FIRST-CROSSOVER field itself, the
+#: quantity `stark_validity_field_v_per_m` actually guards (the low-field
+#: curvature `convergence_sweep` checks above is a different quantity).
+C6_CROSSOVER_STABILITY_THRESHOLD_RELATIVE = 0.05
+
+#: `convergence_sweep`'s own default basis-size sequence, used here in
+#: full (including its largest (7,24) member, which the C6 states loop
+#: above omits since it is not needed for low-field curvature
+#: convergence at this state).
+C6_CROSSOVER_STABILITY_BASIS_SIZES: list[tuple[int, int]] = [
+    (2, 6),
+    (3, 10),
+    (5, 14),
+    (5, 20),
+    (7, 24),
+]
+
+
+def run_c6_crossover_stability_case(n0: int = 50) -> C6CrossoverStabilityResult:
+    """Sweep `(delta_n, l_max)` basis sizes and report the FIRST-CROSSOVER
+    field itself for 50D5/2 (the dossier's own flagged load-bearing risk
+    state), the quantity `stark_validity_field_v_per_m` actually guards
+    and a quantity `convergence_sweep`'s own low-field-curvature check
+    above does not directly test. Uses the same field grid convention as
+    `stark_validity_field_v_per_m`'s own default (0 to 2.2x the
+    Inglis-Teller estimate, 60 points).
+    """
+    n_star = rcr.effective_quantum_number(n0, rcr.RB85_ND52_QUANTUM_DEFECT)
+    it_field = rcr.inglis_teller_field_v_per_m(n_star)
+    fields = np.linspace(0.0, 2.2 * it_field, 60)
+
+    basis_sizes: list[int] = []
+    crossovers: list[float | None] = []
+    for delta_n, l_max in C6_CROSSOVER_STABILITY_BASIS_SIZES:
+        hamiltonian = rsm.stark_hamiltonian(n0, 2, 2.5, 0.5, delta_n=delta_n, l_max=l_max)
+        result = rsm.diagonalize_stark_map(hamiltonian, fields)
+        basis_sizes.append(hamiltonian.h0.shape[0])
+        crossovers.append(rsm.first_crossover_field_v_per_m(result))
+
+    reference = crossovers[-1]
+    rows = [
+        C6CrossoverStabilityRow(
+            delta_n=delta_n,
+            l_max=l_max,
+            basis_size=basis_size,
+            crossover_field_v_per_m=crossover,
+            relative_shift_from_largest=(
+                None
+                if crossover is None or reference is None
+                else abs(crossover - reference) / abs(reference)
+            ),
+        )
+        for (delta_n, l_max), basis_size, crossover in zip(
+            C6_CROSSOVER_STABILITY_BASIS_SIZES, basis_sizes, crossovers, strict=True
+        )
+    ]
+
+    # Stable if the SECOND-largest basis already agrees with the largest
+    # to within tolerance, the same criterion the C6 states loop above
+    # applies to the low-field curvature.
+    second_largest_shift = rows[-2].relative_shift_from_largest
+    stable = second_largest_shift is not None and second_largest_shift < (
+        C6_CROSSOVER_STABILITY_THRESHOLD_RELATIVE
+    )
+
+    return C6CrossoverStabilityResult(
+        n=n0,
+        it_field_v_per_m=it_field,
+        tolerance_relative=C6_CROSSOVER_STABILITY_THRESHOLD_RELATIVE,
+        rows=[asdict(r) for r in rows],
+        stable=stable,
+    )
 
 
 def run_c6_convergence_case() -> C6ConvergenceCase:
@@ -568,11 +674,13 @@ def run_c6_convergence_case() -> C6ConvergenceCase:
         )
 
     all_converged = all(s.converged for s in states_out)
+    crossover_stability = run_c6_crossover_stability_case()
     return C6ConvergenceCase(
         case_class="convergence_study",
         convergence_threshold_relative=C6_CONVERGENCE_THRESHOLD_RELATIVE,
         states=[asdict(s) for s in states_out],
-        kpi_verdict="MET" if all_converged else "NOT MET",
+        crossover_stability=asdict(crossover_stability),
+        kpi_verdict="MET" if (all_converged and crossover_stability.stable) else "NOT MET",
     )
 
 
@@ -729,6 +837,36 @@ def render_markdown(report: dict[str, Any]) -> str:
                 f"{row['alpha0_au']:.4e} | {row['relative_shift_from_largest']:.3%} |"
             )
         lines.append("")
+
+    cs = c6["crossover_stability"]
+    lines.append(
+        f"### Crossover-field stability across basis size (n={cs['n']}, IT estimate: "
+        f"{cs['it_field_v_per_m'] / 100:.2f} V/cm, stable={cs['stable']})"
+    )
+    lines.append("")
+    lines.append(
+        "Reports the FIRST-CROSSOVER field itself, the quantity "
+        "`stark_validity_field_v_per_m` guards. The table above checks a "
+        "different quantity, the low-field curvature."
+    )
+    lines.append("")
+    lines.append(
+        "| delta_n | l_max | Basis size | First-crossover field (V/cm) | "
+        "Relative shift from largest |"
+    )
+    lines.append("|---|---|---|---|---|")
+    for row in cs["rows"]:
+        crossover = row["crossover_field_v_per_m"]
+        crossover_str = "n/a" if crossover is None else f"{crossover / 100:.4f}"
+        shift = row["relative_shift_from_largest"]
+        shift_str = "n/a" if shift is None else f"{shift:.3%}"
+        lines.append(
+            f"| {row['delta_n']} | {row['l_max']} | {row['basis_size']} | "
+            f"{crossover_str} | {shift_str} |"
+        )
+    lines.append("")
+    lines.append(f"Tolerance: {cs['tolerance_relative']:.0%}. **stable: {cs['stable']}**")
+    lines.append("")
 
     return "\n".join(lines) + "\n"
 

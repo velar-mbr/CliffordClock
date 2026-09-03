@@ -3007,7 +3007,15 @@ tolerance use.
   not by itself close the gap, confirming a branch-identity effect, not
   a resolution or tracking bug); this is reported (crossover-location
   fields; n=35 matches ARC's own first-low-overlap field exactly, 50.34
-  V/cm) rather than gated by a single numeric tolerance.
+  V/cm); the dossier's own two-tier design reserves single-number
+  tolerance gating for the low-field tier above. The n=35 exact-digit
+  match is a shared-grid-quantization outcome: both curves first drop
+  below the 0.9 overlap threshold inside the same field-grid bin (~1.48
+  V/cm wide at this n), while the underlying overlap curves themselves
+  differ at neighboring points (this module's own min overlap 0.491 vs.
+  ARC's 0.855). The exact-digit match reflects that shared grid
+  resolution alone; the curves' actual sub-percent-level agreement
+  outside this one shared bin has not been established.
 - **C5, published anchor, three-part** (`run_c5_published_anchor_case`;
   no single source combines the registry species/l/crossing coverage
   with printed, non-digitized numbers): (a) low-field reduction to
@@ -3028,8 +3036,14 @@ tolerance use.
   an order of magnitude below 30D5/2's) and 32D5/2, `(delta_n, l_max)`
   swept `(2,6) -> (3,10) -> (5,14) -> (5,20)`. Both states converged well
   inside a 10% threshold; the second-largest basis already agrees with
-  the largest to < 0.1% for both states. MET.
-- **C7, battery + prose**: `tests/test_rydberg_stark_map.py` (44 cases:
+  the largest to < 0.1% for both states. A second sweep
+  (`run_c6_crossover_stability_case`) checks 50D5/2's own FIRST-CROSSOVER
+  field itself, the quantity `stark_validity_field_v_per_m` actually
+  guards, across the same growth extended one step further to `(7,24)`:
+  8.2051 V/cm at the smallest `(2,6)` basis, settling to 7.9707 V/cm from
+  `(3,10)` on and stable to < 0.001% through `(7,24)`, against a 5%
+  tolerance. MET.
+- **C7, battery + prose**: `tests/test_rydberg_stark_map.py` (43 cases:
   Wigner symbols, basis/Hamiltonian construction, diagonalization,
   kill-tested C3, C6 smoke test, the E44 `shift_fn` integration re-
   running Phase A's own C5 structural limits on the map path); ruff,
@@ -3039,7 +3053,9 @@ tolerance use.
   positive in notebook 16, "Mohapatra." immediately followed by
   "Holloway et al. 2014" across a sentence break, misreading the year as
   Mohapatra's own) predating this work package and not touched by it;
-  every citation this section itself introduces passes the scan clean.
+  it is already fixed on the sibling `rydberg-cell-response` branch (not
+  yet merged into this branch). Every citation this section itself
+  introduces passes the scan clean.
 
 ### E44 integration
 
