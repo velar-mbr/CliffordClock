@@ -1,0 +1,48 @@
+{
+  "case_class": "demonstrator",
+  "evidentiary_class": "computable_comparison",
+  "citation": "Patrick, Schlossberger, Hammerland, Prajapati, McDonald, Berweger, Talashila, Artusio-Glimpse, Holloway, AVS Quantum Science 7, 024401 (2025) [arXiv:2502.07018]",
+  "currency_note": "No 2025-2026 follow-up literature claims this problem solved or a field-wide standardized mitigation adopted (dossier currency check, September 2026). Partial, geometry-specific workarounds exist (all-dielectric cells, three-photon near-IR excitation) and are not claimed here as a general fix.",
+  "rows": [
+    {
+      "label": "no charge",
+      "cell_radius_m": 0.0125,
+      "patch_charge_c": 0.0,
+      "spectral_shift_hz": 0.0,
+      "spectral_width_hz": 10219512.46605172,
+      "asymmetry": 1.4387891666464295e-16,
+      "per_atom_shift_std_hz": 0.0
+    },
+    {
+      "label": "weak patch",
+      "cell_radius_m": 0.0125,
+      "patch_charge_c": 1e-12,
+      "spectral_shift_hz": -572.9587000715815,
+      "spectral_width_hz": 10219098.89650036,
+      "asymmetry": 0.0030579785390827036,
+      "per_atom_shift_std_hz": 2827015.0635733497
+    },
+    {
+      "label": "strong patch",
+      "cell_radius_m": 0.0125,
+      "patch_charge_c": 4e-12,
+      "spectral_shift_hz": -4949.0906385222825,
+      "spectral_width_hz": 10209727.392207311,
+      "asymmetry": 0.017642787815074158,
+      "per_atom_shift_std_hz": 45232241.017173596
+    },
+    {
+      "label": "strong patch, small cell",
+      "cell_radius_m": 0.006,
+      "patch_charge_c": 4e-12,
+      "spectral_shift_hz": -26149.424591077168,
+      "spectral_width_hz": 10138063.748268563,
+      "asymmetry": 0.018485954618808868,
+      "per_atom_shift_std_hz": 118145648.11544827
+    }
+  ],
+  "shift_grows_with_patch_charge": true,
+  "width_grows_with_patch_charge": true,
+  "width_grows_as_cell_shrinks": true,
+  "kpi_verdict": "MET"
+}
