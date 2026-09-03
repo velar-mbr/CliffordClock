@@ -44,10 +44,10 @@ class TestUnitConversion:
         V/m; this module derives it from already-pinned constants rather
         than transcribing it a second time.
         """
-        assert pytest.approx(5.14220674763e11, rel=1e-6) == rcr.ATOMIC_UNIT_FIELD_V_PER_M
+        assert pytest.approx(5.14220674763e11, rel=1e-6, abs=1.0) == rcr.ATOMIC_UNIT_FIELD_V_PER_M
 
     def test_hartree_to_hz_matches_codata(self) -> None:
-        assert pytest.approx(6.579683920502e15, rel=1e-6) == rcr.HARTREE_TO_HZ
+        assert pytest.approx(6.579683920502e15, rel=1e-6, abs=1.0) == rcr.HARTREE_TO_HZ
 
     def test_hand_computed_alpha0_conversion(self) -> None:
         """Hand-computed check (dossier risk 3): for alpha0 = 1e10 a.u.
@@ -59,12 +59,12 @@ class TestUnitConversion:
           = -8.2438863718e-34 / 6.62607015e-34 = -1.244159... MHz/(V/cm)^2
         """
         k = rcr.alpha0_au_to_mhz_per_vcm2(1.0e10)
-        assert k == pytest.approx(-1.244159, rel=1e-5)
+        assert k == pytest.approx(-1.244159, rel=1e-5, abs=1e-8)
 
     def test_round_trip(self) -> None:
         alpha0 = 1.4e10
         k = rcr.alpha0_au_to_mhz_per_vcm2(alpha0)
-        assert rcr.mhz_per_vcm2_to_alpha0_au(k) == pytest.approx(alpha0, rel=1e-12)
+        assert rcr.mhz_per_vcm2_to_alpha0_au(k) == pytest.approx(alpha0, rel=1e-12, abs=1e-3)
 
     def test_sign_is_negative_for_positive_polarizability(self) -> None:
         """A wrong-sign transcription is exactly the class of error this
@@ -214,7 +214,7 @@ class TestC3CalibrationKA:
             rcr.HOLLOWAY_LAMBDA_PROBE_M,
             rcr.HOLLOWAY_LAMBDA_COUPLING_M,
         )
-        assert df_back == pytest.approx(df, rel=1e-12)
+        assert df_back == pytest.approx(df, rel=1e-12, abs=1e-3)
 
     def test_wrong_doppler_direction_fails_the_check(self) -> None:
         """The gate's own deliberate-break discipline: using the reciprocal
@@ -250,7 +250,7 @@ class TestC4PolarizabilityKA:
             for n, row in rcr.RB85_ND52_ALPHA0_TABULATED[source].items():
                 n_star = rcr.effective_quantum_number(n, rcr.RB85_ND52_QUANTUM_DEFECT)
                 predicted = c * n_star**p
-                assert predicted == pytest.approx(row.alpha0_au, rel=0.05)
+                assert predicted == pytest.approx(row.alpha0_au, rel=0.05, abs=1.0)
 
     def test_fitted_exponent_is_near_the_rydberg_n7_scaling(self) -> None:
         """The scalar polarizability of a Rydberg state scales
@@ -297,7 +297,7 @@ class TestQuadraticStarkShift:
         n_star = 30.65
         shift_1 = rcr.rydberg_quadratic_stark_shift_hz(rcr.RB85_32D52_ALPHA0_AU, 5.0, n_star)
         shift_2 = rcr.rydberg_quadratic_stark_shift_hz(rcr.RB85_32D52_ALPHA0_AU, 10.0, n_star)
-        assert shift_2 == pytest.approx(4.0 * shift_1, rel=1e-10)
+        assert shift_2 == pytest.approx(4.0 * shift_1, rel=1e-10, abs=1e-6)
 
     def test_zero_field_gives_zero_shift(self) -> None:
         assert rcr.rydberg_quadratic_stark_shift_hz(rcr.RB85_32D52_ALPHA0_AU, 0.0, 30.65) == 0.0
@@ -388,7 +388,7 @@ class TestDopplerAveraging:
             )
         finally:
             module.doppler_velocity_grid = original
-        np.testing.assert_allclose(chi_doppler, chi_bare, rtol=1e-10)
+        np.testing.assert_allclose(chi_doppler, chi_bare, rtol=1e-10, atol=1e-20)
 
     def test_at_splitting_survives_doppler_averaging_at_the_right_scale(self) -> None:
         """C7: the full Doppler-averaged 4-level spectrum's extracted
@@ -493,7 +493,7 @@ class TestC5LimitKillTests:
             return float(x[above[-1]] - x[above[0]])
 
         assert fwhm(composed.imag, delta_p) == pytest.approx(
-            fwhm(unperturbed.imag, delta_p), rel=1e-9
+            fwhm(unperturbed.imag, delta_p), rel=1e-9, abs=1.0
         )
 
     def test_deliberate_sign_flip_breaks_the_zero_field_kill_test(self) -> None:

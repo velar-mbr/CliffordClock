@@ -269,7 +269,7 @@ def numerov_radial_matrix_element(
     verified against a print statement, and against the plot's own
     z-axis, that this module cannot read here.
 
-    Approximation and its known limitation, stated plainly: both radial
+    Approximation and its known limitation: both radial
     wavefunctions use the pure-Coulomb tail set by the state's effective
     quantum number ``n_star`` (:func:`effective_quantum_number`), not the
     true short-range atomic potential. Rb D and P states carry quantum

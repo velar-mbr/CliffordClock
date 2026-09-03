@@ -2443,8 +2443,383 @@ plainly: do not force it. No real-scan fit is shipped; the raw scan
 data behind those figures is recorded as the named partnership ask,
 should INRIM be approached.
 
+## 19. Rydberg vapor-cell response: quadratic Stark shift and EIT/Autler-Townes observable (v1.15.0, WP39 Phase A)
+
+Motivation (project owner): Rydberg-atom RF electrometry and sensing
+groups each hand-roll the same chain (a field over a vapor-cell atom
+region, a per-atom Rydberg Stark response, and the resulting EIT/AT
+spectrum) with no open tool providing it end to end. This section adds
+that chain's atom-side half: field in, per-atom Rydberg shift, EIT/AT
+spectrum out. The EM side (cell and waveguide simulation) stays with the
+user's own tools; this project keeps its standing posture of consuming
+field exports rather than solving electrostatics itself, the same
+posture `cliffordclock.fields.io` already carries for FEA-exported field
+grids.
+
+Species and states: Rb-85, the 5S1/2-5P3/2-32D5/2-33P3/2 ladder. The
+anchor is Holloway, Gordon, Jefferts, Schwarzkopf, Anderson, Miller,
+Thaicharoen, Raithel, "Broadband Rydberg Atom-Based Electric-Field Probe
+for SI-Traceable, Self-Calibrated Measurements," IEEE Trans. Antennas
+Propag. 62, 6169 (2014), arXiv:1405.7066, chosen over the Sedlacek et
+al. 2012 candidate (Nature Physics 8, 819 (2012), arXiv:1205.4461)
+because its Fig. 15 prints three (splitting, field) calibration pairs
+directly, with no plot digitization required. Every equation and figure
+cited below was read from the paper's own arXiv PDF text or page image
+this session, not from a citing paper's summary. Implemented in
+`cliffordclock.integrator.rydberg_cell_response`. Benchmarked in
+`benchmarks/run_rydberg_cell_response.py`.
+
+### E43: quadratic Stark shift of a single Rydberg state
+
+**The formula and its sign.** `Delta_f = -(1/2) * alpha0 * E^2 / h`
+(Yerokhin, Buhmann, Fritzsche, Surzhykov, Phys. Rev. A 94, 032503
+(2016), arXiv:1608.04515, Eq. 5), `alpha0` the state's scalar
+polarizability in atomic units (a0^3), `E` the local DC field. This is
+the same sign and prefactor convention this project already uses for
+`cliffordclock.ensemble.species`'s DC-Stark term (E14b), so E43 reuses
+`ALPHA_AU_TO_SI` (`4*pi*eps0*a0^3`) rather than re-deriving that
+conversion a second time. Implemented in
+`rydberg_quadratic_stark_shift_hz`.
+
+**Unit conversion, shown explicitly (dossier risk 3).** O'Sullivan and
+Stoicheff, Phys. Rev. A 31, 2718 (1985) and Phys. Rev. A 33, 1640
+(1986), publish `alpha0` directly in MHz/(V/cm)^2 (a measured frequency-
+shift-per-field-squared coefficient), not in the atomic-unit (a0^3)
+convention Yerokhin et al. 2016 and this section's registry both use.
+`alpha0_au_to_mhz_per_vcm2` converts between the two, derived in five
+steps from constants already pinned in `cliffordclock.constants` and
+`cliffordclock.ensemble.species.ALPHA_AU_TO_SI` (its own docstring shows
+all five); a hand-computed value (alpha0 = 1e10 a.u. gives
+k = -1.244159 MHz/(V/cm)^2) is pinned in
+`tests/test_rydberg_cell_response.py::TestUnitConversion`.
+
+**Registry, two independent sources per tabulated state.** Yerokhin et
+al. 2016 Table IV cross-tabulates two independent Rb-85 nD5/2 alpha0
+sources at n = 30, 35, 50: their own Dirac-Fock + core-polarization
+(DFCP) theory, and O'Sullivan and Stoicheff's measured values (their
+refs. [32],[33]). The two agree to within 2.9% across all three states
+(`benchmarks/run_rydberg_cell_response.py`'s C4 case), inside the
+dossier's own stated "1-5% level" and this check's 5% tolerance.
+
+**The calibration state, 32D5/2, is not itself tabulated.** Holloway et
+al. 2014's Fig. 15 calibration uses 32D5/2, four principal quantum
+numbers below the nearest tabulated row (n=30, 35, or 50, whichever is
+closest to the field regime a caller needs). Rather than forcing a false
+match between the calibration state and a cross-checked polarizability
+state, this registry carries two different, individually well-
+provenanced n: the tabulated n=30/35/50 rows above for the C4 cross-
+check, and a derivation-based `alpha0(32D5/2)` for the Stark term
+`compose_inhomogeneous_eit_spectrum` actually evaluates.
+`derive_rb85_32d52_alpha0_au` fits `alpha0(n_star) = C * n_star^p` in
+log-log space to the three tabulated rows (the Rydberg-series scaling
+Gallagher, Rydberg Atoms, Cambridge Univ. Press, 1994, sec. 2.4, gives
+for a diagonal scalar polarizability), separately for the theory and the
+experiment rows, and averages the two fits' predictions at
+`n_star(32D5/2)`. Both fits reproduce their own three inputs to better
+than 4% and land within 1% of each other at n=32
+(`tests/test_rydberg_cell_response.py::TestC4PolarizabilityKA`); the
+fitted exponent (6.50-6.53) sits close to the n^7 scaling law, the
+expected order of magnitude. This is a fitted, derivation-based number,
+not a value printed in either source, and every docstring and citation
+in the code says so explicitly.
+
+**Validity guard.** The quadratic (isolated-state) treatment breaks down
+once the field approaches the first avoided crossing with the n-1
+manifold. O'Sullivan and Stoicheff 1985 fit this crossing field
+explicitly for Rb-85 nS states (`E_crossing(V/cm) = 4.638e8/n_star^5 +
+1.528e10/n_star^7`), but this project could not obtain the equivalent
+nD-specific fit from their 1986 companion paper's own body text (its
+byline and existence are confirmed via Yerokhin et al.'s reference list
+only). `inglis_teller_field_v_per_m` instead uses the standard order-of-
+magnitude Inglis-Teller estimate, `E_IT ~ 1/(3*n_star^5)` atomic units
+(Gallagher, Rydberg Atoms, the same text both anchor papers cite for
+their own quantum-defect and Rydberg-atom-properties background),
+labeled in its own docstring as an order-of-magnitude guard rather than
+a fitted, published coefficient for this series.
+`rydberg_quadratic_stark_shift_hz` raises `RydbergStarkValidityError`
+above `STARK_VALIDITY_MARGIN` (1/3) of this estimate, the house pattern
+of triggering validity guards with margin rather than at the estimate
+itself (section 13's BBR temperature guard is the precedent).
+
+### E44: EIT/Autler-Townes ladder susceptibility
+
+**The formula, transcribed and verified.** Holloway et al. 2014 Eqs.
+(1)-(4) (arXiv:1405.7066 page 3, read directly from the PDF text this
+session):
+
+    epsilon = epsilon_0 (1 + chi)                                    (1)
+
+    chi = [j N |wp_p| Omega_p / (eps0 |E_p|)] x
+          [(Omega_RF)^2 + 4 D13 D14] /
+          [D12 (Omega_RF)^2 + D14 (Omega_c)^2 + 4 D12 D13 D14]       (2)
+
+    D_1i = gamma_1i - j Delta_p        (as printed, resonant case)   (3)
+
+    Omega_{p,c,RF} = |E_{p,c,RF}| wp_{p,c,RF} / hbar                 (4)
+
+for the four-level ladder |1>-|2>-|3>-|4> (5S1/2-5P3/2-32D5/2-33P3/2,
+the fourth level RF-coupled to the third). `N` is the atom density,
+`wp_p`, `wp_c`, `wp_RF` the probe/coupling/RF transition dipole moments,
+`Delta_p = omega_o - omega_p` the probe detuning, `gamma_1i` the
+coherence decay rate for the `1->i` transition. The paper's own Eq. (3)
+is printed for the resonant case (`Delta_c = Delta_RF = 0`) alone, and
+states the general form would carry those detunings too, citing its
+ref. [21] (Sandhya and Sharma, Phys. Rev. A 55, 2155 (1997)) without
+reproducing it. `ladder_susceptibility` implements the natural ladder
+generalization instead, each `D_1i` summing the detunings of every
+level between `|1>` and `|i>` (`D12` carrying `Delta_p` alone, `D13`
+carrying the two-photon detuning `Delta_p + Delta_c`, `D14` the three-
+photon detuning `Delta_p + Delta_c + Delta_RF`), documented in the
+function's own docstring as this project's own extension, not a
+verbatim transcription for the general-detuning case. Setting
+`Omega_RF = 0` cancels `D14` out of the formula algebraically (shown in
+the docstring), leaving the finite three-level pole structure; a
+transcribed 3-level closed form to check that reduction against comes
+from Fleischhauer, Imamoglu, Marangos, Rev. Mod. Phys. 77, 633 (2005)
+("Electromagnetically induced transparency: Optics in coherent media"),
+Eq. 13 (page 639, read directly from the owner-supplied PDF this
+session), the lambda-type linear susceptibility with the same
+`gamma_31`/two-photon-detuning pole this reduction produces. Holloway et
+al. 2014's own susceptibility derivation cites Sandhya and Sharma 1997
+and Meystre and Sargent's textbook (their refs. [21],[22]), not the RMP
+review, so this project treats the RMP formula as an independent,
+separately-verified cross-check of the reduced pole structure, not as
+Holloway's own transcription source.
+
+**Doppler averaging.** Mohapatra, Jackson, Adams, Phys. Rev. Lett. 98,
+113003 (2007), arXiv:quant-ph/0612200, Eq. (1) (page 2) gives the
+velocity-resolved susceptibility for the weak-probe 3-level ladder,
+counter-propagating probe (wavevector `k_p`) and coupling (`k_c`,
+opposite direction) beams, with the two-photon detuning carrying
+`(Delta_p + Delta_c) - (k_p - k_c)*v` for an atom moving at velocity `v`
+along the beam axis. `doppler_averaged_susceptibility` extends this
+structure to the 4-level case (Section H of the module), integrating
+`ladder_susceptibility` over a Maxwell-Boltzmann velocity distribution
+via fixed Gauss-Hermite quadrature (`doppler_velocity_grid`, exact for
+smooth functions against a Gaussian weight, and deterministic by
+construction: no random sampling, no seed needed). The RF leg's own
+Doppler shift is dropped, following Sedlacek et al. 2012's own stated
+approximation for the kinematically identical 53D5/2-54P3/2 leg
+(arXiv:1205.4461 page 8: "because the wavelength of the RF field is
+large, the Doppler effect on the ... transition can be neglected"), a
+four-order-of-magnitude wavelength gap between the mm/cm-scale RF leg
+and the optical legs that applies equally to the 68.64 GHz/32D5/2-33P3/2
+leg this section uses.
+
+**The Doppler-mismatch factor, derived and resolved (dossier risk 1,
+the pre-flight blocking task).** The AT splitting observed in the probe
+transmission spectrum, plotted against probe detuning, is not the bare
+Rabi splitting `Omega_RF/(2*pi)`: it is rescaled by the ratio of the
+probe and coupling wavelengths. Two of the dossier's three primary
+sources state the rescaling in opposite directions: Holloway et al. 2014
+Eq. (12) and Mohapatra et al. 2007 both give a REDUCTION factor,
+`lambda_c/lambda_p` (splitting smaller than the bare value, since
+`lambda_c < lambda_p` for this ladder); Sedlacek et al. 2012's own prose
+(arXiv:1205.4461 page 5, no equation number) states the RECIPROCAL,
+`lambda_p/lambda_c`, an ENHANCEMENT. This project resolved the conflict
+by deriving the observed splitting from the ladder's own Doppler-
+detuning geometry, independently of either paper's stated direction, and
+by verifying the result directly against Holloway et al. 2014's own
+primary-source equation and its own calibration numbers.
+
+*The derivation.* Take the probe propagating along `+z` (wavevector
+`k_p`) and the coupling beam counter-propagating (`-k_c` along `z`,
+Holloway et al. 2014's own Fig. 2(b) geometry). For an atom moving at
+`v_z`, the Doppler-shifted detuning each leg sees in the atom's own
+frame is `Delta_p_atom = Delta_p_lab - k_p*v_z` (probe, co-propagating
+with the atom's `+z` motion) and `Delta_c_atom = Delta_c_lab + k_c*v_z`
+(coupling, counter-propagating). In the strong single-photon Doppler
+background (width `k_p*v_thermal`, the dominant absorption feature the
+narrow EIT/AT structure sits inside), the velocity class dominating the
+signal at a given probe detuning `Delta_p_lab` is the one near single-
+photon resonance with the PROBE leg alone, `v_z ~= Delta_p_lab/k_p`
+(the probe leg being the one directly driving population out of the
+ground state, so it sets which velocity class contributes the strongest
+absorption background for the EIT/AT feature to sit inside). Substituting
+that velocity into the COUPLING leg's own Doppler-shifted detuning gives
+
+    Delta_c_atom = Delta_c_lab + k_c * (Delta_p_lab / k_p)
+                 = Delta_c_lab + (k_c/k_p) * Delta_p_lab
+                 = Delta_c_lab + (lambda_p/lambda_c) * Delta_p_lab
+
+(`k_c/k_p = lambda_p/lambda_c`, wavevector magnitude inversely
+proportional to wavelength). The RF-driven dressed states of the
+Rydberg level sit at `Delta_c_atom = Delta_c_lab +/- Omega_RF/2`
+(resonant RF driving); the two AT peaks in the observed probe-detuning
+spectrum are where the substituted expression above hits those two
+values:
+
+    Delta_c_lab + (lambda_p/lambda_c) * Delta_p_lab = Delta_c_lab +/- Omega_RF/2
+    => Delta_p_lab = +/- (lambda_c/lambda_p) * (Omega_RF/2)
+
+giving a peak-to-peak splitting of `(lambda_c/lambda_p) *
+Omega_RF/(2*pi)` on the probe-detuning axis: the REDUCTION direction,
+matching Holloway et al. 2014 and Mohapatra et al. 2007, not Sedlacek et
+al. 2012's stated reciprocal. The physical picture: the probe-resonant
+velocity class maps the coupling leg's own Doppler shift onto the probe-
+detuning axis with an extra factor of `lambda_p/lambda_c` (larger, since
+`k_c > k_p`), so the SAME Rydberg-level energy splitting `Omega_RF`
+projects onto a COMPRESSED window in probe-detuning space, by the
+inverse factor `lambda_c/lambda_p`.
+
+*Independent verification against the primary source.* Holloway et al.
+2014's own Eq. (12) (arXiv:1405.7066 page 8, read directly from the PDF
+this session):
+
+    |E_RF| = 2*pi * (hbar/wp_RF) * (lambda_p/lambda_c) * Delta_f       (12)
+
+is the algebraic inverse of the derivation above (`Delta_f =
+(lambda_c/lambda_p) * Omega_RF/(2*pi)` solved for `E_RF` via `Omega_RF =
+wp_RF*E_RF/hbar` gives exactly Eq. 12). The paper's own prose
+immediately above Eq. (12) states the splitting direction explicitly:
+"states are scaled by lambda_c/lambda_p [7]", citing Mohapatra, Jackson,
+Adams, PRL 98, 113003 (2007) as reference [7] in its own bibliography
+(confirmed directly from the paper's reference list this session) for
+that exact scaling claim, applied there to the kinematically analogous
+case of a fine-structure splitting living in the same ladder's topmost
+level. Three independent lines of evidence now agree on the reduction
+direction: this project's own first-principles derivation, Holloway et
+al. 2014's own stated equation and prose, and Mohapatra et al. 2007's
+independently published analogous case (which Holloway's own paper
+cites for the claim). Sedlacek et al. 2012's reciprocal prose statement,
+with no equation number and no independent corroboration found, is
+treated as a physics error in that source's informal explanation, not a
+definitional difference: both papers describe the identical observable
+(the RF-induced splitting of the EIT/AT doublet, measured in the probe-
+transmission spectrum plotted against probe-laser detuning, same units,
+same axis), so a reciprocal-direction disagreement between them cannot
+be resolved as two different quantities in different unit conventions.
+`autler_townes_splitting_hz` and `field_from_at_splitting_v_per_m`
+implement the resolved (reduction) direction; both are exact algebraic
+inverses of each other, and a test using the reciprocal (Sedlacek-
+direction) formula confirms it misses Holloway's own published
+calibration data by far more than the check's tolerance
+(`tests/test_rydberg_cell_response.py::test_wrong_doppler_direction_fails_the_check`).
+
+**mu_RF, derived rather than looked up (dossier risk 2).** Holloway et
+al. 2014's own Eq. (11), `wp_RF = 0.49 * e * a0 * Qn`, defines `Qn` as
+"the normalized radial part of the dipole moment" (`Qn = R/a0`, their
+Fig. 7 caption), read from a log-log plot rather than given as a closed
+form. `numerov_radial_matrix_element` computes this radial integral
+directly instead, by outward Numerov integration of the quantum-defect
+(pure-Coulomb-tail) radial Schrodinger equation from `r_min` to just
+beyond the outer classical turning point (`_turning_points`), atomic
+units, using effective quantum numbers `n_star` set by the Rydberg-Ritz
+quantum defects below. This pure-Coulomb approximation has a known,
+disclosed accuracy limit for states with real core penetration (Rb D
+and P states carry quantum defects of order 1-2.6, not small), so this
+project does not use it as the registry value directly. Instead:
+
+- `RB85_MU_RF_32D52_33P32_C_M` (the registry value E44's ladder
+  susceptibility actually uses) is backed out self-consistently from
+  Holloway et al. 2014's own three published Fig. 15 (splitting, field)
+  pairs. `field_from_at_splitting_v_per_m` solves Eq. 12 for `mu_RF`
+  given the published `E`, the dossier's own recommended "practical
+  shortcut" over digitizing Fig. 7. The three pairs give
+  5.2452e-27, 5.2713e-27,
+  and 5.2741e-27 C.m, agreeing with each other to within 0.6%; the mean,
+  5.2635e-27 C.m, is the registry value.
+- `numerov_radial_matrix_element`/
+  `rf_transition_dipole_moment_from_quantum_defects` are still
+  implemented and exercised as an independent, quantum-defect-based
+  cross-check, at a stated, wide (factor-of-2) tolerance: they reproduce
+  Sedlacek et al. 2012's own independently published, quantum-defect-
+  derived value for the kinematically identical 53D5/2 -> 54P3/2
+  transition (`mu_RF = 1.37e-26 C.m`) to within that factor, and agree
+  with the Fig.-15-backed-out registry value for 32D5/2 -> 33P3/2 to the
+  same factor (`tests/test_rydberg_cell_response.py::TestMuRfDerivation`).
+  Neither number is presented as a published value; both derivations are
+  shown in full in the module's own docstrings.
+
+**Quantum defects, verified against primary PDF text.** Rb-85 nD5/2:
+`delta0 = 1.3464657`, `delta2 = -0.5960`, read directly from Mack,
+Karlewski, Hattermann, Hoeckh, Jessen, Cano, Fortagh, Phys. Rev. A 83,
+052515 (2011), arXiv:1103.6221, Table I (the paper's own reproduction of
+Li, Mourachko, Noel, Gallagher, Phys. Rev. A 67, 052502 (2003), which
+has no arXiv preprint and is paywalled; this project could not verify
+Li et al. 2003's own printed table directly, so the number is taken from
+Mack et al. 2011's reproduction of it, disclosed in the registry's own
+citation string). Rb-85 nP3/2: `delta0 = 2.64157`, `delta2 = 0.304`,
+from Sanguinetti, Majeed, Jones, Varcoe, J. Phys. B 42, 165004 (2009),
+arXiv:0905.0571, Table 3 ("Method 3", their own preferred direct fit),
+used in place of Li et al. 2003's np-series values for the same
+accessibility reason: an independent, later, higher-precision, freely
+verifiable measurement of the same quantity.
+
+### Reproduction targets and their classification
+
+- **C3, calibration KA** (`benchmarks/run_rydberg_cell_response.py`,
+  `run_c3_calibration_case`): Holloway et al. 2014 Fig. 15's three
+  published `(Delta_f, E)` pairs at 68.64 GHz, reproduced from the
+  registry `mu_RF` via the resolved Eq. (12). `arithmetic_reproduction`.
+  Worst relative error 0.35% against a 1% tolerance (Holloway et al.
+  state their own quantum-defect method is accurate to <0.1% and
+  separately flag an open, unquantified RF-standing-wave uncertainty, so
+  this check does not claim tighter than the source itself claims to
+  control). MET.
+- **C4, polarizability KA**: Rb-85 nD5/2 `alpha0` at n=30, 35, 50, two
+  independent sources, worst relative difference 2.88% against a 5%
+  tolerance. `arithmetic_reproduction`. MET.
+- **C5, limit kill-tests**: zero field returns the unperturbed line at
+  the byte level; a uniform field returns a pure shift of the same
+  lineshape, also byte-identical to a direct single-atom evaluation at
+  that shift. Both a sign-flip and a doubled-coefficient deliberate
+  break move the result away from the correct one, confirming the
+  checks are armed, not vacuously passing. `internal_structural_check`.
+  MET.
+- **C6, surface-charge demonstrator**: a wall-patch (point-charge
+  superposition) field over a cylindrical vapor cell produces a line
+  shift and a per-atom Stark-shift spread that both grow monotonically
+  with patch charge and with a shrinking cell radius, the qualitative
+  phenomenology Patrick, Schlossberger, Hammerland, Prajapati, McDonald,
+  Berweger, Talashila, Artusio-Glimpse, Holloway, AVS Quantum Science 7,
+  024401 (2025), arXiv:2502.07018, report (line shift and asymmetric
+  broadening from photoionized surface charge patches). No printed
+  numeric target exists in that paper to reproduce arithmetically
+  (its field-vs-power and EIT-vs-wavelength curves are digitizable-axis
+  figures, not printed tables), so this case is classified
+  `computable_comparison`, not `arithmetic_reproduction`. A 2025-2026
+  literature currency check found no paper claiming this problem solved
+  or a field-wide mitigation standardized; partial, geometry-specific
+  workarounds exist (all-dielectric cells, three-photon near-IR
+  excitation) and are not claimed here as closing the problem.
+- **C7, Doppler layer**: the full Doppler-averaged 4-level susceptibility's
+  numerically extracted AT-doublet spacing lands within a stated 0.6-1.0
+  band of the closed-form `(lambda_c/lambda_p)*Omega_RF/(2*pi)` limit in
+  the regime where the RF-driven splitting dominates the coupling-
+  induced dressing width (`tests/test_rydberg_cell_response.py::
+  test_at_splitting_survives_doppler_averaging_at_the_right_scale`);
+  finite decay rates and thermal averaging pull the resolved peak
+  spacing in below the idealized zero-linewidth value, standard
+  Autler-Townes line-pulling. A wrong-direction Doppler factor would
+  move the analytic target by roughly `(lambda_p/lambda_c)^2 ~= 2.6x`
+  and put the ratio far outside this band, so the check is non-vacuous.
+
+### Scope, unchanged from the plan's own boundary
+
+Phase A: the quadratic (isolated-state) Stark regime, scalar
+polarizability only, one calibration ladder (Rb-85, 32D5/2-33P3/2), no
+pipeline wiring (matching E40/E41's own scope pattern: functions and a
+benchmark, `cliffordclock.integrator.rydberg_cell_response` is not on
+`cliffordclock.pipeline`'s config surface in this phase). Full Stark-map
+diagonalization beyond the quadratic regime, tensor polarizability,
+JAX differentiability, and coupling to external EM field exports for
+the cell/waveguide side are later work, not built here.
+
 ---
 *Changelog:*
+*1.15.0 (2026-09-03): WP39 Phase A, specified directly by the project
+owner following the project's internal Rydberg-cell-response research
+dossier (no separate formalism sign-off ceremony recorded for this
+entry): §19 added (E43 quadratic Stark shift of a single Rydberg state,
+its atomic-unit unit conversion and Inglis-Teller validity guard; E44
+the four-level ladder EIT/Autler-Townes susceptibility, Doppler
+averaging, and the resolved Doppler-mismatch-factor derivation between
+Holloway et al. 2014/Mohapatra et al. 2007's reduction direction and
+Sedlacek et al. 2012's reciprocal prose statement, settled in the
+reduction direction by first-principles derivation and independent
+verification against Holloway's own primary-source equation). Awaiting
+independent theory review.*
 *1.14.0 (2026-08-29): WP38 Phase 2, specified directly by the project
 owner (no separate formalism sign-off ceremony recorded for this entry):
 §18 added (E42 the sideband-spectrum forward model), the differentiable
