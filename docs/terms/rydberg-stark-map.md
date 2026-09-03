@@ -11,14 +11,14 @@ state) treatment breaks down.
 The quadratic Stark shift (E43, `docs/terms/rydberg-cell-response.md`)
 only holds while a Rydberg state stays isolated from its neighbors. Push
 the field higher and the state starts mixing strongly with nearby
-`(n, l, j)` states -- an avoided crossing -- where the shift stops being
+`(n, l, j)` states, an avoided crossing, where the shift stops being
 a clean parabola. The textbook fix, attributed throughout this
 literature to Zimmerman, Littman, Kash, Kleppner (1979): build the full
 Hamiltonian in a truncated quantum-defect basis around the state of
 interest, diagonalize it at each field value on a grid, and track each
 eigenvalue's identity by continuity from one field step to the next. The
 result is a smooth curve through the quadratic window and the crossing
-alike -- a Stark *map*, not a single coefficient.
+alike, a Stark *map*, not a single coefficient.
 
 This module builds that map for Rb-85's registry nD5/2 states (n = 30,
 32, 35, 50) and replaces the earlier order-of-magnitude Inglis-Teller
@@ -50,7 +50,7 @@ def stark_map_registry_state(
 ```
 
 `diagonalize_stark_map` tracks the target state at each field by maximum
-overlap with the previous step's own tracked eigenvector -- adiabatic
+overlap with the previous step's own tracked eigenvector, adiabatic
 following, not a fixed eigenvalue index. `first_crossover_field_v_per_m`
 walks that same overlap trace to find where it first drops sharply,
 `stark_validity_field_v_per_m` uses that as the computed validity guard
@@ -74,8 +74,8 @@ anchors (Holloway et al. 2014's low-field calibration, O'Sullivan and
 Stoicheff's printed nS crossing-field fit as a same-family method check,
 and Grimmel et al. 2015's supplementary data, which turned out not to be
 machine-readable this session). C6 sweeps the basis size
-(`delta_n, l_max`) for 50D5/2 -- the registry state closest to its own
-crossing, an order of magnitude below 30D5/2's -- and confirms the shift
+(`delta_n, l_max`) for 50D5/2 (the registry state closest to its own
+crossing, an order of magnitude below 30D5/2's), and confirms the shift
 is stable to well under a 10% threshold before the production basis size.
 
 Two Numerov bugs surfaced while building this module, both found by

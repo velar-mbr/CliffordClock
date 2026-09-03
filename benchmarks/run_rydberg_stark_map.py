@@ -288,7 +288,7 @@ def run_c4_arc_validation_case() -> C4ArcValidationCase | None:
             "near an avoided crossing the two can legitimately settle onto "
             "SWAPPED branches (both individually well-tracked, i.e. locally high "
             "step-overlap, but globally divergent past that point) without "
-            "either side's tracking algorithm being wrong -- verified directly: "
+            "either side's tracking algorithm being wrong; verified directly: "
             "restricting the comparison to points where BOTH curves report a "
             "high step-to-step overlap (>0.95) does not by itself bring the "
             "worst-case full-range error down, confirming this is a branch-"
@@ -506,7 +506,7 @@ def run_c5_published_anchor_case() -> C5PublishedAnchorCase:
             "No single source combines the registry species (85Rb), the "
             "registry l (D5/2), and coverage through an avoided crossing with "
             "printed (non-digitized) numbers (dossier Sec. 2c/6, item 2); the "
-            "three parts above are the honest composite this project can "
+            "three parts above are the fullest composite this project can "
             "support, each labeled with its own evidentiary class, none "
             "presented as a full through-the-crossing validation on its own."
         ),
