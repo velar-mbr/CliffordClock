@@ -231,19 +231,54 @@ def _numerov_outward(
     little beyond the outer classical turning point, per
     :func:`_turning_points`, avoids the outer forbidden-zone tail where a
     naive outward march would eventually pick up the divergent solution).
+
+    **Recursion, corrected (WP40 fix).** The standard Numerov recursion
+    for ``y'' = f(x) y``, ``T_i = h^2 f_i / 12``, derived from a Taylor
+    expansion of ``y(x+h) + y(x-h)`` to ``O(h^6)`` (see e.g. Sibalic,
+    Pritchard, Adams, Weatherill, Comp. Phys. Comm. 220, 319 (2017),
+    arXiv:1612.05529, Eq. (7), page 4 of the arXiv PDF, read directly
+    this session and independently re-derived by hand for this fix), is
+
+        (1 - T_{i+1}) y_{i+1} + (1 - T_{i-1}) y_{i-1} = (2 + 10 T_i) y_i
+
+    i.e. ``y_{i+1} = [(2+10 T_i) y_i - (1-T_{i-1}) y_{i-1}] / (1 - T_{i+1})``.
+    The version this function carried before this fix used the opposite
+    sign on every ``T`` term (``2*(1 - 5 T_i) y_i`` and denominator/
+    ``y_{i-1}`` coefficients ``1 + T``, not ``1 - T``), which is not an
+    equivalent rearrangement: verified directly against the exactly
+    solvable case ``y'' = -y`` (``f=-1``, exact solution ``sin(x)``), the
+    corrected recursion reproduces ``sin(x)`` to ``~1e-10`` over 2000
+    steps at ``h=0.01``, while the pre-fix recursion diverges by many
+    orders of magnitude over the same run (a textbook numerical
+    instability from the wrong-signed feedback term, not a subtle
+    accuracy difference). This changed
+    :data:`RB85_MU_RF_32D52_33P32_C_M`'s independent Numerov cross-check
+    value (`tests/test_rydberg_cell_response.py::TestMuRfDerivation`) by
+    about 16% (previously agreeing with the registry value's independent
+    derivation coincidentally, inside that check's own wide, disclosed
+    factor-of-2 tolerance both before and after the fix, so no gated
+    C-check's stated tolerance was violated); the registry value itself
+    (backed out from Holloway et al. 2014's own published calibration
+    pairs, not from this function) is unaffected. Found and fixed while
+    building the WP40 Stark-map module's own independent sqrt(r)-substituted
+    Numerov integrator
+    (:mod:`cliffordclock.integrator.rydberg_stark_map`), whose result for
+    the same 32D5/2->33P3/2 transition disagreed with this function's
+    pre-fix output by 16%, well outside two independent implementations
+    of the same textbook method agreeing by construction; tracing the
+    discrepancy to this recursion's sign, not the new module's, is what
+    the ``y''=-y`` exact-solution test above confirms.
     """
     r = np.linspace(r_min, r_stop, n_points)
     h = r[1] - r[0]
     energy = -1.0 / (2.0 * n_star**2)
     g = l_orbital * (l_orbital + 1) / r**2 - 2.0 / r - 2.0 * energy
+    t = h**2 * g / 12.0
     u = np.zeros(n_points)
     u[0] = r_min ** (l_orbital + 1)
     u[1] = r[1] ** (l_orbital + 1)
     for i in range(1, n_points - 1):
-        u[i + 1] = (
-            2.0 * (1.0 - 5.0 * h**2 * g[i] / 12.0) * u[i]
-            - (1.0 + h**2 * g[i - 1] / 12.0) * u[i - 1]
-        ) / (1.0 + h**2 * g[i + 1] / 12.0)
+        u[i + 1] = ((2.0 + 10.0 * t[i]) * u[i] - (1.0 - t[i - 1]) * u[i - 1]) / (1.0 - t[i + 1])
     return r, u, h
 
 
