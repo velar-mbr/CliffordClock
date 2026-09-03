@@ -2465,7 +2465,7 @@ al. 2012 candidate (Nature Physics 8, 819 (2012), arXiv:1205.4461)
 because its Fig. 15 prints three (splitting, field) calibration pairs
 directly, with no plot digitization required. Every equation and figure
 cited below was read from the paper's own arXiv PDF text or page image
-this session, not from a citing paper's summary. Implemented in
+this session. Implemented in
 `cliffordclock.integrator.rydberg_cell_response`. Benchmarked in
 `benchmarks/run_rydberg_cell_response.py`.
 
@@ -2483,9 +2483,9 @@ conversion a second time. Implemented in
 
 **Unit conversion, shown explicitly (dossier risk 3).** O'Sullivan and
 Stoicheff, Phys. Rev. A 31, 2718 (1985) and Phys. Rev. A 33, 1640
-(1986), publish `alpha0` directly in MHz/(V/cm)^2 (a measured frequency-
-shift-per-field-squared coefficient), not in the atomic-unit (a0^3)
-convention Yerokhin et al. 2016 and this section's registry both use.
+(1986), publish `alpha0` directly in MHz/(V/cm)^2, a measured frequency-
+shift-per-field-squared coefficient. Yerokhin et al. 2016 and this
+section's registry both use the atomic-unit (a0^3) convention.
 `alpha0_au_to_mhz_per_vcm2` converts between the two, derived in five
 steps from constants already pinned in `cliffordclock.constants` and
 `cliffordclock.ensemble.species.ALPHA_AU_TO_SI` (its own docstring shows
@@ -2566,25 +2566,26 @@ is printed for the resonant case (`Delta_c = Delta_RF = 0`) alone, and
 states the general form would carry those detunings too, citing its
 ref. [21] (Sandhya and Sharma, Phys. Rev. A 55, 2155 (1997)) without
 reproducing it. `ladder_susceptibility` implements the natural ladder
-generalization instead, each `D_1i` summing the detunings of every
-level between `|1>` and `|i>` (`D12` carrying `Delta_p` alone, `D13`
-carrying the two-photon detuning `Delta_p + Delta_c`, `D14` the three-
-photon detuning `Delta_p + Delta_c + Delta_RF`), documented in the
-function's own docstring as this project's own extension, not a
-verbatim transcription for the general-detuning case. Setting
-`Omega_RF = 0` cancels `D14` out of the formula algebraically (shown in
-the docstring), leaving the finite three-level pole structure; a
-transcribed 3-level closed form to check that reduction against comes
-from Fleischhauer, Imamoglu, Marangos, Rev. Mod. Phys. 77, 633 (2005)
-("Electromagnetically induced transparency: Optics in coherent media"),
-Eq. 13 (page 639, read directly from the owner-supplied PDF this
-session), the lambda-type linear susceptibility with the same
-`gamma_31`/two-photon-detuning pole this reduction produces. Holloway et
-al. 2014's own susceptibility derivation cites Sandhya and Sharma 1997
-and Meystre and Sargent's textbook (their refs. [21],[22]), not the RMP
-review, so this project treats the RMP formula as an independent,
-separately-verified cross-check of the reduced pole structure, not as
-Holloway's own transcription source.
+generalization, each `D_1i` summing the detunings of every level
+between `|1>` and `|i>` (`D12` carrying `Delta_p` alone, `D13` carrying
+the two-photon detuning `Delta_p + Delta_c`, `D14` the three-photon
+detuning `Delta_p + Delta_c + Delta_RF`), documented in the function's
+own docstring as this project's own extension for the general-detuning
+case. Setting `Omega_RF = 0` cancels `D14` out of the formula
+algebraically (shown in the docstring), leaving the finite three-level
+pole structure.
+`tests/test_rydberg_cell_response.py::TestLadderSusceptibility::
+test_three_level_reduction_matches_rmp_pole` checks that reduction
+against a transcribed 3-level closed form from Fleischhauer, Imamoglu,
+Marangos, Rev. Mod. Phys. 77, 633 (2005) ("Electromagnetically induced
+transparency: Optics in coherent media"), Eq. 13 (page 639, read
+directly from the owner-supplied PDF this session), the lambda-type
+linear susceptibility with the same `gamma_31`/two-photon-detuning pole
+this reduction produces. Holloway et al. 2014's own susceptibility
+derivation cites Sandhya and Sharma 1997 and Meystre and Sargent's
+textbook, their refs. [21] and [22]; the RMP review is not among them.
+This project treats the RMP formula as an independent,
+separately-verified cross-check of the reduced pole structure.
 
 **Doppler averaging.** Mohapatra, Jackson, Adams, Phys. Rev. Lett. 98,
 113003 (2007), arXiv:quant-ph/0612200, Eq. (1) (page 2) gives the
@@ -2653,17 +2654,18 @@ values:
     => Delta_p_lab = +/- (lambda_c/lambda_p) * (Omega_RF/2)
 
 giving a peak-to-peak splitting of `(lambda_c/lambda_p) *
-Omega_RF/(2*pi)` on the probe-detuning axis: the REDUCTION direction,
-matching Holloway et al. 2014 and Mohapatra et al. 2007, not Sedlacek et
-al. 2012's stated reciprocal. The physical picture: the probe-resonant
-velocity class maps the coupling leg's own Doppler shift onto the probe-
-detuning axis with an extra factor of `lambda_p/lambda_c` (larger, since
+Omega_RF/(2*pi)` on the probe-detuning axis, the REDUCTION direction.
+This matches Holloway et al. 2014 and Mohapatra et al. 2007; Sedlacek
+et al. 2012 states the reciprocal, addressed below. The physical
+picture: the probe-resonant velocity class maps the coupling leg's own
+Doppler shift onto the probe-detuning axis with an extra factor of
+`lambda_p/lambda_c` (larger, since
 `k_c > k_p`), so the SAME Rydberg-level energy splitting `Omega_RF`
 projects onto a COMPRESSED window in probe-detuning space, by the
 inverse factor `lambda_c/lambda_p`.
 
 *Independent verification against the primary source.* Holloway et al.
-2014's own Eq. (12) (arXiv:1405.7066 page 8, read directly from the PDF
+2014's own Eq. (12) (arXiv:1405.7066 page 7, read directly from the PDF
 this session):
 
     |E_RF| = 2*pi * (hbar/wp_RF) * (lambda_p/lambda_c) * Delta_f       (12)
@@ -2681,14 +2683,15 @@ level. Three independent lines of evidence now agree on the reduction
 direction: this project's own first-principles derivation, Holloway et
 al. 2014's own stated equation and prose, and Mohapatra et al. 2007's
 independently published analogous case (which Holloway's own paper
-cites for the claim). Sedlacek et al. 2012's reciprocal prose statement,
-with no equation number and no independent corroboration found, is
-treated as a physics error in that source's informal explanation, not a
-definitional difference: both papers describe the identical observable
-(the RF-induced splitting of the EIT/AT doublet, measured in the probe-
-transmission spectrum plotted against probe-laser detuning, same units,
-same axis), so a reciprocal-direction disagreement between them cannot
-be resolved as two different quantities in different unit conventions.
+cites for the claim). Sedlacek et al. 2012's reciprocal prose statement carries no equation
+number and no independent corroboration found here, so this project
+treats it as a physics error in that source's informal explanation. A
+definitional difference between the two papers is not the explanation:
+both describe the identical observable (the RF-induced splitting of the
+EIT/AT doublet, measured in the probe-transmission spectrum plotted
+against probe-laser detuning, same units, same axis), so a reciprocal-
+direction disagreement between them cannot be resolved as two different
+quantities in different unit conventions.
 `autler_townes_splitting_hz` and `field_from_at_splitting_v_per_m`
 implement the resolved (reduction) direction; both are exact algebraic
 inverses of each other, and a test using the reciprocal (Sedlacek-
@@ -2699,16 +2702,17 @@ calibration data by far more than the check's tolerance
 **mu_RF, derived rather than looked up (dossier risk 2).** Holloway et
 al. 2014's own Eq. (11), `wp_RF = 0.49 * e * a0 * Qn`, defines `Qn` as
 "the normalized radial part of the dipole moment" (`Qn = R/a0`, their
-Fig. 7 caption), read from a log-log plot rather than given as a closed
-form. `numerov_radial_matrix_element` computes this radial integral
-directly instead, by outward Numerov integration of the quantum-defect
+Fig. 7 caption), read from a log-log plot; the paper gives no closed
+form for it. `numerov_radial_matrix_element` computes this radial
+integral by outward Numerov integration of the quantum-defect
 (pure-Coulomb-tail) radial Schrodinger equation from `r_min` to just
 beyond the outer classical turning point (`_turning_points`), atomic
 units, using effective quantum numbers `n_star` set by the Rydberg-Ritz
 quantum defects below. This pure-Coulomb approximation has a known,
 disclosed accuracy limit for states with real core penetration (Rb D
-and P states carry quantum defects of order 1-2.6, not small), so this
-project does not use it as the registry value directly. Instead:
+and P states carry quantum defects of order 1-2.6). This project uses
+two independent, disclosed derivations for the registry value in place
+of that direct pure-Coulomb estimate:
 
 - `RB85_MU_RF_32D52_33P32_C_M` (the registry value E44's ladder
   susceptibility actually uses) is backed out self-consistently from
@@ -2763,10 +2767,21 @@ verifiable measurement of the same quantity.
 - **C5, limit kill-tests**: zero field returns the unperturbed line at
   the byte level; a uniform field returns a pure shift of the same
   lineshape, also byte-identical to a direct single-atom evaluation at
-  that shift. Both a sign-flip and a doubled-coefficient deliberate
-  break move the result away from the correct one, confirming the
-  checks are armed, not vacuously passing. `internal_structural_check`.
-  MET.
+  that shift. A sign-flip and a doubled-coefficient deliberate break at
+  `compose_inhomogeneous_eit_spectrum` both move the result away from
+  the correct one, confirming these composition-level checks are armed.
+  `rydberg_quadratic_stark_shift_hz`'s own 1/2 prefactor carries a
+  separate, function-level pin
+  (`TestQuadraticStarkShift::test_magnitude_matches_independently_computed_value_at_a_stated_point`):
+  a value hand-computed in the test from the registry `alpha0` and the
+  SI conversion constants, at a stated (state, field) point, tight
+  enough that a dropped or altered prefactor fails it (verified this
+  session by reintroducing exactly that break and confirming the new
+  test alone fails). This closes the gap the composition-level
+  doubled-coefficient break cannot reach on its own: doubling only the
+  `alpha0` argument there is tautological at the formula level, since
+  the same doubled value flows through whichever prefactor the function
+  uses. `internal_structural_check`. MET.
 - **C6, surface-charge demonstrator**: a wall-patch (point-charge
   superposition) field over a cylindrical vapor cell produces a line
   shift and a per-atom Stark-shift spread that both grow monotonically
@@ -2775,14 +2790,16 @@ verifiable measurement of the same quantity.
   Berweger, Talashila, Artusio-Glimpse, Holloway, AVS Quantum Science 7,
   024401 (2025), arXiv:2502.07018, report (line shift and asymmetric
   broadening from photoionized surface charge patches). No printed
-  numeric target exists in that paper to reproduce arithmetically
-  (its field-vs-power and EIT-vs-wavelength curves are digitizable-axis
-  figures, not printed tables), so this case is classified
-  `computable_comparison`, not `arithmetic_reproduction`. A 2025-2026
-  literature currency check found no paper claiming this problem solved
-  or a field-wide mitigation standardized; partial, geometry-specific
-  workarounds exist (all-dielectric cells, three-photon near-IR
-  excitation) and are not claimed here as closing the problem.
+  numeric target exists in that paper to reproduce arithmetically: its
+  field-vs-power and EIT-vs-wavelength curves are digitizable-axis
+  figures. This project classifies the case `computable_comparison`;
+  the stricter `arithmetic_reproduction` class requires a printed
+  numeric target to reproduce, which this paper's figures do not
+  provide. A 2025-2026 literature currency check found no paper
+  claiming this problem solved or a field-wide mitigation
+  standardized; partial, geometry-specific workarounds exist
+  (all-dielectric cells, three-photon near-IR excitation) and are not
+  claimed here as closing the problem.
 - **C7, Doppler layer**: the full Doppler-averaged 4-level susceptibility's
   numerically extracted AT-doublet spacing lands within a stated 0.6-1.0
   band of the closed-form `(lambda_c/lambda_p)*Omega_RF/(2*pi)` limit in
@@ -2804,7 +2821,7 @@ benchmark, `cliffordclock.integrator.rydberg_cell_response` is not on
 `cliffordclock.pipeline`'s config surface in this phase). Full Stark-map
 diagonalization beyond the quadratic regime, tensor polarizability,
 JAX differentiability, and coupling to external EM field exports for
-the cell/waveguide side are later work, not built here.
+the cell/waveguide side are later work.
 
 ---
 *Changelog:*

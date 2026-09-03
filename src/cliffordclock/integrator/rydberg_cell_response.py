@@ -354,9 +354,9 @@ class StarkPolarizability:
 
 #: Rb-85 nD5/2 scalar polarizabilities, n = 30, 35, 50, BOTH independent
 #: sources (measured and theoretical), cross-tabulated against each other
-#: in Yerokhin, Buhmann, Fritzsche, Surzhykov, "Model-potential approach
-#: to the calculation of dipole polarizabilities of alkali-metal atoms,"
-#: Phys. Rev. A 94, 032503 (2016), arXiv:1608.04515, Table IV (dossier
+#: in Yerokhin, Buhmann, Fritzsche, Surzhykov, "Electric dipole
+#: polarizabilities of Rydberg states of alkali-metal atoms," Phys. Rev.
+#: A 94, 032503 (2016), arXiv:1608.04515, Table IV (dossier
 #: Sec. 2e; the dossier's own pre-task read this table directly from the
 #: arXiv PDF, pages 9-10). ``"theory"`` is Yerokhin et al.'s own
 #: Dirac-Fock + core-polarization (DFCP) calculation; ``"experiment"`` is
@@ -382,7 +382,7 @@ RB85_ND52_ALPHA0_TABULATED: dict[str, dict[int, StarkPolarizability]] = {
         30: StarkPolarizability(
             30,
             0.936e10,
-            None,
+            0.008e10,
             (
                 "O'Sullivan & Stoicheff, PRA 31/33 (1985/1986), as tabulated "
                 "in Yerokhin et al. 2016 Table IV"
@@ -733,7 +733,7 @@ def autler_townes_splitting_hz(
     """Observed Autler-Townes splitting in the probe-transmission
     spectrum, ``Delta_f = (lambda_c / lambda_p) * Omega_RF / (2 pi)``
     (CONVENTIONS.md section 19's resolved Doppler-mismatch direction;
-    Holloway et al. 2014 arXiv:1405.7066 page 8, "states are scaled by
+    Holloway et al. 2014 arXiv:1405.7066 page 7, "states are scaled by
     lambda_c/lambda_p [Mohapatra et al. 2007]"; equivalent to inverting
     their Eq. 12, verified below).
     """
@@ -745,7 +745,7 @@ def autler_townes_splitting_hz(
 def field_from_at_splitting_v_per_m(
     delta_f_hz: float, mu_rf_c_m: float, lambda_probe_m: float, lambda_coupling_m: float
 ) -> float:
-    """Holloway et al. 2014 Eq. (12) (verified, arXiv:1405.7066 page 8):
+    """Holloway et al. 2014 Eq. (12) (verified, arXiv:1405.7066 page 7):
 
         |E_RF| = 2 pi (hbar / mu_RF) (lambda_p / lambda_c) Delta_f
 

@@ -83,11 +83,11 @@ that paper to reproduce arithmetically. All four cases report
 
 `tests/test_rydberg_cell_response.py` additionally cross-checks the RF
 transition dipole moment `mu_RF` (derived from Rydberg-Ritz quantum
-defects via direct Numerov integration, not looked up) against
-Sedlacek et al. 2012's independently published value for the
-kinematically identical 53D5/2 -> 54P3/2 transition, and against this
-module's own Fig.-15-backed-out registry value for 32D5/2 -> 33P3/2,
-both within a stated, disclosed factor-of-2 tolerance.
+defects via direct Numerov integration) against Sedlacek et al. 2012's
+independently published value for the kinematically identical
+53D5/2 -> 54P3/2 transition, and against this module's own
+Fig.-15-backed-out registry value for 32D5/2 -> 33P3/2, both within a
+stated, disclosed factor-of-2 tolerance.
 
 ## Sources
 
@@ -107,10 +107,9 @@ both within a stated, disclosed factor-of-2 tolerance.
   states of 85Rb," J. Phys. B 42, 165004 (2009), arXiv:0905.0571 (the
   Rb-85 nP3/2 quantum defects).
 - V. A. Yerokhin, S. Y. Buhmann, S. Fritzsche, A. Surzhykov,
-  "Model-potential approach to the calculation of dipole
-  polarizabilities of alkali-metal atoms," Phys. Rev. A 94, 032503
-  (2016), arXiv:1608.04515 (the scalar-polarizability theory/experiment
-  cross-tabulation).
+  "Electric dipole polarizabilities of Rydberg states of alkali-metal
+  atoms," Phys. Rev. A 94, 032503 (2016), arXiv:1608.04515 (the
+  scalar-polarizability theory/experiment cross-tabulation).
 - J. A. Sedlacek, A. Schwettmann, H. Kubler, R. Low, T. Pfau, J. P.
   Shaffer, "Microwave electrometry with Rydberg atoms in a vapor cell
   using bright atomic resonances," Nature Physics 8, 819 (2012),

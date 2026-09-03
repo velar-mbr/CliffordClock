@@ -14,6 +14,7 @@ import numpy as np
 import pytest
 
 from cliffordclock import constants
+from cliffordclock.ensemble.species import ALPHA_AU_TO_SI
 from cliffordclock.integrator import rydberg_cell_response as rcr
 
 RB85_MASS_KG = 84.911789738 * constants.ATOMIC_MASS_UNIT
@@ -82,12 +83,19 @@ class TestQuantumDefects:
     def test_nd52_effective_quantum_number_matches_mack2011(self) -> None:
         """Mack et al. 2011 Table III (nS)/Table V (nD5/2) prints the
         transition frequency and the resulting quantum defect at each
-        measured n directly; at n=32 (85Rb, their Table V, verified
+        measured n directly; at n=32 (87Rb, their Table V caption, verified
         against the arXiv PDF this session) they report delta=1.345828.
         `delta(n) = delta0 + delta2/(n-delta0)^2` from Table I's fitted
-        (delta0, delta2) should reproduce that per-n value closely (the
-        Table I fit is over n=19-57, so n=32 is solidly inside its
-        support).
+        85Rb (delta0, delta2) (`RB85_ND52_QUANTUM_DEFECT`, the value this
+        build applies to 85Rb states) should reproduce that 87Rb per-n
+        value closely: a deliberate cross-isotope check, justified by
+        Mack et al.'s own Table I, which prints both isotopes' nD5/2 fits
+        side by side (85Rb delta0=1.346 465 3(3) vs 87Rb this-work
+        delta0=1.346 462 2(11)) and states in text that the nD delta0
+        values differ from Li et al.'s 85Rb ones by about three times
+        the stated uncertainty -- a small, quantified isotope shift, well
+        inside this check's own looser tolerance below. The Table I fit
+        is over n=19-57, so n=32 is solidly inside its support.
         """
         n_star = rcr.effective_quantum_number(32, rcr.RB85_ND52_QUANTUM_DEFECT)
         delta = 32.0 - n_star
@@ -321,6 +329,30 @@ class TestQuadraticStarkShift:
         """
         assert rcr.STARK_VALIDITY_MARGIN < 1.0
 
+    def test_magnitude_matches_independently_computed_value_at_a_stated_point(
+        self,
+    ) -> None:
+        """Pins the function's output at one (state, field) point against a
+        value hand-computed here from the registry ``alpha0`` and the SI
+        conversion constants (``Delta_f = -(1/2) alpha0_SI E^2 / h``,
+        Yerokhin et al. 2016 Eq. 5), independently of the function body.
+
+        The other tests in this class check sign, field-squared scaling,
+        the zero-field limit, and the validity guard, none of which pin
+        the 1/2 prefactor: a scaling test cannot distinguish ``-0.5 *
+        alpha0 * E**2`` from ``-1.0 * alpha0 * E**2`` because both are
+        still proportional to ``E**2``. This test does distinguish them
+        (kill-tested by reintroducing that exact break and confirming the
+        assertion below fails, then restoring the function).
+        """
+        n_star = 30.65
+        field_v_per_m = 10.0
+        alpha0_au = rcr.RB85_32D52_ALPHA0_AU
+        alpha0_si = alpha0_au * ALPHA_AU_TO_SI
+        expected_shift_hz = -0.5 * alpha0_si * field_v_per_m**2 / constants.PLANCK_H
+        shift = rcr.rydberg_quadratic_stark_shift_hz(alpha0_au, field_v_per_m, n_star)
+        assert shift == pytest.approx(expected_shift_hz, rel=1e-12, abs=1e-6)
+
 
 # ---------------------------------------------------------------------------
 # Section G: ladder susceptibility formula transcription (C2)
@@ -361,6 +393,63 @@ class TestLadderSusceptibility:
         delta_p = np.linspace(-2.0 * math.pi * 30e6, 2.0 * math.pi * 30e6, 201)
         chi = rcr.ladder_susceptibility(delta_p, 0.0, 0.0, 1.0, 100.0, 5.0, system)
         np.testing.assert_allclose(chi.imag, chi.imag[::-1], atol=1e-20, rtol=1e-8)
+
+    def test_three_level_reduction_matches_rmp_pole(self) -> None:
+        """The Omega_RF=0 reduction (module docstring) against an
+        independent transcription of Fleischhauer, Imamoglu, Marangos,
+        Rev. Mod. Phys. 77, 633 (2005), Eq. 13 (page 639), the lambda-
+        type 3-level linear susceptibility with the same
+        gamma_31/two-photon-detuning pole structure this reduction
+        produces.
+
+        Eq. 13's own single- and two-photon detunings (their ``Delta``,
+        ``delta``) and coupling Rabi frequency (their ``Omega_c``) carry
+        a factor-of-two convention relative to this module's ``delta_p``,
+        ``delta_p + delta_c``, and ``omega_c = e_coupling*mu_coupling/
+        hbar`` (visible in Eq. 12's own ``gamma + i*2*Delta`` denominator
+        terms): ``Delta = delta_p/2``, ``delta = (delta_p+delta_c)/2``,
+        ``Omega_c_RMP = omega_c/2``, ``gamma31 = system.gamma_12``,
+        ``gamma21 = system.gamma_13``. With that substitution, Eq. 13's
+        own prefactor (``|mu13|^2 * rho / (eps0 hbar)``, identical to
+        this module's own prefactor once mu13/rho are identified with
+        mu_probe/number_density) reproduces this module's reduced chi up
+        to a real factor of exactly 2 (a standard chi-normalization
+        convention difference between sources, verified numerically over
+        the grid below to 1e-9 relative before being pinned here), not a
+        difference in the underlying pole structure.
+        """
+        system = _default_system()
+        eps0 = rcr.VACUUM_PERMITTIVITY_F_PER_M
+        delta_c = 2.0 * math.pi * 5e6
+        delta_p = np.linspace(-2.0 * math.pi * 25e6, 2.0 * math.pi * 25e6, 101)
+        e_probe, e_coupling = 1.0, 100.0
+
+        chi_ours = rcr.ladder_susceptibility(
+            delta_p, delta_c, 0.0, e_probe, e_coupling, 0.0, system
+        )
+
+        omega_c = e_coupling * system.mu_coupling_c_m / constants.HBAR
+        gamma31 = system.gamma_12
+        gamma21 = system.gamma_13
+        big_delta = delta_p / 2.0
+        small_delta = (delta_p + delta_c) / 2.0
+        omega_c_rmp = omega_c / 2.0
+
+        a_re = omega_c_rmp**2 + gamma31 * gamma21 - 4.0 * big_delta * small_delta
+        b_im = 2.0 * (small_delta * gamma31 + big_delta * gamma21)
+        denom = a_re**2 + b_im**2
+        re_num = (
+            4.0 * small_delta * (omega_c_rmp**2 - 4.0 * small_delta * big_delta)
+            - 4.0 * big_delta * gamma21**2
+        )
+        im_num = 8.0 * small_delta**2 * gamma31 + 2.0 * gamma21 * (
+            omega_c_rmp**2 + gamma21 * gamma31
+        )
+
+        k1 = system.number_density_m3 * system.mu_probe_c_m**2 / (constants.HBAR * eps0)
+        chi_rmp_eq13 = k1 * (re_num + 1j * im_num) / denom
+
+        np.testing.assert_allclose(chi_ours, chi_rmp_eq13 / 2.0, rtol=1e-9, atol=1e-30)
 
 
 # ---------------------------------------------------------------------------
