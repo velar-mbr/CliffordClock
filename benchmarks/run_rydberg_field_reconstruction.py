@@ -152,10 +152,12 @@ CELL_LENGTH_M = 0.078
 #: even with a large reported uncertainty and a positive-definite
 #: Hessian: a real "sloppy direction" in this inverse problem, a genuine
 #: identifiability limit this three-parameter model carries. `400` atoms
-#: (with `NOISE_SIGMA` tightened alongside it, below) brings the patch
-#: direction's curvature up enough that the reported Laplace uncertainty
-#: is calibrated across the truth grid, checked directly against this
-#: file's own C5 fit-grid results.
+#: (with `NOISE_SIGMA` tightened alongside it, below) raises the patch
+#: direction's curvature enough to make all three parameters identifiable
+#: at this file's noise level. The fit-grid's own reported coverage
+#: (`n_within_1sigma_all_params`, `n_within_2sigma_all_params` in the
+#: written artifact) is the direct measurement of where that tuning
+#: leaves this model, across the truth grid.
 N_ATOMS = 400
 
 #: Fixed (not fit) wall-patch location: mid-length, one point on the
@@ -478,8 +480,12 @@ def _jax_single_atom_loss(
 #: is inside the well-conditioned window (truncation error still small,
 #: float64 cancellation error not yet dominant) for all four arguments
 #: this section checks, confirmed by the worst-case relative error
-#: landing at `1.7e-6`, unchanged to the digit shown when the step is
-#: tightened further to `1e-7`.
+#: landing at `1.7e-6` there and agreeing within a few-x at its
+#: immediate neighbors (`5e-7`, `2e-6`), both still clearing the C2
+#: tolerance. Tightening further to `1e-7` leaves that window: the
+#: worst-case relative error rises to `4.29e-5` there, finite-difference
+#: rounding noise from a step small enough that float64 cancellation
+#: error dominates the central difference.
 FD_RELATIVE_STEP = 1.0e-6
 
 
@@ -800,8 +806,11 @@ def build_report() -> dict[str, Any]:
             "through this project's own differentiable quadratic-Stark/EIT chain "
             "recovers a known three-parameter cell field distribution (uniform "
             "background, linear axial gradient, one wall-patch amplitude) from a "
-            "synthetic composed EIT spectrum, with correctly calibrated Laplace "
-            "uncertainties. No real Rydberg-sensor scan is fit here. Every truth "
+            "synthetic composed EIT spectrum. "
+            f"{n_1sigma}/{len(cases)} cases recover all three parameters within "
+            f"their own reported 1-sigma Laplace uncertainty; {n_2sigma}/{len(cases)} "
+            "within 2-sigma, the observed coverage on this eight-case truth/seed "
+            "grid. No real Rydberg-sensor scan is fit here. Every truth "
             "value and every optimizer-bound corner is checked to stay inside the "
             "guarded quadratic-Stark validity window before any fit runs "
             f"({VALIDITY_GUARD_V_PER_M:.1f} V/m for the Rb-85 32D5/2 registry state). "

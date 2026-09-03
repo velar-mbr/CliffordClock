@@ -56,6 +56,7 @@ _BENCHMARKS_DIR = _REPO_ROOT / "benchmarks"
 if str(_BENCHMARKS_DIR) not in sys.path:
     sys.path.insert(0, str(_BENCHMARKS_DIR))
 
+import run_rydberg_field_reconstruction as rfr  # noqa: E402
 from run_rydberg_field_reconstruction import laplace_uncertainties  # noqa: E402
 
 N_STAR_32D52 = rcr.effective_quantum_number(32, rcr.RB85_ND52_QUANTUM_DEFECT)
@@ -410,6 +411,63 @@ class TestNaNSweep:
         # At r=0 the patch term is exactly patch_amplitude (softening_sq /
         # (0 + softening_sq) == 1), so d(field)/d(patch_amplitude) == 1.
         assert float(g) == pytest.approx(1.0)
+
+    def test_forward_chain_gradient_finite_with_field_at_the_validity_guard_boundary(
+        self,
+    ) -> None:
+        """`_assert_within_validity_window` enforces the guard in plain
+        Python, outside any traced `jax` call (this module's own
+        docstring, section 21's own "no clamp, no jnp.where, no branch"
+        argument). This checks the traced chain itself directly, through
+        the same `rb85_field_reconstruction_forward_model_jax` the
+        fit-grid calls, with a uniform field exactly at the guard
+        boundary: gradient and patch amplitude both zero, so every atom
+        sees exactly `VALIDITY_GUARD_V_PER_M`.
+        """
+        rng = np.random.default_rng(0)
+        positions_np = rcr.cylindrical_cell_atom_positions(
+            rfr.CELL_RADIUS_M, rfr.CELL_LENGTH_M, 20, rng
+        )
+        positions_j = jnp.asarray(positions_np)
+        weights_j = jnp.ones(positions_np.shape[0])
+        forward = rfr.make_forward_model(positions_j, weights_j)
+
+        def loss(params: jnp.ndarray) -> jnp.ndarray:
+            return jnp.sum(jnp.imag(forward(params)))
+
+        params = jnp.array([rfr.VALIDITY_GUARD_V_PER_M, 0.0, 0.0])
+        value, grad = jax.value_and_grad(loss)(params)
+        assert math.isfinite(float(value))
+        for g in grad:
+            assert math.isfinite(float(g))
+
+    def test_forward_chain_gradient_finite_with_patch_amplitude_exactly_zero(
+        self,
+    ) -> None:
+        """Patch amplitude zero sits at the fit-grid's own lower bound
+        (`BOUNDS[2] = (0.0, 200.0)` in
+        `run_rydberg_field_reconstruction.py`), the boundary
+        `test_field_model_gradient_finite_at_the_patch_center` above
+        checks for the softened patch term in isolation. This checks the
+        same boundary through the full forward chain, field model
+        through the composed spectrum.
+        """
+        rng = np.random.default_rng(1)
+        positions_np = rcr.cylindrical_cell_atom_positions(
+            rfr.CELL_RADIUS_M, rfr.CELL_LENGTH_M, 20, rng
+        )
+        positions_j = jnp.asarray(positions_np)
+        weights_j = jnp.ones(positions_np.shape[0])
+        forward = rfr.make_forward_model(positions_j, weights_j)
+
+        def loss(params: jnp.ndarray) -> jnp.ndarray:
+            return jnp.sum(jnp.imag(forward(params)))
+
+        params = jnp.array([220.0, -1200.0, 0.0])
+        value, grad = jax.value_and_grad(loss)(params)
+        assert math.isfinite(float(value))
+        for g in grad:
+            assert math.isfinite(float(g))
 
 
 # ---------------------------------------------------------------------------

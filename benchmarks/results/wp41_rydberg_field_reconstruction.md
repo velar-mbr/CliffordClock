@@ -1,8 +1,8 @@
 # WP41: differentiable Rydberg field-to-spectrum chain and field reconstruction
 
-Generated: 2026-09-03T15:39:37.304669+00:00
+Generated: 2026-09-03T16:08:40.833614+00:00
 
-Synthetic round-trip: generator == fitter. Gradient-based optimization through this project's own differentiable quadratic-Stark/EIT chain recovers a known three-parameter cell field distribution (uniform background, linear axial gradient, one wall-patch amplitude) from a synthetic composed EIT spectrum, with correctly calibrated Laplace uncertainties. No real Rydberg-sensor scan is fit here. Every truth value and every optimizer-bound corner is checked to stay inside the guarded quadratic-Stark validity window before any fit runs (2110.9 V/m for the Rb-85 32D5/2 registry state). Every case's Hessian is checked for positive definiteness (hessian_positive_definite) before its inverse is trusted as a covariance; at a saddle point the reported uncertainty is nan.
+Synthetic round-trip: generator == fitter. Gradient-based optimization through this project's own differentiable quadratic-Stark/EIT chain recovers a known three-parameter cell field distribution (uniform background, linear axial gradient, one wall-patch amplitude) from a synthetic composed EIT spectrum. 1/8 cases recover all three parameters within their own reported 1-sigma Laplace uncertainty; 6/8 within 2-sigma, the observed coverage on this eight-case truth/seed grid. No real Rydberg-sensor scan is fit here. Every truth value and every optimizer-bound corner is checked to stay inside the guarded quadratic-Stark validity window before any fit runs (2110.9 V/m for the Rb-85 32D5/2 registry state). Every case's Hessian is checked for positive definiteness (hessian_positive_definite) before its inverse is trusted as a covariance; at a saddle point the reported uncertainty is nan.
 
 ## C1: agreement, JAX vs the numpy reference
 
