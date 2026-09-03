@@ -20,6 +20,7 @@ against their own version of the same effect.
 | [Lattice light shift](lattice-light-shift.md) | E40/E41 | Trapping-light-induced differential shift, two community models | crosses zero near `u_op ≈ 72 E_R` (Sr-87) |
 | [Sideband-spectrum forward model and fitting](sideband-spectrum.md) | E42 | Differentiable carrier-plus-sidebands lineshape, fit for trap depth and radial temperature | `12/12` synthetic fits converge |
 | [Rydberg vapor-cell response](rydberg-cell-response.md) | E43/E44 | Per-atom quadratic Stark shift and the resulting EIT/Autler-Townes spectrum | `48.31 MHz` splitting at `9.83 V/m` (Rb-85 32D5/2-33P3/2, 68.64 GHz) |
+| [Rydberg field reconstruction](rydberg-field-reconstruction.md) | E45 | Differentiable JAX port of the quadratic-Stark/EIT chain, fit for a cell's own field distribution | `6/8` synthetic fits recover all three field parameters within 2-sigma |
 
 Every formula and validation number on these pages is copied from
 `docs/CONVENTIONS.md`, `docs/validation.md`, or `benchmarks/RESULTS.md`;

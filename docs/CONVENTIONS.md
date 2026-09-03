@@ -2819,12 +2819,268 @@ polarizability only, one calibration ladder (Rb-85, 32D5/2-33P3/2), no
 pipeline wiring (matching E40/E41's own scope pattern: functions and a
 benchmark, `cliffordclock.integrator.rydberg_cell_response` is not on
 `cliffordclock.pipeline`'s config surface in this phase). Full Stark-map
-diagonalization beyond the quadratic regime, tensor polarizability,
-JAX differentiability, and coupling to external EM field exports for
-the cell/waveguide side are later work.
+diagonalization beyond the quadratic regime and tensor polarizability
+are later work; coupling to external EM field exports for the
+cell/waveguide side is later work. A differentiable JAX port of this
+section's quadratic path, and a gradient-based field-reconstruction
+demonstrator built on it, are specified in section 21.
+
+## 21. Differentiable Rydberg field-to-spectrum chain and gradient-based field reconstruction (v1.16.0, WP41)
+
+Motivation (project owner, the WP37 pattern applied to this section's
+own capability): a Rydberg RF/DC electrometry sensor's calibration
+question runs backward from section 19's own forward chain. Given a
+measured EIT/Autler-Townes spectrum, what field distribution across the
+vapor cell produced it? Answering that inverse question by gradient
+descent needs `jax.grad` through the same physics section 19 already
+specifies. This section adds a `jax.numpy` port of that chain's
+quadratic-Stark path (E43, E44's Doppler-averaged ladder susceptibility,
+and the per-atom composition), validated against the reference
+implementation and its gradients checked against central finite
+differences, then a synthetic gradient-based field-reconstruction
+demonstrator built on it. Implemented in
+`cliffordclock.integrator.rydberg_cell_response_jax`. Demonstrated in
+`benchmarks/run_rydberg_field_reconstruction.py`.
+
+**Provisional section numbering.** This section's own equation label
+(E45) and CONVENTIONS.md section number (21) were assigned assuming
+WP40's own Stark-map work (a sibling branch, not yet started as of this
+entry) claims section 20; if WP40 lands first with a different claim,
+the coordinator reconciles the numbering at merge. No equation or
+section number here depends on WP40's own content, only on which
+integer it occupies.
+
+### E45: the quadratic Stark path, ported to JAX
+
+Section 19's own research pre-task (this project's private WP40/WP41
+planning note) assessed whether a full, differentiable Stark-map
+eigensolve was achievable for this work package and found a specific,
+documented obstacle. `jax.numpy.linalg.eigh`'s reverse-mode gradient
+carries a term proportional to the inverse eigenvalue gap. That term is
+well-behaved away from a near-degeneracy and ill-conditioned close to
+one, the avoided-crossing region a Stark map exists to describe. No
+published work applying a differentiable eigensolve to a Rydberg Stark
+map was found in that search. The quadratic Stark shift
+(E43) has no eigensolve in it: it is a closed-form polynomial in the
+field, `Delta_f = -(1/2) alpha0 E^2 / h`, so its `jax.grad` is exact and
+unconditioned for any finite field, with no crossing-adjacent numerical
+risk to manage. Every deliverable this section specifies is built
+entirely on this path, inside the same guarded validity window E43
+already enforces (`RydbergStarkValidityError`,
+`STARK_VALIDITY_MARGIN * inglis_teller_field_v_per_m`). A full
+differentiable Stark-map eigensolve stays a separate, explicitly scoped
+future step: if WP40's own map path is later found cleanly
+differentiable, extending this section's gradient-based fitting to it is
+that step.
+
+`rydberg_quadratic_stark_shift_hz_jax`, `ladder_susceptibility_jax`,
+`doppler_averaged_susceptibility_jax`, and
+`compose_inhomogeneous_eit_spectrum_jax` are direct `jax.numpy` ports of
+section 19's own `rydberg_quadratic_stark_shift_hz`,
+`ladder_susceptibility`, `doppler_averaged_susceptibility`, and
+`compose_inhomogeneous_eit_spectrum`, with no new physics claim: every
+formula is the one section 19 already cites, evaluated by `jax.numpy` in
+place of `numpy`. Two differences from the reference module are purely
+numerical, stated in the module's own docstring and repeated here. The
+composition function always takes the general weighted-sum path: a
+data-dependent branch on whether every atom shares the same field would
+need `jax.jit` to trace a variable-length graph, which it cannot do, so
+this function evaluates the general path for every input, uniform fields
+included. It also evaluates every atom/velocity pair through one batched
+array broadcast; the reference module's own composition function uses
+nested Python loops over the same pairs. The Doppler-averaging quadrature
+is already a fixed-size Gauss-Hermite rule in the reference module
+(`doppler_velocity_grid`'s own construction, section 19), so this
+section's port needed no fixed-resolution redesign of the kind E41's own
+BO+WKB grid required, only a direct translation to `jax.numpy`.
+
+**No clamp, no `jnp.where`, no branch anywhere in this section's physics
+chain.** Every function in `rydberg_cell_response_jax`'s ported physics
+chain is polynomial or a ratio whose denominator is bounded away from
+zero by construction: the Stark shift is a bare polynomial in the field;
+`ladder_susceptibility_jax`'s denominator sums products of terms whose
+real parts are the ladder's own positive decay rates, bounded away from
+zero for any finite detuning. This is a structural argument, stated
+because WP37's own differentiable lattice-light-shift module hit a
+`NaN`-gradient bug from this class of site: a hard clamp created a flat
+region whose subgradient divided a root-find's implicit-function-theorem
+tangent by zero.
+`tests/test_rydberg_cell_response_jax.py::TestNaNSweep` checks the
+argument empirically, with a direct `jax.grad` sweep across zero and
+extreme field, temperature, coupling/RF Rabi, and detuning-window-edge
+inputs. No `NaN` gradient was found.
+
+**Agreement.** `doppler_averaged_susceptibility_jax` and
+`compose_inhomogeneous_eit_spectrum_jax` match the reference module's
+own functions to `3.2e-15` and `8.4e-16` relative, worst case across a
+grid spanning zero and nonzero coupling/RF drive, several temperatures,
+and several field magnitudes inside the guarded validity window
+(`benchmarks/run_rydberg_field_reconstruction.py`'s own C1 check). This
+is machine-precision agreement: neither side runs an eigensolve or an
+adaptive grid, so both sides evaluate the identical closed-form
+expression, and differ only by floating-point summation order.
+
+**Gradients.** `jax.grad` of a fixed random linear functional of the
+spectrum, with respect to field amplitude, temperature, coupling field
+amplitude, and RF field amplitude (the four differentiable inputs this
+section's own chain exposes at the single-atom level), matches central
+finite differences of the REFERENCE implementation to `1.7e-6` relative,
+worst case (the coupling-field-amplitude direction), at a base point
+exercising every term of the ladder susceptibility (nonzero coupling and
+RF drive together). The finite-difference step size was chosen by direct
+comparison across four orders of magnitude of relative step: the
+RF-field-amplitude direction, whose loss depends on that argument
+quadratically through `Omega_RF^2`, needed a step an order of magnitude
+tighter than the well-conditioned default to reach the same digit of
+agreement, documented in
+`benchmarks/run_rydberg_field_reconstruction.py`'s own `FD_RELATIVE_STEP`.
+
+**Determinism and memory.** The jit-compiled forward evaluation returns
+bitwise-identical output across repeated calls within one process and
+across independent fresh Python processes
+(`tests/test_rydberg_cell_response_jax.py::TestDeterminism`). Peak RSS
+of one production-scale `value_and_grad` call through the full
+field-reconstruction forward model (400 atoms, the demonstrator's own
+production atom count) measured `~0.3` GB on the development machine,
+guarded by a bound (`1.5` GB macOS, `2.0` GB linux) set with large margin
+above that measurement
+(`tests/test_rydberg_cell_response_jax.py::TestMemoryBound`). This
+section's chain has no eigensolve and no per-atom Python loop, so its
+memory profile has no reason to carry WP37's own multi-gigabyte
+eigensolve cost; the measured `~0.3` GB confirms that directly.
+
+### The field-reconstruction demonstrator
+
+**The field model, new for this section.** `cell_field_magnitude_v_per_m_jax`
+is a three-parameter, differentiable DC field model over the vapor cell:
+a uniform background, a linear gradient along the cell's long axis, and
+one localized wall-patch bump. It reuses section 19's own wall-patch
+demonstrator's SHAPE, a positive bump that decays with the squared
+distance from one fixed point on the cell wall, matching Patrick et al.
+2025's photoionized-surface-charge phenomenology (arXiv:2502.07018,
+already cited in section 19's own C6 case), in place of that
+demonstrator's exact functional form. Two differences from the reference
+model are stated here. First, this is a scalar field-magnitude bump,
+the quantity E43 actually consumes: a single "wall-patch amplitude"
+parameter needs no vector composition, so the reference model's vector
+Coulomb superposition carries no benefit here. Second, the exact Coulomb
+`1/r^2` falloff is replaced with a fixed-length SOFTENED form,
+`patch_amplitude * softening^2 / (r^2 + softening^2)`, a smooth
+(Plummer-style) regularization with no singularity at any input,
+including a position exactly at the patch. The reference model's own
+`if r_mag < 1e-9: continue` branch needs a concrete value to evaluate,
+so `jax.jit` cannot trace it, and the branch it skips would still leave
+its own gradient diverging at `r=0` if it were traced. The softened form
+removes the singularity as a structural fact of the formula, with no
+guard needed.
+`tests/test_rydberg_cell_response_jax.py::TestNaNSweep::test_field_model_gradient_finite_at_the_patch_center`
+checks this directly, at `r=0`.
+
+**The fit.** `benchmarks/run_rydberg_field_reconstruction.py` runs a
+synthetic round-trip, the WP38 pattern applied to this section's own
+inverse problem: the field model generates a synthetic composed EIT
+spectrum (`Im(chi)`, the standard atomic-physics absorption observable)
+at a planted truth `(e_uniform, gradient, patch_amplitude)`, seeded
+Gaussian noise is added, and `scipy.optimize.minimize` (`L-BFGS-B`,
+exact `jax`-supplied gradients) fits the three parameters back, across a
+fixed grid of four truth triples and two noise seeds (eight cases).
+Every truth value and every optimizer-bound corner is checked, in plain
+Python before any fit runs, to stay inside E43's own guarded validity
+window (`~2111` V/m for the Rb-85 32D5/2 registry state): this
+demonstrator's own field scales (a few hundred V/m background, at most a
+few hundred V/m of gradient/patch swing) sit well inside it, with margin
+stated in the benchmark's own `_assert_within_validity_window`.
+Laplace/Hessian uncertainties are reported the same way
+`run_sideband_fit.py` reports them, generalized from two parameters to
+three: `hessian_positive_definite` (every eigenvalue of the Hessian of
+the negative log-likelihood strictly positive) checked before the
+inverse Hessian is trusted as a covariance, `nan` uncertainties
+otherwise. `benchmarks/run_rydberg_field_reconstruction.py::laplace_uncertainties`
+carries this discipline verbatim from `run_sideband_fit.py`'s own
+function, and
+`tests/test_rydberg_cell_response_jax.py::TestLaplaceUncertaintyReportingPath`
+plants an indefinite Hessian directly (no fit involved) to confirm the
+flag-and-`nan` branch fires.
+
+8/8 fits converged and reported a positive-definite Hessian. 1/8
+recovered all three parameters within their own reported 1-sigma
+uncertainty; 6/8 within 2-sigma. The two cases outside 2-sigma both
+involve the wall-patch amplitude, the parameter with the weakest
+constraint in this geometry. Only atoms within a few softening lengths
+of the fixed patch location carry information about it, a real,
+physically meaningful limit on this three-parameter model's own
+identifiability. The single worst case (truth `e_uniform=300`,
+`gradient=-1800`, `patch=120`, seed `0`) recovers a patch amplitude
+pinned near its own upper search bound (`196.0` against a `200.0`
+bound) alongside the grid's largest truth magnitudes, a bound-proximity
+artifact of constrained nonlinear optimization: this case's own Hessian
+is positive definite, the signature of a true local minimum, so the
+Laplace approximation applies there, and the deviation traces to the
+optimizer's own bound.
+
+**Stated at its calibration.** This is a synthetic round-trip: the same
+forward model both generates the spectrum and fits it back
+(`generator == fitter`), the standard way to demonstrate a fitting
+procedure before touching real data, the identical framing
+`run_sideband_fit.py` states for its own synthetic demonstration. No
+real Rydberg-sensor scan is fit here, and no priority claim is made for
+gradient-based field reconstruction as a technique.
+
+### Reproduction targets and their classification
+
+- **C1, JAX-vs-reference agreement**: `3.2e-15` (single-atom Doppler
+  average) and `8.4e-16` (multi-atom composition) relative error, worst
+  case, against a `1e-7` tolerance. `internal_structural_check`, the
+  same class WP37's own agreement check against its reference
+  implementation uses.
+- **C2, gradient validation**: `1.7e-6` relative error, worst case
+  (coupling-field-amplitude direction), against a `1e-5` tolerance, `jax.grad`
+  checked against central finite differences of the reference
+  implementation. `internal_structural_check`.
+- **C3, jit determinism**: bitwise-identical output across repeated
+  calls in one process and across independent fresh processes. MET.
+- **C4, memory bound**: `~0.3` GB measured, guarded at `1.5`/`2.0` GB
+  (macOS/linux). MET.
+- **C5, field-reconstruction fit grid**: a synthetic demonstration,
+  reported as a calibrated-uncertainty synthetic demonstration, the same
+  framing WP38's own Deliverable 3 uses (`arithmetic_reproduction`
+  requires a published number to reproduce, which no field-reconstruction
+  fit has). 8/8 converged, 8/8 Hessian-positive-definite, 6/8 within
+  2-sigma on all three parameters, each of the two exceptions traced to
+  a stated cause: patch-amplitude identifiability, and one
+  bound-proximity case.
+
+### Scope
+
+Quadratic path only, matching section 19's own scope boundary: no
+differentiable Stark-map eigensolve, no pipeline wiring
+(`cliffordclock.integrator.rydberg_cell_response_jax` is not on
+`cliffordclock.pipeline`'s config surface). The field-reconstruction
+demonstrator's own field model (uniform background, linear gradient, one
+wall-patch amplitude) is a three-parameter simplification chosen for this
+demonstrator. A real sensor's field distribution may need more
+parameters than this model carries, a scope limit stated here directly.
 
 ---
 *Changelog:*
+*1.16.0 (2026-09-03): WP41, specified directly by the project owner (no
+separate formalism sign-off ceremony recorded for this entry): §21
+added (E45, a differentiable `jax.numpy` port of §19's quadratic-Stark
+path, ported functions matching the reference implementation to
+`1e-15`-`1e-16` relative and `jax.grad` matching central finite
+differences of the reference to `1.7e-6` relative, worst case), plus a
+new three-parameter differentiable field model
+(`cell_field_magnitude_v_per_m_jax`, a smoothly softened wall-patch bump
+reusing §19's own patch-model shape) and a gradient-based
+field-reconstruction demonstrator built on it: `scipy.optimize.minimize`
+with exact `jax`-supplied gradients recovers a planted three-parameter
+field distribution from a synthetic composed EIT spectrum across an
+eight-case truth/seed grid, 8/8 converged and Hessian-positive-definite,
+6/8 within 2-sigma, the two exceptions traced to the wall-patch
+parameter's own weaker identifiability and one bound-proximity case at
+the grid's largest truth magnitudes. Section number and equation label
+provisional pending WP40's own CONVENTIONS.md claim (see this section's
+own "Provisional section numbering" note).*
 *1.15.0 (2026-09-03): WP39 Phase A, specified directly by the project
 owner following the project's internal Rydberg-cell-response research
 dossier (no separate formalism sign-off ceremony recorded for this

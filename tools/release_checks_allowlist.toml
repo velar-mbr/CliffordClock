@@ -93,6 +93,7 @@ volatile_patterns = [
     'bowkb_full_spectrum:\s*[0-9][0-9.]* s',
     'build_report\(\):\s*[0-9][0-9.]* s',
     'run_one_fit \(bowkb[^)]*\):\s*[0-9][0-9.]* s,',
+    'fit runtime:\s*[0-9][0-9.]* s,',
 ]
 
 [headline_check]

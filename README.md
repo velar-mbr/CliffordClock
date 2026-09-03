@@ -102,6 +102,11 @@ value, in the output.
   spectrum built from per-atom quadratic Stark shifts across a field
   map or a wall-patch model, checked against Holloway et al. 2014's
   own published calibration data (notebook 16)
+- [x] **Rydberg field reconstruction**: a differentiable JAX port of the
+  quadratic-Stark/EIT chain recovers a vapor cell's own field
+  distribution (background, gradient, one wall-patch amplitude) from a
+  synthetic measured spectrum by gradient descent, with Laplace
+  uncertainties on every recovered value (notebook 17)
 - [x] **Real interrogation times**: a 1-second run costs seconds of
   compute
 - [x] **Beyond the mean shift**: per-atom distributions, T₂*, and the
@@ -271,6 +276,17 @@ runnable version at
   EIT line, reproducing the shift-and-asymmetric-broadening
   phenomenology of Patrick et al. 2025's surface-charge distortion
   problem, still open in the current literature.
+- [`notebooks/17_rydberg_field_reconstruction.ipynb`](https://github.com/velar-mbr/CliffordClock/blob/main/notebooks/17_rydberg_field_reconstruction.ipynb):
+  the sensor-calibration inverse problem, solved by gradient descent
+  (E45). A `jax.numpy` port of notebook 16's own quadratic-Stark/EIT
+  chain agrees with the reference implementation to machine precision
+  and its gradients match finite differences of that reference to
+  `1.7e-6`. A three-parameter field model (uniform background, axial
+  gradient, one wall-patch amplitude) is fit back from a synthetic
+  composed spectrum by `scipy.optimize.minimize` with exact autodiff
+  gradients, across a grid of truth values and noise seeds, closing
+  with Laplace uncertainties on every recovered parameter and the same
+  Hessian-positive-definiteness discipline notebook 15 established.
 
 ## Documentation
 
