@@ -1,0 +1,126 @@
+{
+  "wp39_rydberg_cell_response_benchmark_schema": "1.0",
+  "generated_at_utc": "2026-09-03T06:38:25.685866+00:00",
+  "c3_calibration_ka": {
+    "case_class": "arithmetic_reproduction",
+    "citation": "Holloway, Gordon, Jefferts, Schwarzkopf, Anderson, Miller, Thaicharoen, Raithel, IEEE Trans. Antennas Propag. 62, 6169 (2014) [arXiv:1405.7066], Fig. 15",
+    "mu_rf_c_m": 5.2635e-27,
+    "lambda_probe_m": 7.8024e-07,
+    "lambda_coupling_m": 4.8175e-07,
+    "tolerance_relative": 0.01,
+    "rows": [
+      {
+        "published_delta_f_hz": 4350000.0,
+        "published_field_v_per_m": 0.89,
+        "predicted_delta_f_hz": 4365179.599421306,
+        "relative_error": 0.003489563085357605,
+        "within_tolerance": true
+      },
+      {
+        "published_delta_f_hz": 20090000.0,
+        "published_field_v_per_m": 4.09,
+        "predicted_delta_f_hz": 20060207.372621503,
+        "relative_error": 0.0014829580576653694,
+        "within_tolerance": true
+      },
+      {
+        "published_delta_f_hz": 48310000.0,
+        "published_field_v_per_m": 9.83,
+        "predicted_delta_f_hz": 48213163.44079936,
+        "relative_error": 0.0020044826992472995,
+        "within_tolerance": true
+      }
+    ],
+    "worst_relative_error": 0.003489563085357605,
+    "kpi_verdict": "MET"
+  },
+  "c4_polarizability_ka": {
+    "case_class": "arithmetic_reproduction",
+    "citation_theory": "Yerokhin, Buhmann, Fritzsche, Surzhykov, PRA 94, 032503 (2016) [arXiv:1608.04515], Table IV, DFCP",
+    "citation_experiment": "O'Sullivan & Stoicheff, PRA 31, 2718 (1985) / PRA 33, 1640 (1986), as tabulated in Yerokhin et al. 2016 Table IV",
+    "rows": [
+      {
+        "n": 30,
+        "n_star": 28.654260185062892,
+        "alpha0_theory_au": 9090000000.0,
+        "alpha0_experiment_au": 9360000000.0,
+        "relative_difference": 0.028846153846153848
+      },
+      {
+        "n": 35,
+        "n_star": 33.654060524806205,
+        "alpha0_theory_au": 25800000000.0,
+        "alpha0_experiment_au": 25300000000.0,
+        "relative_difference": 0.019762845849802372
+      },
+      {
+        "n": 50,
+        "n_star": 48.65378607521599,
+        "alpha0_theory_au": 288000000000.0,
+        "alpha0_experiment_au": 289000000000.0,
+        "relative_difference": 0.0034602076124567475
+      }
+    ],
+    "worst_relative_difference": 0.028846153846153848,
+    "tolerance_relative": 0.05,
+    "kpi_verdict": "MET",
+    "derived_32d52_alpha0_au": 14146217743.058205,
+    "derived_32d52_note": "Power-law fit through the three tabulated rows above (n_star^p scaling), averaged across the theory and experiment fits; not a value printed in either source (see rcr.derive_rb85_32d52_alpha0_au docstring)."
+  },
+  "c5_limit_kill_tests": {
+    "case_class": "internal_structural_check",
+    "zero_field_byte_identical": true,
+    "uniform_field_byte_identical": true,
+    "sign_flip_kill_test_armed": true,
+    "doubled_coefficient_kill_test_armed": true,
+    "kpi_verdict": "MET"
+  },
+  "c6_surface_charge_demonstrator": {
+    "case_class": "demonstrator",
+    "evidentiary_class": "computable_comparison",
+    "citation": "Patrick, Schlossberger, Hammerland, Prajapati, McDonald, Berweger, Talashila, Artusio-Glimpse, Holloway, AVS Quantum Science 7, 024401 (2025) [arXiv:2502.07018]",
+    "currency_note": "No 2025-2026 follow-up literature claims this problem solved or a field-wide standardized mitigation adopted (dossier currency check, September 2026). Partial, geometry-specific workarounds exist (all-dielectric cells, three-photon near-IR excitation) and are not claimed here as a general fix.",
+    "rows": [
+      {
+        "label": "no charge",
+        "cell_radius_m": 0.0125,
+        "patch_charge_c": 0.0,
+        "spectral_shift_hz": 0.0,
+        "spectral_width_hz": 10219512.46605172,
+        "asymmetry": 1.4387891666464295e-16,
+        "per_atom_shift_std_hz": 0.0
+      },
+      {
+        "label": "weak patch",
+        "cell_radius_m": 0.0125,
+        "patch_charge_c": 1e-12,
+        "spectral_shift_hz": -572.9587000715815,
+        "spectral_width_hz": 10219098.89650036,
+        "asymmetry": 0.0030579785390827036,
+        "per_atom_shift_std_hz": 2827015.0635733497
+      },
+      {
+        "label": "strong patch",
+        "cell_radius_m": 0.0125,
+        "patch_charge_c": 4e-12,
+        "spectral_shift_hz": -4949.0906385222825,
+        "spectral_width_hz": 10209727.392207311,
+        "asymmetry": 0.017642787815074158,
+        "per_atom_shift_std_hz": 45232241.017173596
+      },
+      {
+        "label": "strong patch, small cell",
+        "cell_radius_m": 0.006,
+        "patch_charge_c": 4e-12,
+        "spectral_shift_hz": -26149.424591077168,
+        "spectral_width_hz": 10138063.748268563,
+        "asymmetry": 0.018485954618808868,
+        "per_atom_shift_std_hz": 118145648.11544827
+      }
+    ],
+    "shift_grows_with_patch_charge": true,
+    "width_grows_with_patch_charge": true,
+    "width_grows_as_cell_shrinks": true,
+    "kpi_verdict": "MET"
+  }
+}
