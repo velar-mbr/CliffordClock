@@ -9,6 +9,8 @@
 
 ![CliffordClock lattice-fit animation: a noisy synthetic sideband spectrum with a Born-Oppenheimer-plus-WKB model curve fit to it live by gradient descent, lattice depth and radial temperature converging to their truth values](https://raw.githubusercontent.com/velar-mbr/CliffordClock/main/docs/assets/lattice_fit_animation.gif)
 
+![CliffordClock Rydberg field-reconstruction animation: a synthetic noisy EIT spectrum fit live by gradient descent through the real differentiable Rydberg chain, the reconstructed vapor-cell field cross-section converging onto its planted, synthetic truth](https://raw.githubusercontent.com/velar-mbr/CliffordClock/main/docs/assets/rydberg_reconstruction_animation.gif)
+
 **CliffordClock predicts how stray electric fields shift and broaden an
 optical lattice clock's frequency, starting from your own field
 simulation.** Export a field map from COMSOL or any FEA tool, and
