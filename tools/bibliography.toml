@@ -335,7 +335,7 @@ surnames = ["Brewer", "Chen", "Hankin", "Clements", "Chou", "Hume", "Leibrandt"]
 title = "27Al+ Quantum-Logic Clock with a Systematic Uncertainty below 10^-18"
 venue = "Phys. Rev. Lett. 123, 033201"
 year = [2019]
-source = "species.py:348-349,784-799,817-819; docs/from-clock-rate-to-sideband-fit.md section 6 (reading-list entry 6). Full byline confirmed against the arXiv abstract page (arXiv:1902.07694) this session; surnames list extended from the bare 'Brewer, S. M. and others' placeholder to the paper's own full author list, minus 'Wineland' and 'Itano' whose surnames are already pinned separately (WinelandItano1979) at a compatible year set that does not need extension."
+source = "species.py:348-349,784-799,817-819; docs/one-rate-per-atom.md section 8 (reading-list entry 6). Full byline confirmed against the arXiv abstract page (arXiv:1902.07694) this session; surnames list extended from the bare 'Brewer, S. M. and others' placeholder to the paper's own full author list, minus 'Wineland' and 'Itano' whose surnames are already pinned separately (WinelandItano1979) at a compatible year set that does not need extension."
 
 [[paper]]
 key = "Mehlstaubler2018"
@@ -346,7 +346,7 @@ venue = "Reports on Progress in Physics 81, 064401"
 year = [2018]
 arxiv = "1803.01585"
 doi = "10.1088/1361-6633/aab409"
-source = "docs/from-clock-rate-to-sideband-fit.md, section 6 (reading-list entry 2). Byline and section numbers (2.4, 3, 4.2, 5.1) confirmed directly against the fetched arXiv PDF's own headers this session. 'Lisdat' and 'Schmidt' are real coauthors of this paper and are also pinned by other entries at other years (Lisdat2021/Middelmann2012/Nosske2025; Sherman2012/Ludlow2015); citation-check unions a surname's pinned years across every entry that carries it, so listing them here adds 2018 to that union rather than replacing it."
+source = "docs/one-rate-per-atom.md, section 8 (reading-list entry 2). Byline and section numbers (2.4, 3, 4.2, 5.1) confirmed directly against the fetched arXiv PDF's own headers this session. 'Lisdat' and 'Schmidt' are real coauthors of this paper and are also pinned by other entries at other years (Lisdat2021/Middelmann2012/Nosske2025; Sherman2012/Ludlow2015); citation-check unions a surname's pinned years across every entry that carries it, so listing them here adds 2018 to that union rather than replacing it."
 
 [[paper]]
 key = "Berkeland1998"
@@ -616,7 +616,7 @@ venue = "Metrologia 60, 035002"
 year = [2023]
 arxiv = ""
 doi = "10.1088/1681-7575/accbc5"
-source = "docs/from-clock-rate-to-sideband-fit.md, section 5. This is large-lattice-model's own README-named clock-description/origin paper, distinct from Goti2025 (arXiv:2508.08164), a later paper by an overlapping author list that uses the large-lattice-model package as a reference implementation and does not originate it. Byline, title, venue, and DOI verified directly against a fetched green-open-access author copy (Politecnico di Torino institutional repository, iris.polito.it, item 11583/2978339); paywalled at IOP itself."
+source = "docs/one-rate-per-atom.md, section 7. This is large-lattice-model's own README-named clock-description/origin paper, distinct from Goti2025 (arXiv:2508.08164), a later paper by an overlapping author list that uses the large-lattice-model package as a reference implementation and does not originate it. Byline, title, venue, and DOI verified directly against a fetched green-open-access author copy (Politecnico di Torino institutional repository, iris.polito.it, item 11583/2978339); paywalled at IOP itself."
 
 [[paper]]
 key = "FortierLuitenMargolis2026"
@@ -627,4 +627,4 @@ venue = "Optica 13(1), 143"
 year = [2026]
 arxiv = ""
 doi = "10.1364/OPTICA.575770"
-source = "docs/from-clock-rate-to-sideband-fit.md, section 6 (reading-list entry 3). Gold open access under the Optica Open Access Publishing Agreement, confirmed directly on the fetched PDF's own first page. The Fortier surname also appears as a coauthor in Marshall2025's author list (same person, a different paper); both years are pinned here since both citations are genuine."
+source = "docs/one-rate-per-atom.md, section 8 (reading-list entry 3). Gold open access under the Optica Open Access Publishing Agreement, confirmed directly on the fetched PDF's own first page. The Fortier surname also appears as a coauthor in Marshall2025's author list (same person, a different paper); both years are pinned here since both citations are genuine."
