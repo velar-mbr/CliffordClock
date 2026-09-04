@@ -227,6 +227,82 @@ Numbers in prose byte-match the computed outputs they describe; a prose
 number that drifts from its computation is a correctness blocker, not a
 style note.
 
+## Antecedent-less demonstratives (blocker on sight)
+
+"That", "this", "it", and "those" opening a sentence must resolve to a
+named thing the reader can point to, not to the vague shape of the
+previous sentence. "That addition is not a separate approximation
+layered on top of the pivot picture above. It falls out of the same
+product, kept to first order." leaves both "That" and "It" pointing at
+an unnamed blend of what came before. The fix names the actual subject
+in each sentence: "The pivot's own product, `prod(1+p_k)`, becomes that
+row-by-row sum once it is expanded and truncated at first order." A
+demonstrative immediately after the sentence that defines its referent
+("...three kinds of term appear... these cross terms...") is fine; a
+demonstrative standing in for a whole prior discussion is not.
+
+## Announced precision (blocker on sight)
+
+A phrase that asserts its own exactness reads as a claim the writer
+felt pressure to reassure the reader about, and a reader who checks it
+loses trust in every other claim on the page: "coordinated word for
+word with the methods paper it accompanies" cannot possibly be checked
+word for word by a reader, and is not literally true. The fix is the
+checkable fact itself, with a link: "checked to match the listing
+printed in Section VI of the companion paper,
+[`paper/composition/main.pdf`](../paper/composition/main.pdf)." The
+same disease shows up as a bare "exactly" reassuring a claim that
+needed no reassurance ("is exactly the first sum" to "is the first
+sum"). The surviving "exactly"/"exact" uses are the ones already
+carved out above: the antonym of approximate, and a mathematical
+identity the reader can verify on the spot ("averages to exactly zero
+in an isotropic thermal field" survives, because the reader can verify
+an isotropic vector field's mean is zero).
+
+## Compression claims must show their work (blocker unless cashed)
+
+A claim that one thing reduces to, stands in for, or compresses
+another must show enough of the actual content that the reader can
+judge the reduction, or it gets cut: "with two terms in place of six"
+asserts a big simplification without saying which two, which six, or
+why four terms vanish. The fix makes it concrete in the same breath:
+"GPS's own two terms, the gravitational-potential factor and the
+special-relativistic velocity factor, correspond to two of
+CliffordClock's own six, the gravitational redshift and the motional
+time-dilation correction. CliffordClock's other four terms... correct
+for a trapped atom's own local field environment. A free-flying GPS
+satellite's orbit carries no such fields to correct for." If the claim
+cannot be made concrete in two or three sentences, cut it rather than
+leave it as an assertion the reader has to take on faith.
+
+## Current version only (blocker on sight)
+
+Reader-facing documentation describes what the code does now, never a
+past broken version, even when the fixed history is reassuring: "An
+earlier version of the same code clamped the invalid, negative variance
+to zero and printed a small, confident-looking number there... The
+eigenvalue check now catches that failure mode directly" spends two
+sentences on a bug that no longer exists. The fix states the current
+safeguard positively: "The eigenvalue check catches this directly and
+blocks the inversion; CliffordClock reports that row's uncertainty as
+`nan`, the correct output when the Laplace approximation's own
+precondition fails." The one exception is a notebook whose own subject
+is a gated demonstration of a bug being found and fixed by the
+project's own test suite; that story is the point of the notebook, by
+owner approval, not a general license to narrate history elsewhere.
+
+## Meaningless abstraction sentences (blocker on sight)
+
+A sentence that names a category for what was just said, without
+saying what it means, gives the reader nothing to check: "The point of
+stating these bounds is structural." asserts an abstraction and moves
+on. The fix states the actual meaning: "The literature's published
+budget totals lose nothing measurable by keeping only the linear sum:
+every cross term this section bounds sits at least four orders of
+magnitude below the floor those totals report." If a sentence can be
+deleted and the paragraph loses no checkable content, it was this kind
+of filler.
+
 ## Calibration examples from past reviews
 
 - Word salad, before: "A lab or systems integrator without PTB-grade
