@@ -157,6 +157,23 @@ jobs:
           # data file is one.
           include-hidden-files: true
 
+  test-slow-gate:
+    # The branch ruleset requires a status check named "Test (slow)", the
+    # single-job lane's name. The sharded matrix reports per shard, so this
+    # job carries the required name and passes only when every shard did.
+    # `if: always()` makes a shard failure report here as a failure; a
+    # skipped required check can read as satisfied.
+    name: Test (slow)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    needs: test-slow
+    if: always()
+    steps:
+      - name: Require every slow shard to pass
+        run: |
+          echo "slow shards result: ${{ needs.test-slow.result }}"
+          [ "${{ needs.test-slow.result }}" = "success" ]
+
   coverage:
     name: Combined coverage gate
     runs-on: ubuntu-latest
