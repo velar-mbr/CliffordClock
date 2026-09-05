@@ -99,6 +99,15 @@ value, in the output.
   BO+WKB model the lattice light shift uses, cross-validated against an
   independent open-source implementation; a synthetic demonstration
   today, with real-scan fitting awaiting shared data (notebook 15)
+- [x] **Rydberg vapor-cell response**: a Rb-85 EIT/Autler-Townes
+  spectrum built from per-atom quadratic Stark shifts across a field
+  map or a wall-patch model, checked against Holloway et al. 2014's
+  own published calibration data (notebook 16)
+- [x] **Full Rydberg Stark maps** beyond the quadratic regime: exact
+  diagonalization in the quantum-defect `(n,l,j,mj)` basis with adiabatic
+  eigenvalue tracking, cross-validated against ARC (an independent
+  open-source implementation) and a computed avoided-crossing field
+  replacing the earlier order-of-magnitude validity guard
 - [x] **Real interrogation times**: a 1-second run costs seconds of
   compute
 - [x] **Beyond the mean shift**: per-atom distributions, T₂*, and the
@@ -256,6 +265,18 @@ runnable version at
   gradients and Laplace uncertainties, including the one case whose own
   Hessian-positive-definiteness check catches a fit that should not be
   trusted.
+- [`notebooks/16_rydberg_cell_response.ipynb`](https://github.com/velar-mbr/CliffordClock/blob/main/notebooks/16_rydberg_cell_response.ipynb):
+  a Rydberg-atom RF electrometry chain (E43/E44) for Rb-85's
+  5S1/2-5P3/2-32D5/2-33P3/2 ladder: a single atom's quadratic Stark
+  shift, the four-level EIT/Autler-Townes susceptibility with Doppler
+  averaging, and the Doppler-mismatch-factor derivation this project
+  resolved between two disagreeing published forms. Reproduces Holloway
+  et al. 2014's own three published calibration pairs, cross-checks the
+  Rb-85 nD5/2 polarizability against two independent sources, and
+  composes many atoms' shifts across a wall-patch field model into one
+  EIT line, reproducing the shift-and-asymmetric-broadening
+  phenomenology of Patrick et al. 2025's surface-charge distortion
+  problem, still open in the current literature.
 
 ## Documentation
 

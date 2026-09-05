@@ -608,6 +608,182 @@ doi = ""
 source = "docs/CONVENTIONS.md section 18 (E42, the WP38 Deliverable 2 independent oracle); benchmarks/run_sideband_spectrum.py; benchmarks/fixtures/wp38_inrim_large_lattice_model_reference.json (commit f569907cdf2f08a9081386139211a205b3c42624 pinned in that fixture's own provenance field). Repository inspected directly (README, LICENSE, and every source file's imports) this session (WP38); cited as reference [50] in Goti2025's own Fig. 4/Fig. 7. No code from this repository is vendored into CliffordClock; only its numeric OUTPUT, generated once in a separate environment, is used as a comparison fixture."
 
 [[paper]]
+key = "Holloway2014"
+authors = "Holloway, Christopher L. and Gordon, Josh A. and Jefferts, Steven and Schwarzkopf, Andrew and Anderson, David A. and Miller, Stephanie A. and Thaicharoen, Nithiwadee and Raithel, Georg"
+surnames = ["Holloway", "Gordon", "Jefferts", "Schwarzkopf", "Anderson", "Miller", "Thaicharoen", "Raithel"]
+title = "Broadband Rydberg Atom-Based Electric-Field Probe for SI-Traceable, Self-Calibrated Measurements"
+venue = "IEEE Trans. Antennas Propag. 62(12), 6169-6182"
+year = [2014]
+arxiv = "1405.7066"
+doi = "10.1109/TAP.2014.2360208"
+source = "docs/CONVENTIONS.md section 19 (E43/E44, the WP39 Phase A anchor: Eqs. 1-4, 11, 12; Fig. 15's three calibration pairs; Fig. 2's ladder geometry); src/cliffordclock/integrator/rydberg_cell_response.py; benchmarks/run_rydberg_cell_response.py. Byline, equations, and Fig. 15's printed data pairs verified directly against the arXiv PDF text and page image, fetched this session."
+
+[[paper]]
+key = "Mack2011"
+authors = "Mack, Markus and Karlewski, Florian and Hattermann, Helge and Hoeckh, Simone and Jessen, Florian and Cano, Daniel and Fortagh, Jozsef"
+surnames = ["Mack", "Karlewski", "Hattermann", "Hoeckh", "Jessen", "Cano", "Fortagh"]
+title = "Measurement of absolute transition frequencies of 87Rb to nS and nD Rydberg states by means of electromagnetically induced transparency"
+venue = "Phys. Rev. A 83, 052515"
+year = [2011]
+arxiv = "1103.6221"
+doi = "10.1103/PhysRevA.83.052515"
+source = "docs/CONVENTIONS.md section 19 (E44, the Rb-85 nD5/2 quantum-defect source, Table I, reproducing Li et al. 2003's own values); src/cliffordclock/integrator/rydberg_cell_response.py (RB85_ND52_QUANTUM_DEFECT). Byline and Table I values verified directly against the arXiv PDF text, fetched this session."
+
+[[paper]]
+key = "Li2003"
+authors = "Li, Wenhui and Mourachko, I. and Noel, M. W. and Gallagher, T. F."
+surnames = ["Li", "Mourachko", "Noel", "Gallagher"]
+title = "Millimeter-wave spectroscopy of cold Rb Rydberg atoms in a magneto-optical trap: Quantum defects of the ns, np, and nd series"
+venue = "Phys. Rev. A 67, 052502"
+year = [2003]
+arxiv = ""
+doi = "10.1103/PhysRevA.67.052502"
+source = "docs/CONVENTIONS.md section 19 (E44, cited by Mack2011 and Holloway2014 as the primary Rb quantum-defect source); src/cliffordclock/integrator/rydberg_cell_response.py's RB85_ND52_QUANTUM_DEFECT docstring. No arXiv preprint found (searched directly); paywalled, so this project could not verify its own printed table against the primary PDF and instead uses Mack2011's reproduction of it, disclosed in the registry citation string."
+
+[[paper]]
+key = "Sanguinetti2009"
+authors = "Sanguinetti, B. and Majeed, H. O. and Jones, M. L. and Varcoe, B. T. H."
+surnames = ["Sanguinetti", "Majeed", "Jones", "Varcoe"]
+title = "Precision measurements of quantum defects in the nP3/2 Rydberg states of 85Rb"
+venue = "J. Phys. B 42, 165004"
+year = [2009]
+arxiv = "0905.0571"
+doi = "10.1088/0953-4075/42/16/165004"
+source = "docs/CONVENTIONS.md section 19 (E44, the Rb-85 nP3/2 quantum-defect source, Table 3, used in place of the paywalled Li2003 np-series values); src/cliffordclock/integrator/rydberg_cell_response.py (RB85_NP32_QUANTUM_DEFECT). Byline and Table 3 values verified directly against the arXiv PDF text, fetched this session. Distinct 'Jones' from Bowden2017's M. P. A. Jones, same surname, different paper and year."
+
+[[paper]]
+key = "Yerokhin2016"
+authors = "Yerokhin, V. A. and Buhmann, S. Y. and Fritzsche, S. and Surzhykov, A."
+surnames = ["Yerokhin", "Buhmann", "Fritzsche", "Surzhykov"]
+title = "Electric dipole polarizabilities of Rydberg states of alkali-metal atoms"
+venue = "Phys. Rev. A 94, 032503"
+year = [2016]
+arxiv = "1608.04515"
+doi = "10.1103/PhysRevA.94.032503"
+source = "docs/CONVENTIONS.md section 19 (E43, the Rb-85 nD5/2 scalar-polarizability theory source and the tabulation cross-referencing O'Sullivan and Stoicheff's measured values, Tables IV/V); src/cliffordclock/integrator/rydberg_cell_response.py (RB85_ND52_ALPHA0_TABULATED). Byline and Table IV values verified directly against the arXiv PDF text, fetched this session."
+
+[[paper]]
+key = "OSullivanStoicheff1985"
+authors = "O'Sullivan, M. S. and Stoicheff, B. P."
+surnames = ["O'Sullivan", "Stoicheff"]
+title = "Scalar and tensor polarizabilities of nS and nD Rydberg states of Na"
+venue = "Phys. Rev. A 31, 2718; Phys. Rev. A 33, 1640 (1986 nD companion paper)"
+year = [1985, 1986]
+arxiv = ""
+doi = "10.1103/PhysRevA.31.2718"
+source = "docs/CONVENTIONS.md section 19 (E43, the measured Rb-85 nD5/2 scalar-polarizability source, as tabulated in Yerokhin2016 Table IV/V; also the nS avoided-crossing field fit named for the Stark validity-guard discussion). Byline and year confirmed via Yerokhin2016's own reference list; this project did not independently retrieve either paper's own body text (both paywalled), disclosed in the registry citation string and CONVENTIONS.md section 19's validity-guard paragraph."
+
+[[paper]]
+key = "Sedlacek2012"
+authors = "Sedlacek, J. A. and Schwettmann, A. and Kubler, H. and Low, R. and Pfau, T. and Shaffer, J. P."
+surnames = ["Sedlacek", "Schwettmann", "Kubler", "Low", "Pfau", "Shaffer"]
+title = "Microwave electrometry with Rydberg atoms in a vapor cell using bright atomic resonances"
+venue = "Nature Physics 8, 819"
+year = [2012]
+arxiv = "1205.4461"
+doi = "10.1038/nphys2423"
+source = "docs/CONVENTIONS.md section 19 (E44, the rejected calibration candidate and the source of the reciprocal Doppler-mismatch-factor prose statement resolved there; also the mu_RF cross-check target for 53D5/2->54P3/2). Byline and quoted prose verified directly against the arXiv PDF text, fetched this session."
+
+[[paper]]
+key = "Mohapatra2007"
+authors = "Mohapatra, A. K. and Jackson, T. R. and Adams, C. S."
+surnames = ["Mohapatra", "Jackson", "Adams"]
+title = "Coherent optical detection of highly excited Rydberg states using electromagnetically induced transparency"
+venue = "Phys. Rev. Lett. 98, 113003"
+year = [2007]
+arxiv = "quant-ph/0612200"
+doi = "10.1103/PhysRevLett.98.113003"
+source = "docs/CONVENTIONS.md section 19 (E44, the Doppler-averaged 3-level susceptibility source, Eq. 1, and the second independent source corroborating the resolved lambda_c/lambda_p Doppler-mismatch-factor direction, cited by Holloway2014 as their own ref. [7]). Byline verified directly against the arXiv PDF text, fetched this session. Distinct 'Adams' from any other Adams in this project's bibliography, if present."
+
+[[paper]]
+key = "Patrick2025"
+authors = "Patrick, Link and Schlossberger, Noah and Hammerland, Daniel F. and Prajapati, Nikunjkumar and McDonald, Tate and Berweger, Samuel and Talashila, Rajavardhan and Artusio-Glimpse, Alexandra B. and Holloway, Christopher L."
+surnames = ["Patrick", "Schlossberger", "Hammerland", "Prajapati", "McDonald", "Berweger", "Talashila", "Artusio-Glimpse", "Holloway"]
+title = "Imaging of induced surface charge distribution effects in glass vapor cells used for Rydberg atom-based sensors"
+venue = "AVS Quantum Science 7, 024401"
+year = [2025]
+arxiv = "2502.07018"
+doi = "10.1116/5.0264378"
+source = "docs/CONVENTIONS.md section 19 (E44, the C6 surface-charge demonstrator's phenomenology target); benchmarks/run_rydberg_cell_response.py. Byline, title, and submission date verified directly against the arXiv abstract page, fetched this session."
+
+[[paper]]
+key = "FleischhauerImamogluMarangos2005"
+authors = "Fleischhauer, M. and Imamoglu, A. and Marangos, J. P."
+surnames = ["Fleischhauer", "Imamoglu", "Marangos"]
+title = "Electromagnetically induced transparency: Optics in coherent media"
+venue = "Rev. Mod. Phys. 77, 633"
+year = [2005]
+arxiv = ""
+doi = "10.1103/RevModPhys.77.633"
+source = "docs/CONVENTIONS.md section 19 (E44, the independent 3-level lambda-type susceptibility cross-check, Eq. 13, used to verify the Omega_RF->0 reduction of Holloway2014's own 4-level formula). Owner-supplied PDF read directly, pages 5-9, this session."
+
+[[paper]]
+key = "GallagherRydbergAtoms1994"
+authors = "Gallagher, T. F."
+surnames = ["Gallagher"]
+title = "Rydberg Atoms"
+venue = "Cambridge University Press"
+year = [1994]
+arxiv = ""
+doi = ""
+source = "docs/CONVENTIONS.md section 19 (E43, the Inglis-Teller order-of-magnitude Stark validity-guard estimate and the n_star^7 scalar-polarizability scaling law, cited by both Sedlacek2012 and Holloway2014 for the same background). Textbook, not independently re-verified page by page this session; cited only for the standard, widely-reproduced order-of-magnitude relations named in CONVENTIONS.md section 19."
+
+[[paper]]
+key = "Zimmerman1979"
+authors = "Zimmerman, M. L. and Littman, M. G. and Kash, M. M. and Kleppner, D."
+surnames = ["Zimmerman", "Littman", "Kash", "Kleppner"]
+title = "Stark structure of the Rydberg states of alkali-metal atoms"
+venue = "Phys. Rev. A 20, 2251-2275"
+year = [1979]
+arxiv = ""
+doi = "10.1103/PhysRevA.20.2251"
+source = "docs/CONVENTIONS.md section 20 (WP40, the historical origin of the Stark-map diagonalization method every construction detail in this section is attributed to ARC or Grimmel et al. instead of). Predates arXiv; APS page and every search for a legitimate free copy returned nothing this session, so this project could NOT read it directly. Byline and title confirmed via the APS abstract listing and the ADS record (1979PhRvA..20.2251Z). No equation number from this paper is cited anywhere in code or docs -- see src/cliffordclock/integrator/rydberg_stark_map.py's own top-of-module docstring for the disclosure."
+
+[[paper]]
+key = "Grimmel2015"
+authors = "Grimmel, Jens and Mack, Markus and Karlewski, Florian and Jessen, Florian and Reinschmidt, Michael and Sandor, Nila and Fortagh, Jozsef"
+surnames = ["Grimmel", "Mack", "Karlewski", "Jessen", "Reinschmidt", "Sandor", "Fortagh"]
+title = "Measurement and numerical calculation of Rubidium Rydberg Stark spectra"
+venue = "New J. Phys. 17, 053005"
+year = [2015]
+arxiv = "1503.08953"
+doi = "10.1088/1367-2630/17/5/053005"
+source = "docs/CONVENTIONS.md section 20 (WP40, an independent from-scratch implementation corroborating ARC's own restatement of Zimmerman 1979's method; the C5(c) published-anchor check's own supplementary-data availability probe). Read directly in full this session (arXiv PDF)."
+
+[[paper]]
+key = "Han2006"
+authors = "Han, Jianing and Jamil, Yasir and Norum, D. V. L. and Tanner, Paul J. and Gallagher, T. F."
+surnames = ["Han", "Jamil", "Norum", "Tanner", "Gallagher"]
+title = "Rb nf quantum defects from millimeter-wave spectroscopy of cold 85Rb Rydberg atoms"
+venue = "Phys. Rev. A 74, 054502"
+year = [2006]
+arxiv = ""
+doi = "10.1103/PhysRevA.74.054502"
+source = "docs/CONVENTIONS.md section 20 (WP40, the Rb-85 nF5/2/nF7/2 quantum-defect source, taken via ARC's own Rubidium85.quantumDefect table reproduction); src/cliffordclock/integrator/rydberg_stark_map.py's RB85_QUANTUM_DEFECTS registry. No arXiv preprint found; APS page returned HTTP 403, so full text not obtained. Byline and title confirmed via the APS DOI abstract record and independent citation-index summaries, fetched this session."
+
+[[paper]]
+key = "Moore2020"
+authors = "Moore, K. and Duspayev, A. and Cardman, R. and Raithel, G."
+surnames = ["Moore", "Duspayev", "Cardman", "Raithel"]
+title = "Measurement of the Rb g-series quantum defect using two-photon microwave spectroscopy"
+venue = "Phys. Rev. A 102, 062817"
+year = [2020]
+arxiv = ""
+doi = "10.1103/PhysRevA.102.062817"
+source = "docs/CONVENTIONS.md section 20 (WP40, the Rb-85 nG7/2/nG9/2 quantum-defect source); src/cliffordclock/integrator/rydberg_stark_map.py's RB85_QUANTUM_DEFECTS registry. Read directly this session (par.nsf.gov public-access PDF); abstract states delta0=0.0039990(21), delta2=-0.0202(21), matching ARC's own tabulated value to all 5 printed digits."
+
+[[paper]]
+key = "Marinescu1994"
+authors = "Marinescu, M. and Sadeghpour, H. R. and Dalgarno, A."
+surnames = ["Marinescu", "Sadeghpour", "Dalgarno"]
+title = "Dispersion Coefficients for Alkali-Metal Dimers"
+venue = "Phys. Rev. A 49, 982"
+year = [1994]
+arxiv = ""
+doi = "10.1103/PhysRevA.49.982"
+source = "docs/CONVENTIONS.md section 20 (WP40, the one-electron model potential shaping this module's radial wavefunctions, l-dependent parameters taken via ARC's own Rubidium85 class); src/cliffordclock/integrator/rydberg_stark_map.py's _model_potential_hartree. Byline and title confirmed via the APS DOI abstract page, fetched this session; full text not obtained."
+
+[[paper]]
 key = "Goti2023"
 authors = "Goti, Irene and Condio, Stefano and Clivati, Cecilia and Risaro, Marco and Gozzelino, Michele and Costanzo, Giovanni A. and Levi, Filippo and Calonico, Davide and Pizzocaro, Marco"
 surnames = ["Goti", "Condio", "Clivati", "Risaro", "Gozzelino", "Costanzo", "Levi", "Calonico", "Pizzocaro"]
