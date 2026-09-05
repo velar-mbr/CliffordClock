@@ -102,6 +102,11 @@ value, in the output.
   spectrum built from per-atom quadratic Stark shifts across a field
   map or a wall-patch model, checked against Holloway et al. 2014's
   own published calibration data (notebook 16)
+- [x] **Full Rydberg Stark maps** beyond the quadratic regime: exact
+  diagonalization in the quantum-defect `(n,l,j,mj)` basis with adiabatic
+  eigenvalue tracking, cross-validated against ARC (an independent
+  open-source implementation) and a computed avoided-crossing field
+  replacing the earlier order-of-magnitude validity guard
 - [x] **Rydberg field reconstruction**: a differentiable JAX port of the
   quadratic-Stark/EIT chain recovers a vapor cell's own field
   distribution (background, gradient, one wall-patch amplitude) from a
