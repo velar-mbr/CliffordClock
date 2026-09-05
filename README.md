@@ -3,21 +3,32 @@
 ![status: pre-beta](https://img.shields.io/badge/status-pre--beta-orange)
 ![license: AGPLv3](https://img.shields.io/badge/license-AGPLv3-blue)
 
+Atoms drift through a real chamber's stray field, each colored by the shift it picks up, while the ensemble's coherence decays.
+
 ![CliffordClock showcase animation: Monte Carlo atoms dispersing through a real chamber field, colored by accumulated fractional shift, with the ensemble coherence decaying at T2*](https://raw.githubusercontent.com/velar-mbr/CliffordClock/main/docs/assets/showcase_animation.gif)
+
+A two-ion crystal cycles through its six vibration modes, and the time-dilation budget those modes add up to is compared with a published measurement.
 
 ![CliffordClock trapped-ion animation: a two-ion 27Al+/25Mg+ crystal cycling through its six normal modes next to the time-dilation budget those modes add up to, compared against a published trapped-ion clock's own measured value](https://raw.githubusercontent.com/velar-mbr/CliffordClock/main/docs/assets/ion_motion_animation.gif)
 
+A noisy sideband spectrum is fit live by gradient descent; trap depth and radial temperature converge to their true values.
+
 ![CliffordClock lattice-fit animation: a noisy synthetic sideband spectrum with a Born-Oppenheimer-plus-WKB model curve fit to it live by gradient descent, lattice depth and radial temperature converging to their truth values](https://raw.githubusercontent.com/velar-mbr/CliffordClock/main/docs/assets/lattice_fit_animation.gif)
+
+A hidden electric field inside a vapor cell is recovered from the atoms' own spectrum, the reconstructed map converging beside the truth.
 
 ![CliffordClock Rydberg field-reconstruction animation: a synthetic noisy EIT spectrum fit live by gradient descent through the real differentiable Rydberg chain, the reconstructed vapor-cell field cross-section converging onto its planted, synthetic truth](https://raw.githubusercontent.com/velar-mbr/CliffordClock/main/docs/assets/rydberg_reconstruction_animation.gif)
 
-**CliffordClock predicts how stray electric fields shift and broaden an
-optical lattice clock's frequency, starting from your own field
-simulation.** Export a field map from COMSOL or any FEA tool, and
-describe your atoms and trap in a short config file. CliffordClock
-returns the fractional frequency shift, its spread across your atom
-cloud, the dephasing time T₂*, and the spectral line profile. These
-numbers land at the 1×10⁻¹⁸ level today's clocks budget to.
+**CliffordClock predicts how an optical clock's environment shifts and
+broadens its frequency, for lattice and trapped-ion clocks alike. It
+also models Rydberg-atom field sensors: field in, spectrum out, and
+back.** Describe your atoms and trap in a short config file. Feed it
+what your platform has: a field map exported from COMSOL or any FEA
+tool, a set of thermal surfaces, or measured mode frequencies and
+phonon occupations. CliffordClock returns the fractional frequency
+shift, its spread across your atoms, the dephasing time T₂*, and the
+spectral line profile. These numbers land at the 1×10⁻¹⁸ level today's
+clocks budget to.
 
 Free and open source (AGPLv3), Python, `pip install`-able.
 
