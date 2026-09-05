@@ -1,0 +1,386 @@
+{
+  "wp41_rydberg_field_reconstruction_schema": "1.0",
+  "generated_at_utc": "2026-09-03T16:08:40.833614+00:00",
+  "claim_calibration": "Synthetic round-trip: generator == fitter. Gradient-based optimization through this project's own differentiable quadratic-Stark/EIT chain recovers a known three-parameter cell field distribution (uniform background, linear axial gradient, one wall-patch amplitude) from a synthetic composed EIT spectrum. 1/8 cases recover all three parameters within their own reported 1-sigma Laplace uncertainty; 6/8 within 2-sigma, the observed coverage on this eight-case truth/seed grid. No real Rydberg-sensor scan is fit here. Every truth value and every optimizer-bound corner is checked to stay inside the guarded quadratic-Stark validity window before any fit runs (2110.9 V/m for the Rb-85 32D5/2 registry state). Every case's Hessian is checked for positive definiteness (hessian_positive_definite) before its inverse is trusted as a covariance; at a saddle point the reported uncertainty is nan.",
+  "validity_guard_v_per_m": 2110.8594606983715,
+  "c1_agreement_check": {
+    "single_atom_worst_relative_error": 3.1832142461567232e-15,
+    "single_atom_worst_point": {
+      "temperature_k": 500.0,
+      "e_coupling_v_per_m": 800.0,
+      "e_rf_v_per_m": 10.0,
+      "field_v_per_m": 420.0
+    },
+    "composed_worst_relative_error": 8.359308154586954e-16,
+    "composed_worst_point": {
+      "temperature_k": 500.0,
+      "e_coupling_v_per_m": 800.0,
+      "e_rf_v_per_m": 10.0,
+      "delta_c_hz": -18849555.92153876,
+      "delta_rf_hz": 6283185.307179586
+    },
+    "tolerance": 1e-07,
+    "met": true
+  },
+  "c2_gradient_check": {
+    "base_point": {
+      "field_v_per_m": 220.0,
+      "temperature_k": 320.0,
+      "e_coupling_v_per_m": 500.0,
+      "e_rf_v_per_m": 25.0
+    },
+    "per_argument": {
+      "field_v_per_m": {
+        "jax_grad": 4.99486224720471e-09,
+        "fd_grad": 4.994862241617079e-09,
+        "relative_error": 1.1186757987075768e-09
+      },
+      "temperature_k": {
+        "jax_grad": -6.432895833420128e-08,
+        "fd_grad": -6.43289583521266e-08,
+        "relative_error": 2.7865089021430967e-10
+      },
+      "e_coupling_v_per_m": {
+        "jax_grad": -6.80047485434628e-11,
+        "fd_grad": -6.800462970524279e-11,
+        "relative_error": 1.7475019058039783e-06
+      },
+      "e_rf_v_per_m": {
+        "jax_grad": -2.8156221308967503e-07,
+        "fd_grad": -2.8156214772895316e-07,
+        "relative_error": 2.3213603957819545e-07
+      }
+    },
+    "worst_relative_error": 1.7475019058039783e-06,
+    "worst_argument": "e_coupling_v_per_m",
+    "tolerance": 1e-05,
+    "met": true
+  },
+  "fit_cases": [
+    {
+      "truth_e_uniform_v_per_m": 180.0,
+      "truth_gradient_v_per_m_per_m": 800.0,
+      "truth_patch_amplitude_v_per_m": 60.0,
+      "seed": 0,
+      "noise_sigma": 1.5e-07,
+      "initial_guess": [
+        144.0,
+        400.0,
+        78.0
+      ],
+      "recovered": [
+        180.0795642521605,
+        800.5754900077172,
+        61.957327750210816
+      ],
+      "recovered_uncertainty": [
+        0.5911440106744927,
+        12.166946884946409,
+        8.509351590352606
+      ],
+      "hessian_positive_definite": true,
+      "within_1sigma": [
+        true,
+        true,
+        true
+      ],
+      "within_2sigma": [
+        true,
+        true,
+        true
+      ],
+      "all_within_1sigma": true,
+      "all_within_2sigma": true,
+      "converged": true,
+      "n_iterations": 46,
+      "final_chi2": 148.76386931125154,
+      "n_data_points": 161,
+      "max_field_v_per_m": 237.23624685399244
+    },
+    {
+      "truth_e_uniform_v_per_m": 180.0,
+      "truth_gradient_v_per_m_per_m": 800.0,
+      "truth_patch_amplitude_v_per_m": 60.0,
+      "seed": 1,
+      "noise_sigma": 1.5e-07,
+      "initial_guess": [
+        144.0,
+        400.0,
+        78.0
+      ],
+      "recovered": [
+        180.33637913848176,
+        785.551111457004,
+        55.79576667176793
+      ],
+      "recovered_uncertainty": [
+        0.6703078753117875,
+        13.202239644973128,
+        9.531121804597944
+      ],
+      "hessian_positive_definite": true,
+      "within_1sigma": [
+        true,
+        false,
+        true
+      ],
+      "within_2sigma": [
+        true,
+        true,
+        true
+      ],
+      "all_within_1sigma": false,
+      "all_within_2sigma": true,
+      "converged": true,
+      "n_iterations": 26,
+      "final_chi2": 125.84925224272517,
+      "n_data_points": 161,
+      "max_field_v_per_m": 237.23624685399244
+    },
+    {
+      "truth_e_uniform_v_per_m": 220.0,
+      "truth_gradient_v_per_m_per_m": -1200.0,
+      "truth_patch_amplitude_v_per_m": 90.0,
+      "seed": 0,
+      "noise_sigma": 1.5e-07,
+      "initial_guess": [
+        176.0,
+        -600.0,
+        117.0
+      ],
+      "recovered": [
+        218.9117258583647,
+        -1162.8448900028031,
+        114.68723833955349
+      ],
+      "recovered_uncertainty": [
+        0.7061097303013821,
+        16.863579647795724,
+        10.053703973396543
+      ],
+      "hessian_positive_definite": true,
+      "within_1sigma": [
+        false,
+        false,
+        false
+      ],
+      "within_2sigma": [
+        true,
+        false,
+        false
+      ],
+      "all_within_1sigma": false,
+      "all_within_2sigma": false,
+      "converged": true,
+      "n_iterations": 21,
+      "final_chi2": 144.06267959670606,
+      "n_data_points": 161,
+      "max_field_v_per_m": 304.5339343599177
+    },
+    {
+      "truth_e_uniform_v_per_m": 220.0,
+      "truth_gradient_v_per_m_per_m": -1200.0,
+      "truth_patch_amplitude_v_per_m": 90.0,
+      "seed": 1,
+      "noise_sigma": 1.5e-07,
+      "initial_guess": [
+        176.0,
+        -600.0,
+        117.0
+      ],
+      "recovered": [
+        219.22226612926363,
+        -1186.253698573592,
+        92.70702086633207
+      ],
+      "recovered_uncertainty": [
+        0.6805732401385598,
+        16.6908171946064,
+        9.984711808840112
+      ],
+      "hessian_positive_definite": true,
+      "within_1sigma": [
+        false,
+        true,
+        true
+      ],
+      "within_2sigma": [
+        true,
+        true,
+        true
+      ],
+      "all_within_1sigma": false,
+      "all_within_2sigma": true,
+      "converged": true,
+      "n_iterations": 18,
+      "final_chi2": 127.37756099211305,
+      "n_data_points": 161,
+      "max_field_v_per_m": 304.5339343599177
+    },
+    {
+      "truth_e_uniform_v_per_m": 150.0,
+      "truth_gradient_v_per_m_per_m": 1500.0,
+      "truth_patch_amplitude_v_per_m": 40.0,
+      "seed": 0,
+      "noise_sigma": 1.5e-07,
+      "initial_guess": [
+        120.0,
+        750.0,
+        52.0
+      ],
+      "recovered": [
+        149.72271021550145,
+        1523.2020442561882,
+        43.44206674260496
+      ],
+      "recovered_uncertainty": [
+        0.6898251228917451,
+        16.30416937852703,
+        7.595161452848488
+      ],
+      "hessian_positive_definite": true,
+      "within_1sigma": [
+        true,
+        false,
+        true
+      ],
+      "within_2sigma": [
+        true,
+        true,
+        true
+      ],
+      "all_within_1sigma": false,
+      "all_within_2sigma": true,
+      "converged": true,
+      "n_iterations": 22,
+      "final_chi2": 146.29671474830346,
+      "n_data_points": 161,
+      "max_field_v_per_m": 208.7564692935645
+    },
+    {
+      "truth_e_uniform_v_per_m": 150.0,
+      "truth_gradient_v_per_m_per_m": 1500.0,
+      "truth_patch_amplitude_v_per_m": 40.0,
+      "seed": 1,
+      "noise_sigma": 1.5e-07,
+      "initial_guess": [
+        120.0,
+        750.0,
+        52.0
+      ],
+      "recovered": [
+        148.91500058716122,
+        1490.81409878637,
+        52.62652415759006
+      ],
+      "recovered_uncertainty": [
+        0.6657772842443521,
+        15.675717086371222,
+        6.568964245839936
+      ],
+      "hessian_positive_definite": true,
+      "within_1sigma": [
+        false,
+        true,
+        false
+      ],
+      "within_2sigma": [
+        true,
+        true,
+        true
+      ],
+      "all_within_1sigma": false,
+      "all_within_2sigma": true,
+      "converged": true,
+      "n_iterations": 22,
+      "final_chi2": 124.9574410759106,
+      "n_data_points": 161,
+      "max_field_v_per_m": 208.7564692935645
+    },
+    {
+      "truth_e_uniform_v_per_m": 300.0,
+      "truth_gradient_v_per_m_per_m": -1800.0,
+      "truth_patch_amplitude_v_per_m": 120.0,
+      "seed": 0,
+      "noise_sigma": 1.5e-07,
+      "initial_guess": [
+        240.0,
+        -900.0,
+        156.0
+      ],
+      "recovered": [
+        291.14933856129255,
+        -1602.2682222258184,
+        195.99595872243205
+      ],
+      "recovered_uncertainty": [
+        1.695826257087062,
+        45.94344364598818,
+        20.876473817809416
+      ],
+      "hessian_positive_definite": true,
+      "within_1sigma": [
+        false,
+        false,
+        false
+      ],
+      "within_2sigma": [
+        false,
+        false,
+        false
+      ],
+      "all_within_1sigma": false,
+      "all_within_2sigma": false,
+      "converged": true,
+      "n_iterations": 17,
+      "final_chi2": 151.16732767864085,
+      "n_data_points": 161,
+      "max_field_v_per_m": 412.6018761531343
+    },
+    {
+      "truth_e_uniform_v_per_m": 300.0,
+      "truth_gradient_v_per_m_per_m": -1800.0,
+      "truth_patch_amplitude_v_per_m": 120.0,
+      "seed": 1,
+      "noise_sigma": 1.5e-07,
+      "initial_guess": [
+        240.0,
+        -900.0,
+        156.0
+      ],
+      "recovered": [
+        298.2863004095518,
+        -1762.5250634725828,
+        125.7782211364707
+      ],
+      "recovered_uncertainty": [
+        1.6470367012399345,
+        40.81632538343054,
+        12.100506670917005
+      ],
+      "hessian_positive_definite": true,
+      "within_1sigma": [
+        false,
+        true,
+        true
+      ],
+      "within_2sigma": [
+        true,
+        true,
+        true
+      ],
+      "all_within_1sigma": false,
+      "all_within_2sigma": true,
+      "converged": true,
+      "n_iterations": 14,
+      "final_chi2": 128.20524153731128,
+      "n_data_points": 161,
+      "max_field_v_per_m": 412.6018761531343
+    }
+  ],
+  "n_cases": 8,
+  "n_converged": 8,
+  "n_hessian_positive_definite": 8,
+  "n_within_1sigma_all_params": 1,
+  "n_within_2sigma_all_params": 6
+}
