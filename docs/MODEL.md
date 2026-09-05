@@ -64,8 +64,11 @@ known-answer checks against textbook formulas, reproductions of published
 experimental measurements, and cross-checks between independent
 implementations of the same physics.
 
-Five places take this further:
+Six places take this further:
 
+- [`docs/one-rate-per-atom.md`](one-rate-per-atom.md): the ideas behind
+  this rule in plain language, with a reading path through the
+  literature and through this repository.
 - [`paper/composition/main.pdf`](../paper/composition/main.pdf): a
   six-page companion paper comparing this composition law with the
   field's additive budget tables, with three validated case studies
