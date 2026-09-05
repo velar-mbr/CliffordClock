@@ -2423,10 +2423,12 @@ flagging the row by name.
 
 **Stated at its calibration.** This demonstrates the first
 GRADIENT-based (autodiff) fit of a BO+WKB-class sideband lineshape.
-`large-lattice-model`'s own `fit.py` (`get_fit_sidebands`) already
-supplies a working, non-differentiable fitter (a numba-jitted forward
-model paired with a finite-difference-Jacobian `scipy.optimize`
-routine), and Goti et al. 2025 used that code to fit real IT-Yb1
+`large-lattice-model`'s own `fit.py` supplies `get_fit_sidebands`, a
+factory returning a forward model reduced to four fit parameters (`A`,
+`D`, `Tz`, `Tr`), meant to be handed to an external least-squares
+routine; the module itself carries no optimizer and no analytic
+gradient, so a fit built on it differentiates numerically. Goti et al.
+2025 used that forward model, fit that way, against real IT-Yb1
 spectroscopy (Figs. 4, 7).
 
 **The Goti et al. 2025 real-scan fit, assessed here.** Figs. 4 and 7

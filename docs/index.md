@@ -47,6 +47,11 @@ Look-up material, organized around the artifact:
 
 Background and design reasoning, for understanding *why*:
 
+- [`one-rate-per-atom.md`](one-rate-per-atom.md): the physical ideas
+  behind the composition rule in [`MODEL.md`](MODEL.md), building from
+  the pivot and the additive budget through the per-atom ensemble,
+  trapped-ion, and lattice-clock case studies, ending with an
+  eighteen-source reading path.
 - [`validation.md`](validation.md): every case this tool has been
   checked against, with formula/source, tolerance, and measured
   agreement. Start here if you're deciding whether to trust a number this

@@ -26,9 +26,10 @@ Free and open source (AGPLv3), Python, `pip install`-able.
 - **[Quickstart](#quickstart)**: install and run a real case in a minute.
 - **[How it works](docs/MODEL.md)**: the composition rule, in
   [six lines of Python](examples/six_line_clock.py); every systematic
-  is a published model plugged into it. A six-page
-  [companion paper](paper/composition/main.pdf) compares this
-  composition with the field's budget tables.
+  is a published model plugged into it.
+  [The ideas behind it, and what to read](docs/one-rate-per-atom.md),
+  with a six-page [companion paper](paper/composition/main.pdf)
+  comparing this composition with the field's budget tables.
 - **[The physics, term by term](docs/terms/)**: one page per systematic,
   formula and source.
 - **[Deep dives](#notebooks)**: the full pipeline, notebook by notebook.
