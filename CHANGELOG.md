@@ -9,6 +9,51 @@ the [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) format.
 
 (Nothing yet.)
 
+## [0.2.0] — 2026-09-05
+
+### Added
+
+- **Multi-surface blackbody thermal environment** (E37): per-surface
+  temperature moments, apertures, and emissivities; reproduces PTB's
+  published position scan from geometry alone (notebook 12).
+- **Trapped-ion motional time dilation** (E38): two-ion participation and
+  intrinsic micromotion composed as factors on one per-mode rate, with a
+  coupled two-ion Floquet fit reproducing a published Al+ secular-motion
+  evaluation to 0.08 sigma from published inputs (notebook 13).
+- **Ramsey fringe visibility** (E39) for thermal, coherent, and squeezed
+  motional states, from the same phase distribution as the shift.
+- **Lattice light shift** (E40, E41): the Katori group's operational
+  model and NIST's Born-Oppenheimer-plus-WKB model as open functions,
+  validated against their groups' published numbers, plus a
+  differentiable JAX core (notebook 14).
+- **Sideband spectra and gradient-based fitting** (E42): trap depth and
+  radial temperature recovered by gradient descent, cross-validated
+  against INRIM's open implementation (notebook 15).
+- **Rydberg vapor-cell response** (E43, E44): field in, Doppler-averaged
+  EIT spectrum out; full Stark maps beyond the quadratic regime,
+  cross-validated against ARC; gradient-based reconstruction of a cell's
+  field from its spectrum (notebooks 16 and 17).
+- **Documentation**: the composition rule in six lines (`docs/MODEL.md`),
+  a plain-language explainer with a reading path
+  (`docs/one-rate-per-atom.md`), one page per systematic
+  (`docs/terms/`), and a companion paper on composing an error budget
+  (`paper/composition/`).
+- **Three hero animations**: trapped-ion motion, lattice sideband fit
+  convergence, and Rydberg field reconstruction, each computed live.
+- **Tooling**: the eight-check release battery, the codified prose
+  standard, and a CI slow lane sharded three ways.
+
+### Changed
+
+- README front door: a "Start here" ladder, the pitch covering lattice
+  clocks, trapped-ion clocks, and Rydberg sensors, and one sentence
+  above each hero.
+- Independent gate records for every new capability in `plan/reviews/`.
+
+## [0.1.0.post1] — 2026-08-12
+
+Metadata-only post-release so PyPI renders the corrected README.
+
 ## [0.1.0] — 2026-08-12
 
 ### Added
